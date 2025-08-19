@@ -1,0 +1,42 @@
+# Java
+*.class
+*.jar
+*.war
+*.ear
+
+# Maven
+/target/
+!.mvn/wrapper/maven-wrapper.jar
+
+# IntelliJ
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# VS Code
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Others
+*.swp
+
+# Exclude Android/Personal folders
+C:/Users/NoxiePC/.android/
+C:/Users/NoxiePC/.android/avd/
+C:/Users/NoxiePC/.android/debug.keystore
+C:/Users/NoxiePC/.android/debug.keystore.lock
+C:/Users/NoxiePC/.android/*.ini
+C:/Users/NoxiePC/.android/*.pub
+C:/Users/NoxiePC/.android/*.settings
+C:/Users/NoxiePC/.android/*.conf
+C:/Users/NoxiePC/.android/*.txt
+C:/Users/NoxiePC/.android/*.img
+C:/Users/NoxiePC/.android/*.qcow2
