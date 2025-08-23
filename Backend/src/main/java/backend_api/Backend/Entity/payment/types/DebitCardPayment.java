@@ -1,4 +1,4 @@
-package backend_api.Backend.Entity.payment;
+package backend_api.Backend.Entity.payment.types;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;

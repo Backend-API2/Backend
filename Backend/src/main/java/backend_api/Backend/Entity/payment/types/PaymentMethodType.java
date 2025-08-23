@@ -1,4 +1,4 @@
-package backend_api.Backend.Entity.payment;
+package backend_api.Backend.Entity.payment.types;
 
 public enum PaymentMethodType {
     CREDIT_CARD,

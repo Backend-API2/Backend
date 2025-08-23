@@ -1,5 +1,6 @@
 package backend_api.Backend.Entity.payment;
 
+import backend_api.Backend.Entity.payment.types.PaymentMethodType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 import lombok.Data;
