@@ -4,7 +4,7 @@ package backend_api.Backend.Entity.invoice;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 import lombok.Data;
-
+import java.math.BigDecimal;
 
 @Table(name = "invoice_lines")
 @Data

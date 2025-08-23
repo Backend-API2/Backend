@@ -1,9 +1,13 @@
 package backend_api.Backend.Entity.refund;
 
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 import lombok.Data;
+
 
 
 @Table(name = "refunds")

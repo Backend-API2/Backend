@@ -1,5 +1,7 @@
 package backend_api.Backend.Entity.reconciliation;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 import lombok.Data;

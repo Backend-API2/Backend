@@ -3,7 +3,8 @@ package backend_api.Backend.Entity.payment;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 import lombok.Data;
-
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Table(name = "payments")
 @Data
@@ -27,5 +28,5 @@ public class Payment {
     private LocalDateTime updated_at;
     private LocalDateTime captured_at;
     private LocalDateTime expired_at;
-    private JSON metadata; //caso de info adicional
+    private String metadata; //caso de info adicional
 }
