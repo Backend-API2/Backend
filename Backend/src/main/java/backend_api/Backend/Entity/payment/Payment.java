@@ -1,7 +1,6 @@
 package backend_api.Backend.Entity.payment;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -10,6 +9,8 @@ import java.time.LocalDateTime;
 @Data
 @Entity
 public class Payment {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     private String payment_intent_id;
     private Long user_id;
@@ -21,8 +22,10 @@ public class Payment {
     private BigDecimal fees; // comisiones
     private BigDecimal amount_total;
     private String currency; // tipo de moneda
+    @Enumerated(EnumType.STRING)
     private PaymentStatus status; // la idea es que tenga diferentes estados de pago 
     private String gateway_txn_id; // id de la transaccion de gateway
+    @Enumerated(EnumType.STRING)
     private PaymentMethod method; 
     private LocalDateTime created_at;
     private LocalDateTime updated_at;
