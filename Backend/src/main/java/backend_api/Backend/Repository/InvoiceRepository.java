@@ -13,15 +13,20 @@ import java.util.Optional;
 @Repository
 public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     
-    List<Invoice> findByUserId(Long userId);
+    @Query("SELECT i FROM Invoice i WHERE i.user_id = :userId")
+    List<Invoice> findByUserId(@Param("userId") Long userId);
     
-    List<Invoice> findByProviderId(Long providerId);
+    @Query("SELECT i FROM Invoice i WHERE i.provider_id = :providerId")
+    List<Invoice> findByProviderId(@Param("providerId") Long providerId);
     
-    List<Invoice> findByStatus(InvoiceStatus status);
+    @Query("SELECT i FROM Invoice i WHERE i.status = :status")
+    List<Invoice> findByStatus(@Param("status") InvoiceStatus status);
     
-    Optional<Invoice> findByInvoiceNumber(String invoiceNumber);
+    @Query("SELECT i FROM Invoice i WHERE i.invoice_number = :invoiceNumber")
+    Optional<Invoice> findByInvoiceNumber(@Param("invoiceNumber") String invoiceNumber);
     
-    List<Invoice> findByPaymentId(Long paymentId);
+    @Query("SELECT i FROM Invoice i WHERE i.payment_id = :paymentId")
+    List<Invoice> findByPaymentId(@Param("paymentId") Long paymentId);
     
     @Query("SELECT i FROM Invoice i WHERE i.user_id = :userId AND i.status = :status")
     List<Invoice> findByUserIdAndStatus(@Param("userId") Long userId, @Param("status") InvoiceStatus status);

@@ -15,11 +15,13 @@ import java.util.Optional;
 @Repository
 public interface RefundRepository extends JpaRepository<Refund, Long> {
     
-    List<Refund> findByPaymendId(Long paymendId);
+    @Query("SELECT r FROM Refund r WHERE r.paymend_id = :paymentId")
+    List<Refund> findByPaymendId(@Param("paymentId") Long paymentId);
     
     List<Refund> findByStatus(RefundStatus status);
     
-    Optional<Refund> findByGatewayRefundId(String gatewayRefundId);
+    @Query("SELECT r FROM Refund r WHERE r.gateway_refund_id = :gatewayRefundId")
+    Optional<Refund> findByGatewayRefundId(@Param("gatewayRefundId") String gatewayRefundId);
     
     @Query("SELECT r FROM Refund r WHERE r.created_at BETWEEN :startDate AND :endDate")
     List<Refund> findByCreatedAtBetween(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);

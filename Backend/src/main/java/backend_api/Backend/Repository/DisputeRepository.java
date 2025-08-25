@@ -14,7 +14,8 @@ import java.util.List;
 @Repository
 public interface DisputeRepository extends JpaRepository<Dispute, Long> {
     
-    List<Dispute> findByPaymentId(Long paymentId);
+    @Query("SELECT d FROM Dispute d WHERE d.payment_id = :paymentId")
+    List<Dispute> findByPaymentId(@Param("paymentId") Long paymentId);
     
     List<Dispute> findByStatus(DisputeStatus status);
     

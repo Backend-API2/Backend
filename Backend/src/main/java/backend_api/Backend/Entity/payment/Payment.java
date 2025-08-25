@@ -25,7 +25,8 @@ public class Payment {
     @Enumerated(EnumType.STRING)
     private PaymentStatus status; // la idea es que tenga diferentes estados de pago 
     private String gateway_txn_id; // id de la transaccion de gateway
-    @Enumerated(EnumType.STRING)
+    @ManyToOne
+    @JoinColumn(name = "payment_method_id")
     private PaymentMethod method; 
     private LocalDateTime created_at;
     private LocalDateTime updated_at;
