@@ -77,7 +77,7 @@ public class JwtUtil {
             return jwt.getClaim("roles").asList(String.class);
         } catch (JWTVerificationException e) {
             logger.warn("Cannot extract roles from token: {}", e.getMessage());
-            return List.of("USER"); // Rol por defecto
+            return List.of("USER"); 
         }
     }
 
