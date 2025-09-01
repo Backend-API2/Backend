@@ -13,25 +13,35 @@ public class PaymentAttempt {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @Column(nullable = false)
-    private Long payment_id;
+    @Column(name = "payment_id", nullable = false)
+    private Long paymentId;
     
-    @Column(nullable = false)
-    private Integer attempt_number;
+    @Column(name = "attempt_number", nullable = false)
+    private Integer attemptNumber;
     
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private PaymentStatus status;
     
-    private String response_code;
-    private String gateway_response_code;
-    private String gateway_message;
-    private String failure_reason;
+    @Column(name = "response_code")
+    private String responseCode;
     
-    @Column(nullable = false)
-    private LocalDateTime created_at;
+    @Column(name = "gateway_response_code")
+    private String gatewayResponseCode;
     
-    private LocalDateTime completed_at;
-    private String gateway_txn_id;
+    @Column(name = "gateway_message")
+    private String gatewayMessage;
+    
+    @Column(name = "failure_reason")
+    private String failureReason;
+    
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
+    
+    @Column(name = "completed_at")
+    private LocalDateTime completedAt;
+    
+    @Column(name = "gateway_txn_id")
+    private String gatewayTxnId;
     private String metadata;
 }

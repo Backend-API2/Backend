@@ -13,8 +13,8 @@ public class PaymentEvent {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @Column(nullable = false)
-    private Long payment_id;
+    @Column(name = "payment_id", nullable = false)
+    private Long paymentId;
     
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -23,13 +23,16 @@ public class PaymentEvent {
     @Column(columnDefinition = "TEXT")
     private String payload;
     
-    @Column(nullable = false)
-    private LocalDateTime created_at;
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
     
     @Column(nullable = false)
     private String actor;
     
-    private String event_source;
-    private String correlation_id;
+    @Column(name = "event_source")
+    private String eventSource;
+    
+    @Column(name = "correlation_id")
+    private String correlationId;
     private String metadata;
 }

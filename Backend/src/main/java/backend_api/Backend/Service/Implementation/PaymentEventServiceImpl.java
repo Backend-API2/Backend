@@ -25,12 +25,12 @@ public class PaymentEventServiceImpl implements PaymentEventService {
     @Override
     public PaymentEvent createEvent(Long paymentId, PaymentEventType type, String payload, String actor, String eventSource) {
         PaymentEvent event = new PaymentEvent();
-        event.setPayment_id(paymentId);
+        event.setPaymentId(paymentId);
         event.setType(type);
         event.setPayload(payload);
         event.setActor(actor);
-        event.setEvent_source(eventSource);
-        event.setCreated_at(LocalDateTime.now());
+        event.setEventSource(eventSource);
+        event.setCreatedAt(LocalDateTime.now());
         
         return paymentEventRepository.save(event);
     }

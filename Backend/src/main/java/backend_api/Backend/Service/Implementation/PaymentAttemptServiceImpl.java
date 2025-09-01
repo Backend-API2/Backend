@@ -27,17 +27,17 @@ public class PaymentAttemptServiceImpl implements PaymentAttemptService {
         Integer attemptNumber = getAttemptCount(paymentId) + 1;
         
         PaymentAttempt attempt = new PaymentAttempt();
-        attempt.setPayment_id(paymentId);
-        attempt.setAttempt_number(attemptNumber);
+        attempt.setPaymentId(paymentId);
+        attempt.setAttemptNumber(attemptNumber);
         attempt.setStatus(status);
-        attempt.setResponse_code(responseCode);
-        attempt.setGateway_response_code(gatewayResponseCode);
-        attempt.setGateway_message(gatewayMessage);
-        attempt.setFailure_reason(failureReason);
-        attempt.setCreated_at(LocalDateTime.now());
+        attempt.setResponseCode(responseCode);
+        attempt.setGatewayResponseCode(gatewayResponseCode);
+        attempt.setGatewayMessage(gatewayMessage);
+        attempt.setFailureReason(failureReason);
+        attempt.setCreatedAt(LocalDateTime.now());
         
         if (status == PaymentStatus.APPROVED || status == PaymentStatus.REJECTED) {
-            attempt.setCompleted_at(LocalDateTime.now());
+            attempt.setCompletedAt(LocalDateTime.now());
         }
         
         return paymentAttemptRepository.save(attempt);
@@ -75,12 +75,12 @@ public class PaymentAttemptServiceImpl implements PaymentAttemptService {
         if (existingAttempt.isPresent()) {
             PaymentAttempt attemptToUpdate = existingAttempt.get();
             attemptToUpdate.setStatus(attempt.getStatus());
-            attemptToUpdate.setResponse_code(attempt.getResponse_code());
-            attemptToUpdate.setGateway_response_code(attempt.getGateway_response_code());
-            attemptToUpdate.setGateway_message(attempt.getGateway_message());
-            attemptToUpdate.setFailure_reason(attempt.getFailure_reason());
-            attemptToUpdate.setCompleted_at(LocalDateTime.now());
-            attemptToUpdate.setGateway_txn_id(attempt.getGateway_txn_id());
+            attemptToUpdate.setResponseCode(attempt.getResponseCode());
+            attemptToUpdate.setGatewayResponseCode(attempt.getGatewayResponseCode());
+            attemptToUpdate.setGatewayMessage(attempt.getGatewayMessage());
+            attemptToUpdate.setFailureReason(attempt.getFailureReason());
+            attemptToUpdate.setCompletedAt(LocalDateTime.now());
+            attemptToUpdate.setGatewayTxnId(attempt.getGatewayTxnId());
             
             return paymentAttemptRepository.save(attemptToUpdate);
         }

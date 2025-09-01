@@ -15,14 +15,14 @@ public interface PaymentAttemptRepository extends JpaRepository<PaymentAttempt, 
     
     List<PaymentAttempt> findByPaymentIdOrderByAttemptNumberDesc(Long paymentId);
     
-    @Query("SELECT pa FROM PaymentAttempt pa WHERE pa.payment_id = :paymentId ORDER BY pa.attempt_number DESC LIMIT 1")
+    @Query("SELECT pa FROM PaymentAttempt pa WHERE pa.paymentId = :paymentId ORDER BY pa.attemptNumber DESC LIMIT 1")
     Optional<PaymentAttempt> findLastAttemptByPaymentId(@Param("paymentId") Long paymentId);
     
-    @Query("SELECT COUNT(pa) FROM PaymentAttempt pa WHERE pa.payment_id = :paymentId")
+    @Query("SELECT COUNT(pa) FROM PaymentAttempt pa WHERE pa.paymentId = :paymentId")
     Integer countByPaymentId(@Param("paymentId") Long paymentId);
     
     List<PaymentAttempt> findByPaymentIdAndStatus(Long paymentId, PaymentStatus status);
     
-    @Query("SELECT pa FROM PaymentAttempt pa WHERE pa.payment_id = :paymentId AND pa.status = 'APPROVED'")
+    @Query("SELECT pa FROM PaymentAttempt pa WHERE pa.paymentId = :paymentId AND pa.status = 'APPROVED'")
     Optional<PaymentAttempt> findSuccessfulAttemptByPaymentId(@Param("paymentId") Long paymentId);
 }

@@ -13,16 +13,16 @@ import java.util.List;
 @Repository
 public interface PaymentEventRepository extends JpaRepository<PaymentEvent, Long> {
     
-    @Query("SELECT pe FROM PaymentEvent pe WHERE pe.payment_id = :paymentId ORDER BY pe.created_at ASC")
+    @Query("SELECT pe FROM PaymentEvent pe WHERE pe.paymentId = :paymentId ORDER BY pe.createdAt ASC")
     List<PaymentEvent> findByPaymentIdOrderByCreatedAt(@Param("paymentId") Long paymentId);
     
     List<PaymentEvent> findByTypeOrderByCreatedAtDesc(PaymentEventType type);
     
-    @Query("SELECT pe FROM PaymentEvent pe WHERE pe.created_at >= :since ORDER BY pe.created_at DESC")
+    @Query("SELECT pe FROM PaymentEvent pe WHERE pe.createdAt >= :since ORDER BY pe.createdAt DESC")
     List<PaymentEvent> findRecentEvents(@Param("since") LocalDateTime since);
     
     List<PaymentEvent> findByActorOrderByCreatedAtDesc(String actor);
     
-    @Query("SELECT pe FROM PaymentEvent pe WHERE pe.payment_id = :paymentId AND pe.type = :type")
+    @Query("SELECT pe FROM PaymentEvent pe WHERE pe.paymentId = :paymentId AND pe.type = :type")
     List<PaymentEvent> findByPaymentIdAndType(@Param("paymentId") Long paymentId, @Param("type") PaymentEventType type);
 }
