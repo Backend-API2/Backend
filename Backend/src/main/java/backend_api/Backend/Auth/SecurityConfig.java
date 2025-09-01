@@ -76,6 +76,15 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/payments/{id}/exists").hasAnyRole("USER", "MERCHANT", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/payments/count/status/{status}").hasAnyRole("MERCHANT", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/payments/user/{userId}/total").hasAnyRole("USER", "MERCHANT", "ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/payments/{id}/timeline").hasAnyRole("USER", "MERCHANT", "ADMIN")
+                        
+                        // Payment intents and confirmation
+                        .requestMatchers(HttpMethod.POST, "/api/payments/intents").hasAnyRole("USER", "MERCHANT", "ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/payments/{id}/confirm").hasAnyRole("USER", "MERCHANT", "ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/payments/{id}/cancel").hasAnyRole("USER", "MERCHANT", "ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/payments/{id}/exists").hasAnyRole("USER", "MERCHANT", "ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/payments/{id}/attempts").hasAnyRole("MERCHANT", "ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/payments/{id}/retry").hasAnyRole("MERCHANT", "ADMIN")
                         
                         // Payment filtering and pagination endpoints
                         .requestMatchers(HttpMethod.POST, "/api/payments/search").hasAnyRole("USER", "MERCHANT", "ADMIN")

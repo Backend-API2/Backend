@@ -70,7 +70,19 @@ public interface PaymentService {
                                  Pageable pageable);
     
     BigDecimal getTotalAmountByUserIdAndStatus(Long userId, PaymentStatus status);
-
-
+    
+    Payment createPaymentIntent(Long userId, Long providerId, Long solicitudId, Long cotizacionId, 
+                               BigDecimal amountSubtotal, BigDecimal taxes, BigDecimal fees, 
+                               String currency, String metadata, Integer expiresInMinutes);
+    
+    Payment confirmPayment(Long paymentId, String paymentMethodType, String paymentMethodId, boolean captureImmediately);
+    
+    Payment cancelPayment(Long paymentId, String reason);
+    
+    Payment expirePayment(Long paymentId);
+    
+    boolean isPaymentExpired(Payment payment);
+    
+    Payment processPaymentWithRetry(Long paymentId, int maxAttempts);
 
 }

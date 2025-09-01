@@ -1,0 +1,28 @@
+package backend_api.Backend.Repository;
+
+import backend_api.Backend.Entity.payment.PaymentEvent;
+import backend_api.Backend.Entity.payment.PaymentEventType;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Repository
+public interface PaymentEventRepository extends JpaRepository<PaymentEvent, Long> {
+    
+    @Query("SELECT pe FROM PaymentEvent pe WHERE pe.payment_id = :paymentId ORDER BY pe.created_at ASC")
+    List<PaymentEvent> findByPaymentIdOrderByCreatedAt(@Param("paymentId") Long paymentId);
+    
+    List<PaymentEvent> findByTypeOrderByCreatedAtDesc(PaymentEventType type);
+    
+    @Query("SELECT pe FROM PaymentEvent pe WHERE pe.created_at >= :since ORDER BY pe.created_at DESC")
+    List<PaymentEvent> findRecentEvents(@Param("since") LocalDateTime since);
+    
+    List<PaymentEvent> findByActorOrderByCreatedAtDesc(String actor);
+    
+    @Query("SELECT pe FROM PaymentEvent pe WHERE pe.payment_id = :paymentId AND pe.type = :type")
+    List<PaymentEvent> findByPaymentIdAndType(@Param("paymentId") Long paymentId, @Param("type") PaymentEventType type);
+}

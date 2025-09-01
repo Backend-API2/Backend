@@ -1,10 +1,6 @@
 package backend_api.Backend.Entity.payment;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
-import jakarta.persistence.Id;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
+import jakarta.persistence.*;
 import lombok.Data;
 import java.time.LocalDateTime;
 
@@ -12,12 +8,28 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "payment_events")
 public class PaymentEvent {
+    
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    private Long paymentId;
-    private String type; // creado, aprovado, etc
-    private String payload; //detalles tecnicos
+    
+    @Column(nullable = false)
+    private Long payment_id;
+    
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private PaymentEventType type;
+    
+    @Column(columnDefinition = "TEXT")
+    private String payload;
+    
+    @Column(nullable = false)
     private LocalDateTime created_at;
-    private String actor; // usuario que realiza la accion
+    
+    @Column(nullable = false)
+    private String actor;
+    
+    private String event_source;
+    private String correlation_id;
+    private String metadata;
 }

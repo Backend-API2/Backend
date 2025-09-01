@@ -11,6 +11,14 @@ import backend_api.Backend.Entity.user.User;
 import backend_api.Backend.DTO.payment.CreatePaymentRequest;
 import backend_api.Backend.DTO.payment.PaymentSearchRequest;
 import backend_api.Backend.DTO.payment.PaymentStatsRequest;
+import backend_api.Backend.DTO.payment.CreatePaymentIntentRequest;
+import backend_api.Backend.DTO.payment.ConfirmPaymentRequest;
+import backend_api.Backend.DTO.payment.CreateRefundRequest;
+import backend_api.Backend.Entity.payment.PaymentEvent;
+import backend_api.Backend.Entity.payment.PaymentEventType;
+import backend_api.Backend.Entity.payment.PaymentAttempt;
+import backend_api.Backend.Service.Interface.PaymentEventService;
+import backend_api.Backend.Service.Interface.PaymentAttemptService;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -42,6 +50,12 @@ public class PaymentController {
     
     @Autowired
     private UserRepository userRepository;
+    
+    @Autowired
+    private PaymentEventService paymentEventService;
+    
+    @Autowired
+    private PaymentAttemptService paymentAttemptService;
 
     //  CREAR NUEVO PAGO 
     @PostMapping
@@ -96,6 +110,14 @@ public class PaymentController {
             // TODO: Buscar payment_method_id por payment_method_type
             
             Payment savedPayment = paymentService.createPayment(payment);
+            
+            paymentEventService.createEvent(
+                savedPayment.getId(),
+                PaymentEventType.PAYMENT_INTENT_CREATED,
+                String.format("{\"amount_total\": %s, \"currency\": \"%s\", \"payment_intent_id\": \"%s\"}", 
+                    savedPayment.getAmount_total(), savedPayment.getCurrency(), savedPayment.getPayment_intent_id()),
+                "user_" + user.getId()
+            );
             
             PaymentResponse response = PaymentResponse.fromEntity(savedPayment);
             
@@ -340,6 +362,113 @@ public class PaymentController {
             
             return ResponseEntity.ok(stats);
             
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+    
+    @GetMapping("/{paymentId}/timeline")
+    public ResponseEntity<List<PaymentEvent>> getPaymentTimeline(@PathVariable Long paymentId) {
+        try {
+            List<PaymentEvent> timeline = paymentEventService.getPaymentTimeline(paymentId);
+            return ResponseEntity.ok(timeline);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+    
+    @PostMapping("/intents")
+    public ResponseEntity<PaymentResponse> createPaymentIntent(
+            @Valid @RequestBody CreatePaymentIntentRequest request,
+            @RequestHeader("Authorization") String authHeader) {
+        try {
+            String token = authHeader.replace("Bearer ", "");
+            String email = jwtUtil.getSubject(token);
+            
+            if (email == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+            
+            Payment payment = paymentService.createPaymentIntent(
+                request.getUserId(),
+                request.getProviderId(),
+                request.getSolicitudId(),
+                request.getCotizacionId(),
+                request.getAmountSubtotal(),
+                request.getTaxes(),
+                request.getFees(),
+                request.getCurrency(),
+                request.getMetadata(),
+                request.getExpiresInMinutes()
+            );
+            
+            return ResponseEntity.status(HttpStatus.CREATED).body(PaymentResponse.fromEntity(payment));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+    
+    @PostMapping("/{paymentId}/confirm")
+    public ResponseEntity<PaymentResponse> confirmPayment(
+            @PathVariable Long paymentId,
+            @Valid @RequestBody ConfirmPaymentRequest request) {
+        try {
+            Payment payment = paymentService.confirmPayment(
+                paymentId,
+                request.getPaymentMethodType(),
+                request.getPaymentMethodId(),
+                request.isCaptureImmediately()
+            );
+            
+            return ResponseEntity.ok(PaymentResponse.fromEntity(payment));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+    
+    @PostMapping("/{paymentId}/cancel")
+    public ResponseEntity<PaymentResponse> cancelPayment(
+            @PathVariable Long paymentId,
+            @RequestParam(required = false, defaultValue = "user_requested") String reason) {
+        try {
+            Payment payment = paymentService.cancelPayment(paymentId, reason);
+            return ResponseEntity.ok(PaymentResponse.fromEntity(payment));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+    
+    @GetMapping("/{paymentId}/exists")
+    public ResponseEntity<Boolean> paymentExists(@PathVariable Long paymentId) {
+        try {
+            boolean exists = paymentService.existsById(paymentId);
+            return ResponseEntity.ok(exists);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+    
+    @GetMapping("/{paymentId}/attempts")
+    public ResponseEntity<List<PaymentAttempt>> getPaymentAttempts(@PathVariable Long paymentId) {
+        try {
+            List<PaymentAttempt> attempts = paymentAttemptService.getAttemptsByPaymentId(paymentId);
+            return ResponseEntity.ok(attempts);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+    
+    @PostMapping("/{paymentId}/retry")
+    public ResponseEntity<PaymentResponse> retryPayment(
+            @PathVariable Long paymentId,
+            @RequestParam(defaultValue = "3") int maxAttempts) {
+        try {
+            Payment payment = paymentService.processPaymentWithRetry(paymentId, maxAttempts);
+            return ResponseEntity.ok(PaymentResponse.fromEntity(payment));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().build();
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
