@@ -8,6 +8,8 @@ import backend_api.Backend.Service.Interface.PaymentService;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -160,5 +162,38 @@ public Optional<Payment> getPaymentByIntentId(String paymentIntentId) {
                 .filter(payment -> payment.getStatus() == PaymentStatus.APPROVED)
                 .map(Payment::getAmount_total)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+        
+    @Override
+    public List<Payment> findByUserNameContaining(String userName) {
+        return paymentRepository.findByUserNameContaining(userName);
+    }
+    
+    @Override
+    public Page<Payment> findByUserNameContaining(String userName, Pageable pageable) {
+        return paymentRepository.findByUserNameContaining(userName, pageable);
+    }
+    
+    @Override
+    public List<Payment> findByAmountTotalBetween(BigDecimal minAmount, BigDecimal maxAmount) {
+        return paymentRepository.findByAmountTotalBetween(minAmount, maxAmount);
+    }
+    
+    @Override
+    public Page<Payment> findByAmountTotalBetween(BigDecimal minAmount, BigDecimal maxAmount, Pageable pageable) {
+        return paymentRepository.findByAmountTotalBetween(minAmount, maxAmount, pageable);
+    }
+    
+    @Override
+    public Page<Payment> findWithFilters(PaymentStatus status, String currency, 
+                                       BigDecimal minAmount, BigDecimal maxAmount,
+                                       LocalDateTime startDate, LocalDateTime endDate, 
+                                       Pageable pageable) {
+        return paymentRepository.findWithFilters(status, currency, minAmount, maxAmount, startDate, endDate, pageable);
+    }
+    
+    @Override
+    public BigDecimal getTotalAmountByUserIdAndStatus(Long userId, PaymentStatus status) {
+        return paymentRepository.getTotalAmountByUserIdAndStatus(userId, status);
     }
 }

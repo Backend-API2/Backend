@@ -77,6 +77,12 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/payments/count/status/{status}").hasAnyRole("MERCHANT", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/payments/user/{userId}/total").hasAnyRole("USER", "MERCHANT", "ADMIN")
                         
+                        // Payment filtering and pagination endpoints
+                        .requestMatchers(HttpMethod.POST, "/api/payments/search").hasAnyRole("USER", "MERCHANT", "ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/payments/search/user").hasAnyRole("MERCHANT", "ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/payments/search/amount").hasAnyRole("MERCHANT", "ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/payments/stats/user").hasAnyRole("USER", "MERCHANT", "ADMIN")
+                        
                         // Invoice endpoints - según rol (cuando se implementen)
                         .requestMatchers(HttpMethod.POST, "/api/invoices").hasAnyRole("MERCHANT", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/invoices/{id}").hasAnyRole("USER", "MERCHANT", "ADMIN")

@@ -9,6 +9,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
 public interface PaymentService {
     Payment createPayment(Payment payment);
 
@@ -51,6 +54,22 @@ public interface PaymentService {
     long countPaymentsByStatus(PaymentStatus status);
 
     BigDecimal getTotalAmountByUserId (Long userId);
+    
+    
+    List<Payment> findByUserNameContaining(String userName);
+
+    Page<Payment> findByUserNameContaining(String userName, Pageable pageable);
+    
+    List<Payment> findByAmountTotalBetween(BigDecimal minAmount, BigDecimal maxAmount);
+
+    Page<Payment> findByAmountTotalBetween(BigDecimal minAmount, BigDecimal maxAmount, Pageable pageable);
+    
+    Page<Payment> findWithFilters(PaymentStatus status, String currency, 
+                                 BigDecimal minAmount, BigDecimal maxAmount,
+                                 LocalDateTime startDate, LocalDateTime endDate, 
+                                 Pageable pageable);
+    
+    BigDecimal getTotalAmountByUserIdAndStatus(Long userId, PaymentStatus status);
 
 
 

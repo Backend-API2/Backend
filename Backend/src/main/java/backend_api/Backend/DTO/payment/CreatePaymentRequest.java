@@ -7,15 +7,12 @@ import java.math.BigDecimal;
 @Data
 public class CreatePaymentRequest {
         
-    @NotBlank(message = "Solicitud reference es requerida")
     private String solicitud_reference; // ej: "SOL-2024-001"
     
-    @NotBlank(message = "Cotización reference es requerida") 
     private String cotizacion_reference; // ej: "COT-2024-005"
     
-    @NotNull(message = "Provider ID es requerido")
-    @Positive(message = "Provider ID debe ser positivo") 
-    private Long provider_id;
+    @NotBlank(message = "Provider reference es requerido")
+    private String provider_reference; // ej: "PROV-STRIPE-001", "PROV-PAYPAL-002"
     
     // Montos
     @NotNull(message = "Amount subtotal es requerido")
@@ -45,6 +42,7 @@ public class CreatePaymentRequest {
     // user_id = extraído del JWT token automáticamente
     // solicitud_id = buscado por solicitud_reference  
     // cotizacion_id = buscado por cotizacion_reference
+    // provider_id = buscado por provider_reference
     // payment_method_id = buscado por payment_method_type
     // amount_total = amount_subtotal + taxes + fees
     // payment_intent_id = generado por el sistema
