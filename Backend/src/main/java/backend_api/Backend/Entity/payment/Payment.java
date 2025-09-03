@@ -12,7 +12,6 @@ public class Payment {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    private String payment_intent_id;
     private Long user_id;
     private Long provider_id;
     private Long solicitud_id;

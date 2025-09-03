@@ -19,7 +19,6 @@ public interface PaymentService {
 
     List<Payment> getAllPayments();
 
-    Optional<Payment> getPaymentByIntentId(String paymentIntentId);
 
     List<Payment> getPaymentsByUserId(Long userId);
 
@@ -66,11 +65,6 @@ public interface PaymentService {
                                  LocalDateTime startDate, LocalDateTime endDate, 
                                  Pageable pageable);
     
-    
-    // Se integra con el módulo Cotizacion
-    Payment createPaymentIntent(Long userId, Long providerId, Long solicitudId, Long cotizacionId, 
-                               BigDecimal amountSubtotal, BigDecimal taxes, BigDecimal fees, 
-                               String currency, String metadata, Integer expiresInMinutes);
     
     Payment confirmPayment(Long paymentId, String paymentMethodType, String paymentMethodId, boolean captureImmediately);
     

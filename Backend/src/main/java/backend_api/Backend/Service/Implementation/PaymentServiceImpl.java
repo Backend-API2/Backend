@@ -49,10 +49,6 @@ public class PaymentServiceImpl implements PaymentService{
         return paymentRepository.findAll();
     }
 
-    @Override
-public Optional<Payment> getPaymentByIntentId(String paymentIntentId) {
-    return paymentRepository.findByPaymentIntentId(paymentIntentId);
-}
 
     @Override
     public List<Payment> getPaymentsByUserId(Long userId) {
@@ -172,42 +168,6 @@ public Optional<Payment> getPaymentByIntentId(String paymentIntentId) {
         return paymentRepository.findWithFilters(status, currency, minAmount, maxAmount, startDate, endDate, pageable);
     }
     
-
-    
-    // Se integra con el módulo Cotizacion  
-    @Override
-    public Payment createPaymentIntent(Long userId, Long providerId, Long solicitudId, Long cotizacionId,
-                                     BigDecimal amountSubtotal, BigDecimal taxes, BigDecimal fees,
-                                     String currency, String metadata, Integer expiresInMinutes) {
-        Payment payment = new Payment();
-        payment.setPayment_intent_id("pi_" + UUID.randomUUID().toString().replace("-", ""));
-        payment.setUser_id(userId);
-        payment.setProvider_id(providerId);
-        payment.setSolicitud_id(solicitudId);
-        payment.setCotizacion_id(cotizacionId); // Se integra con el módulo Cotizacion
-        payment.setAmount_subtotal(amountSubtotal);
-        payment.setTaxes(taxes);
-        payment.setFees(fees);
-        payment.setAmount_total(amountSubtotal.add(taxes).add(fees));
-        payment.setCurrency(currency);
-        payment.setStatus(PaymentStatus.PENDING);
-        payment.setCreated_at(LocalDateTime.now());
-        payment.setUpdated_at(LocalDateTime.now());
-        payment.setExpired_at(LocalDateTime.now().plusMinutes(expiresInMinutes));
-        payment.setMetadata(metadata);
-        
-        Payment savedPayment = paymentRepository.save(payment);
-        
-        paymentEventService.createEvent(
-            savedPayment.getId(),
-            PaymentEventType.PAYMENT_INTENT_CREATED,
-            String.format("{\"payment_intent_id\": \"%s\", \"amount_total\": %s, \"expires_at\": \"%s\"}", 
-                savedPayment.getPayment_intent_id(), savedPayment.getAmount_total(), savedPayment.getExpired_at()),
-            "system"
-        );
-        
-        return savedPayment;
-    }
     @Override
     public Payment confirmPayment(Long paymentId, String paymentMethodType, String paymentMethodId, boolean captureImmediately) {
         Optional<Payment> paymentOpt = paymentRepository.findById(paymentId);

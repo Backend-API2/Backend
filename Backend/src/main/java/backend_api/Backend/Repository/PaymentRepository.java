@@ -21,8 +21,6 @@ import java.time.LocalDateTime;
 @Repository
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
-    @Query("SELECT p FROM Payment p WHERE p.payment_intent_id = :paymentIntentId")
-    Optional<Payment> findByPaymentIntentId(@Param("paymentIntentId") String paymentIntentId);
 
     @Query("SELECT p FROM Payment p WHERE p.user_id = :userId")
     List<Payment> findByUserId(@Param("userId") Long userId);
