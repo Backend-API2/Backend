@@ -26,7 +26,7 @@ public class PaymentSearchRequest {
     
     private String paymentIntentId;
     private Long solicitudId;
-    private Long cotizacionId;
+  //  private Long cotizacionId; // Se integra con el módulo Cotizacion
     
     private String metadataKey;
     private String metadataValue;
@@ -151,13 +151,7 @@ public class PaymentSearchRequest {
         this.solicitudId = solicitudId;
     }
     
-    public Long getCotizacionId() {
-        return cotizacionId;
-    }
-    
-    public void setCotizacionId(Long cotizacionId) {
-        this.cotizacionId = cotizacionId;
-    }
+   
     
     public String getMetadataKey() {
         return metadataKey;

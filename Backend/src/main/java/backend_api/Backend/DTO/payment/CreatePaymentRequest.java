@@ -9,7 +9,7 @@ public class CreatePaymentRequest {
         
     private String solicitud_reference; // ej: "SOL-2024-001"
     
-    private String cotizacion_reference; // ej: "COT-2024-005"
+   // private String cotizacion_reference; // ej: "COT-2024-005" - Se integra con el módulo Cotizacion
     
     @NotBlank(message = "Provider reference es requerido")
     private String provider_reference; // ej: "PROV-STRIPE-001", "PROV-PAYPAL-002"
@@ -41,7 +41,7 @@ public class CreatePaymentRequest {
     
     // user_id = extraído del JWT token automáticamente
     // solicitud_id = buscado por solicitud_reference  
-    // cotizacion_id = buscado por cotizacion_reference
+    // cotizacion_id = buscado por cotizacion_reference - Se integra con el módulo Cotizacion
     // provider_id = buscado por provider_reference
     // payment_method_id = buscado por payment_method_type
     // amount_total = amount_subtotal + taxes + fees

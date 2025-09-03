@@ -84,6 +84,7 @@ public Optional<Payment> getPaymentByIntentId(String paymentIntentId) {
         return paymentRepository.findBySolicitudId(solicitudId);
     }
 
+    // Se integra con el módulo Cotizacion
     @Override
     public List<Payment> getPaymentsByCotizacionId(Long cotizacionId){
         return paymentRepository.findByCotizacionId(cotizacionId);
@@ -207,16 +208,17 @@ public Optional<Payment> getPaymentByIntentId(String paymentIntentId) {
         return paymentRepository.getTotalAmountByUserIdAndStatus(userId, status);
     }
     
+    // Se integra con el módulo Cotizacion  
     @Override
-    public Payment createPaymentIntent(Long userId, Long providerId, Long solicitudId, Long cotizacionId, 
-                                     BigDecimal amountSubtotal, BigDecimal taxes, BigDecimal fees, 
+    public Payment createPaymentIntent(Long userId, Long providerId, Long solicitudId, Long cotizacionId,
+                                     BigDecimal amountSubtotal, BigDecimal taxes, BigDecimal fees,
                                      String currency, String metadata, Integer expiresInMinutes) {
         Payment payment = new Payment();
         payment.setPayment_intent_id("pi_" + UUID.randomUUID().toString().replace("-", ""));
         payment.setUser_id(userId);
         payment.setProvider_id(providerId);
         payment.setSolicitud_id(solicitudId);
-        payment.setCotizacion_id(cotizacionId);
+        payment.setCotizacion_id(cotizacionId); // Se integra con el módulo Cotizacion
         payment.setAmount_subtotal(amountSubtotal);
         payment.setTaxes(taxes);
         payment.setFees(fees);
@@ -240,7 +242,6 @@ public Optional<Payment> getPaymentByIntentId(String paymentIntentId) {
         
         return savedPayment;
     }
-    
     @Override
     public Payment confirmPayment(Long paymentId, String paymentMethodType, String paymentMethodId, boolean captureImmediately) {
         Optional<Payment> paymentOpt = paymentRepository.findById(paymentId);

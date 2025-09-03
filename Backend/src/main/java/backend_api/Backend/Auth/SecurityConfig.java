@@ -66,7 +66,6 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/payments/status/{status}").hasAnyRole("MERCHANT", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/payments/gateway/{gatewayTxnId}").hasAnyRole("MERCHANT", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/payments/solicitud/{solicitudId}").hasAnyRole("USER", "MERCHANT", "ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/payments/cotizacion/{cotizacionId}").hasAnyRole("USER", "MERCHANT", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/payments/amount/{minAmount}").hasAnyRole("MERCHANT", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/payments/date-range").hasAnyRole("MERCHANT", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/payments/user/{userId}/status/{status}").hasAnyRole("USER", "MERCHANT", "ADMIN")

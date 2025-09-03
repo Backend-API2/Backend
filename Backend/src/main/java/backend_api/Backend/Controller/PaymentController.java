@@ -4,16 +4,13 @@ import backend_api.Backend.Entity.payment.Payment;
 import backend_api.Backend.Entity.payment.PaymentStatus;
 import backend_api.Backend.Service.Interface.PaymentService;
 import backend_api.Backend.DTO.payment.PaymentResponse;
-import backend_api.Backend.DTO.payment.UpdatePaymentRequest;
 import backend_api.Backend.Auth.JwtUtil;
 import backend_api.Backend.Repository.UserRepository;
 import backend_api.Backend.Entity.user.User;
 import backend_api.Backend.DTO.payment.CreatePaymentRequest;
 import backend_api.Backend.DTO.payment.PaymentSearchRequest;
-import backend_api.Backend.DTO.payment.PaymentStatsRequest;
 import backend_api.Backend.DTO.payment.CreatePaymentIntentRequest;
 import backend_api.Backend.DTO.payment.ConfirmPaymentRequest;
-import backend_api.Backend.DTO.payment.CreateRefundRequest;
 import backend_api.Backend.Entity.payment.PaymentEvent;
 import backend_api.Backend.Entity.payment.PaymentEventType;
 import backend_api.Backend.Entity.payment.PaymentAttempt;
@@ -106,7 +103,7 @@ public class PaymentController {
             payment.setUpdated_at(LocalDateTime.now());
             payment.setPayment_intent_id("pi_" + UUID.randomUUID().toString().replace("-", ""));
             
-            // TODO: Buscar solicitud_id y cotizacion_id por references
+            // TODO: Buscar solicitud_id y cotizacion_id por references - Se integra con el módulo Cotizacion
             // TODO: Buscar payment_method_id por payment_method_type
             
             Payment savedPayment = paymentService.createPayment(payment);
@@ -208,41 +205,8 @@ public class PaymentController {
         }
     }
 
-    // Actualizar pago
-    @PutMapping("/{paymentId}")
-    public ResponseEntity<Payment> updatePayment(@PathVariable Long paymentId, 
-                                               @RequestBody UpdatePaymentRequest request) {
-        try {
-            Optional<Payment> paymentOpt = paymentService.getPaymentById(paymentId);
-            if (!paymentOpt.isPresent()) {
-                return ResponseEntity.notFound().build();
-            }
-            
-            Payment payment = paymentOpt.get();
-            payment.setUpdated_at(LocalDateTime.now());
-            
-            Payment updatedPayment = paymentService.updatePayment(paymentId, payment);
-            return ResponseEntity.ok(updatedPayment);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
-
-    // Eliminar pago
-    @DeleteMapping("/{paymentId}")
-    public ResponseEntity<Void> deletePayment(@PathVariable Long paymentId) {
-        try {
-            Optional<Payment> payment = paymentService.getPaymentById(paymentId);
-            if (!payment.isPresent()) {
-                return ResponseEntity.notFound().build();
-            }
-            
-            paymentService.deletePayment(paymentId);
-            return ResponseEntity.noContent().build();
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
+    
+    
     
     
     // Buscar pagos con filtros avanzados y paginación (POST + JSON)
@@ -320,52 +284,7 @@ public class PaymentController {
         }
     }
     
-    // Obtener estadísticas de pagos por usuario (POST + JSON)
-    @PostMapping("/stats/user")
-    public ResponseEntity<Object> getPaymentStatsByUser(
-            @Valid @RequestBody PaymentStatsRequest request) {
-        try {
-            Long userId = request.getUserId();
-            
-            BigDecimal totalApproved = paymentService.getTotalAmountByUserIdAndStatus(userId, PaymentStatus.APPROVED);
-            BigDecimal totalPending = paymentService.getTotalAmountByUserIdAndStatus(userId, PaymentStatus.PENDING);
-            BigDecimal totalRejected = paymentService.getTotalAmountByUserIdAndStatus(userId, PaymentStatus.REJECTED);
-            BigDecimal totalRefunded = paymentService.getTotalAmountByUserIdAndStatus(userId, PaymentStatus.REFUNDED);
-            
-            java.util.Map<String, Object> stats = new java.util.HashMap<>();
-            stats.put("userId", userId);
-            stats.put("currency", request.getCurrency() != null ? request.getCurrency() : "ALL");
-            
-            // Totales por status
-            java.util.Map<String, Object> totals = new java.util.HashMap<>();
-            totals.put("approved", totalApproved != null ? totalApproved : BigDecimal.ZERO);
-            totals.put("pending", totalPending != null ? totalPending : BigDecimal.ZERO);
-            totals.put("rejected", totalRejected != null ? totalRejected : BigDecimal.ZERO);
-            totals.put("refunded", totalRefunded != null ? totalRefunded : BigDecimal.ZERO);
-            stats.put("totals", totals);
-            
-            // Conteos por status
-            java.util.Map<String, Object> counts = new java.util.HashMap<>();
-            counts.put("approved", paymentService.countPaymentsByStatus(PaymentStatus.APPROVED));
-            counts.put("pending", paymentService.countPaymentsByStatus(PaymentStatus.PENDING));
-            counts.put("rejected", paymentService.countPaymentsByStatus(PaymentStatus.REJECTED));
-            counts.put("refunded", paymentService.countPaymentsByStatus(PaymentStatus.REFUNDED));
-            stats.put("counts", counts);
-            
-            // Información del período
-            if (request.getStartDate() != null && request.getEndDate() != null) {
-                java.util.Map<String, String> period = new java.util.HashMap<>();
-                period.put("startDate", request.getStartDate());
-                period.put("endDate", request.getEndDate());
-                stats.put("period", period);
-            }
-            
-            return ResponseEntity.ok(stats);
-            
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
+   
     
     @GetMapping("/{paymentId}/timeline")
     public ResponseEntity<List<PaymentEvent>> getPaymentTimeline(@PathVariable Long paymentId) {
@@ -389,11 +308,12 @@ public class PaymentController {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
             }
             
+            // Se integra con el módulo Cotizacion
             Payment payment = paymentService.createPaymentIntent(
                 request.getUserId(),
                 request.getProviderId(),
                 request.getSolicitudId(),
-                request.getCotizacionId(),
+                null, // cotizacionId - Se integra con el módulo Cotizacion
                 request.getAmountSubtotal(),
                 request.getTaxes(),
                 request.getFees(),

@@ -40,6 +40,7 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     @Query("SELECT p FROM Payment p WHERE p.solicitud_id = :solicitudId")
     List<Payment> findBySolicitudId(@Param("solicitudId") Long solicitudId);
 
+    // Se integra con el módulo Cotizacion
     @Query("SELECT p FROM Payment p WHERE p.cotizacion_id = :cotizacionId")
     List<Payment> findByCotizacionId(@Param("cotizacionId") Long cotizacionId);
 

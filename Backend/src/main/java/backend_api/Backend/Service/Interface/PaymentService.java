@@ -33,6 +33,7 @@ public interface PaymentService {
 
     List<Payment> getPaymentsBySolicitudId(Long solicitudId);
 
+    // Se integra con el módulo Cotizacion
     List<Payment> getPaymentsByCotizacionId(Long cotizacionId);
 
     List<Payment> getPaymentsByAmountGreaterThan(BigDecimal minAmount);
@@ -71,6 +72,7 @@ public interface PaymentService {
     
     BigDecimal getTotalAmountByUserIdAndStatus(Long userId, PaymentStatus status);
     
+    // Se integra con el módulo Cotizacion
     Payment createPaymentIntent(Long userId, Long providerId, Long solicitudId, Long cotizacionId, 
                                BigDecimal amountSubtotal, BigDecimal taxes, BigDecimal fees, 
                                String currency, String metadata, Integer expiresInMinutes);

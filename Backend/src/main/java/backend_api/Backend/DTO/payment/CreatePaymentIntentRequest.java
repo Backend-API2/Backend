@@ -17,7 +17,7 @@ public class CreatePaymentIntentRequest {
     private Long providerId;
     
     private Long solicitudId;
-    private Long cotizacionId;
+   // private Long cotizacionId; // Se integra con el módulo Cotizacion
     
     @NotNull(message = "Amount subtotal es requerido")
     @DecimalMin(value = "0.01", message = "Amount subtotal debe ser mayor a 0")
