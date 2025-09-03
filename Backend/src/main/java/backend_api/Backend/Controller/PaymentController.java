@@ -109,8 +109,8 @@ public class PaymentController {
             
             paymentEventService.createEvent(
                 savedPayment.getId(),
-                PaymentEventType.PAYMENT_INTENT_CREATED,
-                String.format("{\"amount_total\": %s, \"currency\": \"%s\", \"payment_intent_id\": \"%s\"}", 
+                PaymentEventType.PAYMENT_PENDING,
+                String.format("{\"amount_total\": %s, \"currency\": \"%s\"}",
                     savedPayment.getAmount_total(), savedPayment.getCurrency()),
                 "user_" + user.getId()
             );
