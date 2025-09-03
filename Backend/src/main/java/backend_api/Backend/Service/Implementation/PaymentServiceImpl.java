@@ -110,26 +110,7 @@ public Optional<Payment> getPaymentByIntentId(String paymentIntentId) {
         return paymentRepository.findByCurrency(currency);
     }
 
-    @Override
-    public Payment updatePayment(Long id, Payment payment) {
-        Optional<Payment> existingPayment = paymentRepository.findById(id);
-        if (existingPayment.isPresent()) {
-            Payment paymentToUpdate = existingPayment.get();
-
-            paymentToUpdate.setAmount_subtotal(payment.getAmount_subtotal());
-            paymentToUpdate.setTaxes(payment.getTaxes());
-            paymentToUpdate.setFees(payment.getFees());
-            paymentToUpdate.setAmount_total(payment.getAmount_total());
-            paymentToUpdate.setCurrency(payment.getCurrency());
-            paymentToUpdate.setStatus(payment.getStatus());
-            paymentToUpdate.setMethod(payment.getMethod());
-            paymentToUpdate.setMetadata(payment.getMetadata());
-            paymentToUpdate.setUpdated_at(LocalDateTime.now());
-            
-            return paymentRepository.save(paymentToUpdate);
-        }
-        throw new RuntimeException("Pago no fue encontrado con id: " + id);
-    }
+  
 
     @Override
     public Payment updatePaymentStatus(Long id, PaymentStatus status) {
@@ -147,24 +128,12 @@ public Optional<Payment> getPaymentByIntentId(String paymentIntentId) {
         throw new RuntimeException("Pago no fue encontrado con id: " + id);
     }
 
-    @Override
-    public void deletePayment(Long id) {
-        if (paymentRepository.existsById(id)){
-            paymentRepository.deleteById(id);
-        } else {
-            throw new RuntimeException("Pago no fue encontrado con id: " + id);
-        }
-    }
-
+   
     @Override
     public boolean existsById(Long id){
         return paymentRepository.existsById(id);
     }
 
-    @Override
-    public long countPaymentsByStatus(PaymentStatus status) {
-        return paymentRepository.findByStatus(status).size();
-    }
 
     @Override
     public BigDecimal getTotalAmountByUserId(Long userId){
@@ -203,10 +172,7 @@ public Optional<Payment> getPaymentByIntentId(String paymentIntentId) {
         return paymentRepository.findWithFilters(status, currency, minAmount, maxAmount, startDate, endDate, pageable);
     }
     
-    @Override
-    public BigDecimal getTotalAmountByUserIdAndStatus(Long userId, PaymentStatus status) {
-        return paymentRepository.getTotalAmountByUserIdAndStatus(userId, status);
-    }
+
     
     // Se integra con el módulo Cotizacion  
     @Override

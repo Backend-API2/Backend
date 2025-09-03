@@ -70,18 +70,13 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/payments/date-range").hasAnyRole("MERCHANT", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/payments/user/{userId}/status/{status}").hasAnyRole("USER", "MERCHANT", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/payments/currency/{currency}").hasAnyRole("MERCHANT", "ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/api/payments/{id}").hasAnyRole("MERCHANT", "ADMIN")
-                        .requestMatchers(HttpMethod.DELETE, "/api/payments/{id}").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/payments/{id}/exists").hasAnyRole("USER", "MERCHANT", "ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/payments/count/status/{status}").hasAnyRole("MERCHANT", "ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/payments/user/{userId}/total").hasAnyRole("USER", "MERCHANT", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/payments/{id}/timeline").hasAnyRole("USER", "MERCHANT", "ADMIN")
                         
                         // Payment intents and confirmation
                         .requestMatchers(HttpMethod.POST, "/api/payments/intents").hasAnyRole("USER", "MERCHANT", "ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/payments/{id}/confirm").hasAnyRole("USER", "MERCHANT", "ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/payments/{id}/cancel").hasAnyRole("USER", "MERCHANT", "ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/payments/{id}/exists").hasAnyRole("USER", "MERCHANT", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/payments/{id}/attempts").hasAnyRole("MERCHANT", "ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/payments/{id}/retry").hasAnyRole("MERCHANT", "ADMIN")
                         
@@ -89,8 +84,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/payments/search").hasAnyRole("USER", "MERCHANT", "ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/payments/search/user").hasAnyRole("MERCHANT", "ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/payments/search/amount").hasAnyRole("MERCHANT", "ADMIN")
-                        .requestMatchers(HttpMethod.POST, "/api/payments/stats/user").hasAnyRole("USER", "MERCHANT", "ADMIN")
-                        
+                         
                         // Invoice endpoints - según rol (cuando se implementen)
                         .requestMatchers(HttpMethod.POST, "/api/invoices").hasAnyRole("MERCHANT", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/invoices/{id}").hasAnyRole("USER", "MERCHANT", "ADMIN")

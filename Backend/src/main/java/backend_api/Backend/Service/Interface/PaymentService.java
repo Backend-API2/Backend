@@ -44,15 +44,11 @@ public interface PaymentService {
 
     List<Payment> getPaymentsByCurrency(String currency);
 
-    Payment updatePayment(Long id, Payment payment);
-
     Payment updatePaymentStatus(Long id, PaymentStatus status);
 
-    void deletePayment(Long id);
 
     boolean existsById(Long id);
 
-    long countPaymentsByStatus(PaymentStatus status);
 
     BigDecimal getTotalAmountByUserId (Long userId);
     
@@ -70,7 +66,6 @@ public interface PaymentService {
                                  LocalDateTime startDate, LocalDateTime endDate, 
                                  Pageable pageable);
     
-    BigDecimal getTotalAmountByUserIdAndStatus(Long userId, PaymentStatus status);
     
     // Se integra con el módulo Cotizacion
     Payment createPaymentIntent(Long userId, Long providerId, Long solicitudId, Long cotizacionId, 

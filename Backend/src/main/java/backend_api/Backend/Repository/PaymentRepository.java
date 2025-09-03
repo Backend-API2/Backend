@@ -97,8 +97,4 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     @Query("SELECT COUNT(p) FROM Payment p WHERE p.status = :status")
     Long countByStatus(@Param("status") PaymentStatus status);
     
-    // Obtener total de pagos por usuario
-    @Query("SELECT SUM(p.amount_total) FROM Payment p WHERE p.user_id = :userId AND p.status = :status")
-    BigDecimal getTotalAmountByUserIdAndStatus(@Param("userId") Long userId, @Param("status") PaymentStatus status);
-    
 }
