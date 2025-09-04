@@ -95,8 +95,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/refunds/{id}").hasAnyRole("MERCHANT", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/refunds").hasRole("ADMIN")
 
-                        // Dispute endpoints - solo admin (cuando se implementen)
-                        .requestMatchers("/api/disputes/**").hasRole("ADMIN")
+                    
 
                 
                         

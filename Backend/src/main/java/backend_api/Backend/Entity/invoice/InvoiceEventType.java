@@ -29,9 +29,6 @@ public enum InvoiceEventType {
     PDF_GENERATED,
     PDF_REGENERATED,
     
-    // Eventos de disputa
-    DISPUTE_OPENED,
-    DISPUTE_RESOLVED,
     
     // Eventos de recordatorio
     REMINDER_SENT,

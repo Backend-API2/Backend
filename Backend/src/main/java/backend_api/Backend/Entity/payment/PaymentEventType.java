@@ -28,8 +28,6 @@ public enum PaymentEventType {
     GATEWAY_ERROR,
     TIMEOUT_ERROR,
     
-    DISPUTE_CREATED,
-    DISPUTE_RESOLVED,
     
     
 }
