@@ -45,7 +45,6 @@ public class CreatePaymentRequest {
     // provider_id = buscado por provider_reference
     // payment_method_id = buscado por payment_method_type
     // amount_total = amount_subtotal + taxes + fees
-    // payment_intent_id = generado por el sistema
     // gateway_txn_id = generado por el gateway 
     // status = PENDING por defecto
     // created_at, updated_at = timestamps automáticos

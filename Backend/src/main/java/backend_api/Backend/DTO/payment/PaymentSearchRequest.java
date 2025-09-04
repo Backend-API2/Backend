@@ -24,7 +24,6 @@ public class PaymentSearchRequest {
     private Long providerId;
     private List<Long> providerIds;
     
-    private String paymentIntentId;
     private Long solicitudId;
   //  private Long cotizacionId; // Se integra con el módulo Cotizacion
     
@@ -135,13 +134,6 @@ public class PaymentSearchRequest {
         this.providerIds = providerIds;
     }
     
-    public String getPaymentIntentId() {
-        return paymentIntentId;
-    }
-    
-    public void setPaymentIntentId(String paymentIntentId) {
-        this.paymentIntentId = paymentIntentId;
-    }
     
     public Long getSolicitudId() {
         return solicitudId;

@@ -60,7 +60,6 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/payments").hasAnyRole("USER", "MERCHANT", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/payments/all").hasAnyRole("USER", "MERCHANT", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/payments/{id}").hasAnyRole("USER", "MERCHANT", "ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/payments/intent/{paymentIntentId}").hasAnyRole("USER", "MERCHANT", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/payments/user/{userId}").hasAnyRole("USER", "MERCHANT", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/payments/provider/{providerId}").hasAnyRole("MERCHANT", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/payments/status/{status}").hasAnyRole("MERCHANT", "ADMIN")
@@ -74,7 +73,6 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/payments/{id}/timeline").hasAnyRole("USER", "MERCHANT", "ADMIN")
                         
                         // Payment intents and confirmation
-                        .requestMatchers(HttpMethod.POST, "/api/payments/intents").hasAnyRole("USER", "MERCHANT", "ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/payments/{id}/confirm").hasAnyRole("USER", "MERCHANT", "ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/payments/{id}/cancel").hasAnyRole("USER", "MERCHANT", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/payments/{id}/attempts").hasAnyRole("MERCHANT", "ADMIN")
@@ -100,8 +98,7 @@ public class SecurityConfig {
                         // Dispute endpoints - solo admin (cuando se implementen)
                         .requestMatchers("/api/disputes/**").hasRole("ADMIN")
 
-                        // Reconciliation endpoints - solo admin (cuando se implementen)
-                        .requestMatchers("/api/reconciliation/**").hasRole("ADMIN")
+                
                         
                         .anyRequest().authenticated()
                 )

@@ -9,7 +9,6 @@ import backend_api.Backend.Repository.UserRepository;
 import backend_api.Backend.Entity.user.User;
 import backend_api.Backend.DTO.payment.CreatePaymentRequest;
 import backend_api.Backend.DTO.payment.PaymentSearchRequest;
-import backend_api.Backend.DTO.payment.CreatePaymentIntentRequest;
 import backend_api.Backend.DTO.payment.ConfirmPaymentRequest;
 import backend_api.Backend.Entity.payment.PaymentEvent;
 import backend_api.Backend.Entity.payment.PaymentEventType;
@@ -101,7 +100,7 @@ public class PaymentController {
             payment.setStatus(PaymentStatus.PENDING);
             payment.setCreated_at(LocalDateTime.now());
             payment.setUpdated_at(LocalDateTime.now());
-            payment.setPayment_intent_id("pi_" + UUID.randomUUID().toString().replace("-", ""));
+
             
             // TODO: Buscar solicitud_id y cotizacion_id por references - Se integra con el módulo Cotizacion
             // TODO: Buscar payment_method_id por payment_method_type
@@ -110,9 +109,9 @@ public class PaymentController {
             
             paymentEventService.createEvent(
                 savedPayment.getId(),
-                PaymentEventType.PAYMENT_INTENT_CREATED,
-                String.format("{\"amount_total\": %s, \"currency\": \"%s\", \"payment_intent_id\": \"%s\"}", 
-                    savedPayment.getAmount_total(), savedPayment.getCurrency(), savedPayment.getPayment_intent_id()),
+                PaymentEventType.PAYMENT_PENDING,
+                String.format("{\"amount_total\": %s, \"currency\": \"%s\"}",
+                    savedPayment.getAmount_total(), savedPayment.getCurrency()),
                 "user_" + user.getId()
             );
             
@@ -151,17 +150,7 @@ public class PaymentController {
         }
     }
 
-    // Obtener pago por Payment Intent ID
-    @GetMapping("/intent/{paymentIntentId}")
-    public ResponseEntity<Payment> getPaymentByIntentId(@PathVariable String paymentIntentId) {
-        try {
-            Optional<Payment> payment = paymentService.getPaymentByIntentId(paymentIntentId);
-            return payment.map(ResponseEntity::ok)
-                         .orElse(ResponseEntity.notFound().build());
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
+
 
     // Obtener pagos por User_Id
     @GetMapping("/user/{userId}")
@@ -296,37 +285,6 @@ public class PaymentController {
         }
     }
     
-    @PostMapping("/intents")
-    public ResponseEntity<PaymentResponse> createPaymentIntent(
-            @Valid @RequestBody CreatePaymentIntentRequest request,
-            @RequestHeader("Authorization") String authHeader) {
-        try {
-            String token = authHeader.replace("Bearer ", "");
-            String email = jwtUtil.getSubject(token);
-            
-            if (email == null) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-            }
-            
-            // Se integra con el módulo Cotizacion
-            Payment payment = paymentService.createPaymentIntent(
-                request.getUserId(),
-                request.getProviderId(),
-                request.getSolicitudId(),
-                null, // cotizacionId - Se integra con el módulo Cotizacion
-                request.getAmountSubtotal(),
-                request.getTaxes(),
-                request.getFees(),
-                request.getCurrency(),
-                request.getMetadata(),
-                request.getExpiresInMinutes()
-            );
-            
-            return ResponseEntity.status(HttpStatus.CREATED).body(PaymentResponse.fromEntity(payment));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
     
     @PostMapping("/{paymentId}/confirm")
     public ResponseEntity<PaymentResponse> confirmPayment(

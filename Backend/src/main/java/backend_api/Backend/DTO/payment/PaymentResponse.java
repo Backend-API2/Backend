@@ -10,7 +10,6 @@ public class PaymentResponse {
     
     
     private Long id;
-    private String payment_intent_id;
     private Long user_id;
     private Long provider_id; 
     private Long solicitud_id;
@@ -37,7 +36,6 @@ public class PaymentResponse {
     public static PaymentResponse fromEntity(backend_api.Backend.Entity.payment.Payment payment) {
         PaymentResponse response = new PaymentResponse();
         response.setId(payment.getId());
-        response.setPayment_intent_id(payment.getPayment_intent_id());
         response.setUser_id(payment.getUser_id());
         response.setProvider_id(payment.getProvider_id());
         response.setSolicitud_id(payment.getSolicitud_id());

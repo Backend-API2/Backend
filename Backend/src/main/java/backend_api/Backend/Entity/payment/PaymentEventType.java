@@ -1,8 +1,7 @@
 package backend_api.Backend.Entity.payment;
 
 public enum PaymentEventType {
-    PAYMENT_INTENT_CREATED,
-    PAYMENT_INTENT_UPDATED,
+  
     
     AUTHORIZATION_STARTED,
     AUTHORIZATION_SUCCEEDED,
@@ -32,6 +31,5 @@ public enum PaymentEventType {
     DISPUTE_CREATED,
     DISPUTE_RESOLVED,
     
-    RECONCILIATION_MATCHED,
-    RECONCILIATION_FAILED
+    
 }
