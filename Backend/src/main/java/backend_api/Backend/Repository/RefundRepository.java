@@ -16,12 +16,13 @@ import java.util.Optional;
 public interface RefundRepository extends JpaRepository<Refund, Long> {
 
     // Por payment_id
-    List<Refund> findByPayment_id(Long paymentId);
+    @Query("SELECT r FROM Refund r WHERE r.payment_id = :paymentId")
+    List<Refund> findByPayment_id(@Param("paymentId") Long paymentId);
 
     // Por estado
     List<Refund> findByStatus(RefundStatus status);
 
-    // Por gateway_refund_id (podrías usar también método derivado: Optional<Refund> findByGateway_refund_id(String gatewayRefundId))
+    // Por gateway_refund_id
     @Query("SELECT r FROM Refund r WHERE r.gateway_refund_id = :gatewayRefundId")
     Optional<Refund> findByGatewayRefundId(@Param("gatewayRefundId") String gatewayRefundId);
 
@@ -35,7 +36,9 @@ public interface RefundRepository extends JpaRepository<Refund, Long> {
     List<Refund> findByAmountGreaterThanEqual(@Param("minAmount") BigDecimal minAmount);
 
     // Por payment_id y estado
-    List<Refund> findByPayment_idAndStatus(Long paymentId, RefundStatus status);
+    @Query("SELECT r FROM Refund r WHERE r.payment_id = :paymentId AND r.status = :status")
+    List<Refund> findByPayment_idAndStatus(@Param("paymentId") Long paymentId,
+                                           @Param("status") RefundStatus status);
 
     // Suma total por payment para ciertos estados (PENDING/COMPLETED)
     @Query("""
