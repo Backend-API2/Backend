@@ -14,7 +14,7 @@ public class Refund {
     private Long id;
 
     @Column(name = "payment_id") // <-- corrige la columna en DB
-    private Long paymend_id;
+    private Long payment_id;
 
     private BigDecimal amount;
     private String reason;

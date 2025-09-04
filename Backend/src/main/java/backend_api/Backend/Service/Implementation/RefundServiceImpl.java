@@ -28,15 +28,15 @@ public class RefundServiceImpl implements RefundService {
 
     @Override
     public Refund createRefund(Refund refund) {
-        if (refund.getPaymend_id() == null) {
+        if (refund.getPayment_id() == null) {
             throw new IllegalArgumentException("payment_id es requerido");
         }
         if (refund.getAmount() == null || refund.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("El monto del refund debe ser mayor a 0");
         }
 
-        Payment payment = paymentRepository.findById(refund.getPaymend_id())
-                .orElseThrow(() -> new RuntimeException("Pago no encontrado con id: " + refund.getPaymend_id()));
+        Payment payment = paymentRepository.findById(refund.getPayment_id())
+                .orElseThrow(() -> new RuntimeException("Pago no encontrado con id: " + refund.getPayment_id()));
 
         // Solo pagos aprobados (o ya parcialmente reembolsados) pueden reembolsarse
         if (!(payment.getStatus() == PaymentStatus.APPROVED || payment.getStatus() == PaymentStatus.REFUNDED)) {
@@ -66,7 +66,7 @@ public class RefundServiceImpl implements RefundService {
 
     @Override
     public List<Refund> getRefundsByPaymentId(Long paymentId) {
-        return refundRepository.findByPaymendId(paymentId);
+        return refundRepository.findByPayment_id(paymentId);
     }
 
     @Override
@@ -84,8 +84,8 @@ public class RefundServiceImpl implements RefundService {
 
         // Si se completó, revisar si el pago quedó totalmente reembolsado
         if (status == RefundStatus.COMPLETED) {
-            Payment payment = paymentRepository.findById(existing.getPaymend_id())
-                    .orElseThrow(() -> new RuntimeException("Pago no encontrado con id: " + existing.getPaymend_id()));
+            Payment payment = paymentRepository.findById(existing.getPayment_id())
+                    .orElseThrow(() -> new RuntimeException("Pago no encontrado con id: " + existing.getPayment_id()));
 
             BigDecimal remaining = getRemainingRefundable(payment.getId());
             if (remaining.compareTo(BigDecimal.ZERO) == 0) {

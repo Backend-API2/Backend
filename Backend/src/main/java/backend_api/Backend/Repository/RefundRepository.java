@@ -15,28 +15,35 @@ import java.util.Optional;
 @Repository
 public interface RefundRepository extends JpaRepository<Refund, Long> {
 
-    @Query("SELECT r FROM Refund r WHERE r.paymend_id = :paymentId")
-    List<Refund> findByPaymendId(@Param("paymentId") Long paymentId);
+    // Por payment_id
+    List<Refund> findByPayment_id(Long paymentId);
 
+    // Por estado
     List<Refund> findByStatus(RefundStatus status);
 
+    // Por gateway_refund_id (podrías usar también método derivado: Optional<Refund> findByGateway_refund_id(String gatewayRefundId))
     @Query("SELECT r FROM Refund r WHERE r.gateway_refund_id = :gatewayRefundId")
     Optional<Refund> findByGatewayRefundId(@Param("gatewayRefundId") String gatewayRefundId);
 
+    // Por rango de fechas en created_at
     @Query("SELECT r FROM Refund r WHERE r.created_at BETWEEN :startDate AND :endDate")
     List<Refund> findByCreatedAtBetween(@Param("startDate") LocalDateTime startDate,
                                         @Param("endDate") LocalDateTime endDate);
 
+    // Amount >= min
     @Query("SELECT r FROM Refund r WHERE r.amount >= :minAmount")
     List<Refund> findByAmountGreaterThanEqual(@Param("minAmount") BigDecimal minAmount);
 
-    @Query("SELECT r FROM Refund r WHERE r.paymend_id = :paymentId AND r.status = :status")
-    List<Refund> findByPaymentIdAndStatus(@Param("paymentId") Long paymentId,
-                                          @Param("status") RefundStatus status);
+    // Por payment_id y estado
+    List<Refund> findByPayment_idAndStatus(Long paymentId, RefundStatus status);
 
-    // NUEVO: suma total por payment para ciertos estados (PENDING/COMPLETED)
-    @Query("SELECT COALESCE(SUM(r.amount), 0) FROM Refund r " +
-            "WHERE r.paymend_id = :paymentId AND r.status IN :statuses")
+    // Suma total por payment para ciertos estados (PENDING/COMPLETED)
+    @Query("""
+           SELECT COALESCE(SUM(r.amount), 0)
+           FROM Refund r
+           WHERE r.payment_id = :paymentId
+             AND r.status IN :statuses
+           """)
     BigDecimal sumAmountByPaymentIdAndStatuses(@Param("paymentId") Long paymentId,
                                                @Param("statuses") List<RefundStatus> statuses);
 }
