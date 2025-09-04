@@ -5,7 +5,8 @@ import backend_api.Backend.Entity.payment.PaymentMethod;
 import backend_api.Backend.Entity.payment.PaymentStatus;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.LocalDate;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -37,7 +38,7 @@ public interface PaymentService {
 
     List<Payment> getPaymentsByAmountGreaterThan(BigDecimal minAmount);
 
-    List<Payment> getPaymentsByDateRange(LocalDateTime startDate, LocalDateTime endDate);
+    List<Payment> getPaymentsByDateRange(LocalDate startDate, LocalDate endDate);
 
     List<Payment> getPaymentsByUserAndStatus(Long userId, PaymentStatus status);
 
@@ -62,7 +63,7 @@ public interface PaymentService {
     
     Page<Payment> findWithFilters(PaymentStatus status, String currency, 
                                  BigDecimal minAmount, BigDecimal maxAmount,
-                                 LocalDateTime startDate, LocalDateTime endDate, 
+                                 LocalDate startDate, LocalDate endDate, 
                                  Pageable pageable);
     
     

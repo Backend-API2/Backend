@@ -4,6 +4,7 @@ import backend_api.Backend.Entity.payment.Payment;
 import backend_api.Backend.Entity.payment.PaymentStatus;
 import backend_api.Backend.Service.Interface.PaymentService;
 import backend_api.Backend.DTO.payment.PaymentResponse;
+import backend_api.Backend.DTO.payment.PagedPaymentResponse;
 import backend_api.Backend.Auth.JwtUtil;
 import backend_api.Backend.Repository.UserRepository;
 import backend_api.Backend.Entity.user.User;
@@ -22,16 +23,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
+import java.util.ArrayList;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/payments")
@@ -124,154 +121,7 @@ public class PaymentController {
         }
     }
 
-    // Obtener todos los pagos
-    @GetMapping("/all")
-    public ResponseEntity<List<Payment>> getAllPayments() {
-        try {
-            List<Payment> payments = paymentService.getAllPayments();
-            if (payments.isEmpty()) {
-                return ResponseEntity.noContent().build();
-            }
-            return ResponseEntity.ok(payments);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
 
-    // Obtener pago por ID
-    @GetMapping("/{paymentId}")
-    public ResponseEntity<Payment> getPaymentById(@PathVariable Long paymentId) {
-        try {
-            Optional<Payment> payment = paymentService.getPaymentById(paymentId);
-            return payment.map(ResponseEntity::ok)
-                         .orElse(ResponseEntity.notFound().build());
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
-
-
-
-    // Obtener pagos por User_Id
-    @GetMapping("/user/{userId}")
-    public ResponseEntity<List<Payment>> getPaymentsByUserId(@PathVariable Long userId) {
-        try {
-            List<Payment> payments = paymentService.getPaymentsByUserId(userId);
-            if (payments.isEmpty()) {
-                return ResponseEntity.noContent().build();
-            }
-            return ResponseEntity.ok(payments);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
-
-    // Obtener pagos por Provider_ID
-    @GetMapping("/provider/{providerId}")
-    public ResponseEntity<List<Payment>> getPaymentsByProviderId(@PathVariable Long providerId) {
-        try {
-            List<Payment> payments = paymentService.getPaymentsByProviderId(providerId);
-            if (payments.isEmpty()) {
-                return ResponseEntity.noContent().build();
-            }
-            return ResponseEntity.ok(payments);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
-
-    // Obtener pagos por Status
-    @GetMapping("/status/{status}")
-    public ResponseEntity<List<Payment>> getPaymentsByStatus(@PathVariable PaymentStatus status) {
-        try {
-            List<Payment> payments = paymentService.getPaymentsByStatus(status);
-            if (payments.isEmpty()) {
-                return ResponseEntity.noContent().build();
-            }
-            return ResponseEntity.ok(payments);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
-
-    
-    
-    
-    
-    // Buscar pagos con filtros avanzados y paginación (POST + JSON)
-    @PostMapping("/search")
-    public ResponseEntity<Page<Payment>> searchPaymentsWithFilters(
-            @Valid @RequestBody PaymentSearchRequest request) {
-        try {
-            Sort sort = request.getSortDir().equalsIgnoreCase("desc") ? 
-                       Sort.by(request.getSortBy()).descending() : 
-                       Sort.by(request.getSortBy()).ascending();
-            
-            Pageable pageable = PageRequest.of(request.getPage(), request.getSize(), sort);
-            
-            Page<Payment> payments = paymentService.findWithFilters(
-                request.getStatus(), 
-                request.getCurrency(), 
-                request.getMinAmount(), 
-                request.getMaxAmount(), 
-                request.getStartDate(), 
-                request.getEndDate(), 
-                pageable);
-                
-            return ResponseEntity.ok(payments);
-            
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
-    
-    // Buscar pagos por nombre de usuario (POST + JSON)
-    @PostMapping("/search/user")
-    public ResponseEntity<Page<Payment>> searchPaymentsByUserName(
-            @Valid @RequestBody PaymentSearchRequest request) {
-        try {
-            if (request.getUserName() == null || request.getUserName().trim().isEmpty()) {
-                return ResponseEntity.badRequest().build();
-            }
-            
-            Pageable pageable = PageRequest.of(
-                request.getPage(), 
-                request.getSize(), 
-                Sort.by("created_at").descending());
-            Page<Payment> payments = paymentService.findByUserNameContaining(request.getUserName(), pageable);
-            
-            return ResponseEntity.ok(payments);
-            
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
-    
-    // Buscar pagos por rango de monto (POST + JSON)
-    @PostMapping("/search/amount")
-    public ResponseEntity<Page<Payment>> searchPaymentsByAmountRange(
-            @Valid @RequestBody PaymentSearchRequest request) {
-        try {
-            if (request.getMinAmount() == null || request.getMaxAmount() == null) {
-                return ResponseEntity.badRequest().build();
-            }
-            
-            Sort sort = request.getSortDir().equalsIgnoreCase("desc") ? 
-                       Sort.by(request.getSortBy()).descending() : 
-                       Sort.by(request.getSortBy()).ascending();
-                       
-            Pageable pageable = PageRequest.of(request.getPage(), request.getSize(), sort);
-            Page<Payment> payments = paymentService.findByAmountTotalBetween(
-                request.getMinAmount(), 
-                request.getMaxAmount(), 
-                pageable);
-            
-            return ResponseEntity.ok(payments);
-            
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
     
    
     
@@ -348,6 +198,163 @@ public class PaymentController {
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().build();
         } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    
+    // GET /api/payments/my-payments - Obtener MIS pagos usando el token
+    @GetMapping("/my-payments")
+    public ResponseEntity<List<PaymentResponse>> getMyPayments(
+            @RequestHeader("Authorization") String authHeader,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        try {
+            String token = authHeader.replace("Bearer ", "");
+            String email = jwtUtil.getSubject(token);
+            
+            if (email == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+            
+            User user = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+            
+            List<Payment> payments = paymentService.getPaymentsByUserId(user.getId());
+            List<PaymentResponse> responses = payments.stream()
+                    .map(PaymentResponse::fromEntity)
+                    .toList();
+            
+            return ResponseEntity.ok(responses);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+    
+    // GET /api/payments/my-payments/status/{status} - MIS pagos por estado
+    @GetMapping("/my-payments/status/{status}")
+    public ResponseEntity<List<PaymentResponse>> getMyPaymentsByStatus(
+            @RequestHeader("Authorization") String authHeader,
+            @PathVariable PaymentStatus status) {
+        try {
+            String token = authHeader.replace("Bearer ", "");
+            String email = jwtUtil.getSubject(token);
+            
+            if (email == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+            
+            User user = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+            
+            List<Payment> payments = paymentService.getPaymentsByUserAndStatus(user.getId(), status);
+            List<PaymentResponse> responses = payments.stream()
+                    .map(PaymentResponse::fromEntity)
+                    .toList();
+            
+            return ResponseEntity.ok(responses);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+    
+    // GET /api/payments/my-total - MI total de pagos aprobados
+    @GetMapping("/my-total")
+    public ResponseEntity<BigDecimal> getMyTotalAmount(
+            @RequestHeader("Authorization") String authHeader) {
+        try {
+            String token = authHeader.replace("Bearer ", "");
+            String email = jwtUtil.getSubject(token);
+            
+            if (email == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+            
+            User user = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+            
+            BigDecimal total = paymentService.getTotalAmountByUserId(user.getId());
+            return ResponseEntity.ok(total);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+    
+    // POST /api/payments/my-search - Buscar MIS pagos con filtros
+    @PostMapping("/my-search")
+    public ResponseEntity<PagedPaymentResponse> searchMyPayments(
+            @RequestHeader("Authorization") String authHeader,
+            @Valid @RequestBody PaymentSearchRequest request,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        try {
+            String token = authHeader.replace("Bearer ", "");
+            String email = jwtUtil.getSubject(token);
+            
+            if (email == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+            
+            User user = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+            
+            List<Payment> userPayments = paymentService.getPaymentsByUserId(user.getId());
+            
+            List<Payment> filteredPayments = userPayments.stream()
+                .filter(payment -> {
+                    boolean matches = true;
+                    
+                    if (request.getStatus() != null) {
+                        matches = matches && payment.getStatus() == request.getStatus();
+                    }
+                    
+                    if (request.getCurrency() != null && !request.getCurrency().isEmpty()) {
+                        matches = matches && payment.getCurrency().equals(request.getCurrency());
+                    }
+                    
+                    if (request.getMinAmount() != null) {
+                        matches = matches && payment.getAmount_total().compareTo(request.getMinAmount()) >= 0;
+                    }
+                    
+                    if (request.getMaxAmount() != null) {
+                        matches = matches && payment.getAmount_total().compareTo(request.getMaxAmount()) <= 0;
+                    }
+                    
+                    if (request.getStartDate() != null) {
+                        matches = matches && !payment.getCreated_at().toLocalDate().isBefore(request.getStartDate());
+                    }
+                    
+                    if (request.getEndDate() != null) {
+                        matches = matches && !payment.getCreated_at().toLocalDate().isAfter(request.getEndDate());
+                    }
+                    
+                    return matches;
+                })
+                .sorted((p1, p2) -> p2.getCreated_at().compareTo(p1.getCreated_at()))
+                .collect(Collectors.toList());
+            
+            int start = page * size;
+            int end = Math.min(start + size, filteredPayments.size());
+            List<Payment> pageContent = start < filteredPayments.size() ? 
+                filteredPayments.subList(start, end) : new ArrayList<>();
+            
+            List<PaymentResponse> responses = pageContent.stream()
+                .map(PaymentResponse::fromEntity)
+                .collect(Collectors.toList());
+            
+            PagedPaymentResponse pagedResponse = new PagedPaymentResponse();
+            pagedResponse.setContent(responses);
+            pagedResponse.setTotalElements(filteredPayments.size());
+            pagedResponse.setTotalPages((int) Math.ceil((double) filteredPayments.size() / size));
+            pagedResponse.setSize(size);
+            pagedResponse.setNumber(page);
+            pagedResponse.setFirst(page == 0);
+            pagedResponse.setLast(page >= pagedResponse.getTotalPages() - 1);
+            pagedResponse.setNumberOfElements(responses.size());
+            
+            return ResponseEntity.ok(pagedResponse);
+        } catch (Exception e) {
+            e.printStackTrace(); 
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }

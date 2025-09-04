@@ -3,6 +3,9 @@ package backend_api.Backend.Controller;
 import backend_api.Backend.DTO.invoice.*;
 import backend_api.Backend.Entity.invoice.InvoiceStatus;
 import backend_api.Backend.Service.Interface.InvoiceService;
+import backend_api.Backend.Auth.JwtUtil;
+import backend_api.Backend.Repository.UserRepository;
+import backend_api.Backend.Entity.user.User;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +29,8 @@ import java.util.Map;
 public class InvoiceController {
     
     private final InvoiceService invoiceService;
+    private final JwtUtil jwtUtil;
+    private final UserRepository userRepository;
     
     
     @PostMapping
@@ -236,28 +241,6 @@ public class InvoiceController {
     }
     
     
-    @PostMapping("/process-overdue")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Map<String, String>> processOverdueInvoices() {
-        log.info("Processing overdue invoices");
-        invoiceService.processOverdueInvoices();
-        
-        Map<String, String> response = new HashMap<>();
-        response.put("message", "Facturas vencidas procesadas exitosamente");
-        return ResponseEntity.ok(response);
-    }
-    
-    @PostMapping("/send-reminders")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Map<String, String>> sendDueReminders() {
-        log.info("Sending due reminders");
-        invoiceService.sendDueReminders();
-        
-        Map<String, String> response = new HashMap<>();
-        response.put("message", "Recordatorios enviados exitosamente");
-        return ResponseEntity.ok(response);
-    }
-    
     
     @PostMapping("/create-from-payment/{paymentId}")
     @PreAuthorize("hasRole('MERCHANT')")
@@ -265,5 +248,59 @@ public class InvoiceController {
         log.info("Creating invoice from payment ID: {}", paymentId);
         InvoiceResponse response = invoiceService.createInvoiceFromPayment(paymentId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+    
+    // ===============================================
+    // NUEVOS ENDPOINTS SEGUROS CON TOKEN
+    // ===============================================
+    
+    // GET /api/invoices/my-invoices - Obtener MIS facturas usando el token
+    @GetMapping("/my-invoices")
+    public ResponseEntity<Page<InvoiceResponse>> getMyInvoices(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestHeader("Authorization") String authHeader) {
+        try {
+            // Extraer usuario del token JWT
+            String token = authHeader.replace("Bearer ", "");
+            String email = jwtUtil.getSubject(token);
+            
+            if (email == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+            
+            // Buscar usuario por email 
+            User user = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+            
+            Page<InvoiceResponse> response = invoiceService.getInvoicesByUserId(user.getId(), page, size);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error fetching user's invoices", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+    
+    // GET /api/invoices/my-summary - MI resumen de facturas
+    @GetMapping("/my-summary")
+    public ResponseEntity<InvoiceSummaryResponse> getMySummary(
+            @RequestHeader("Authorization") String authHeader) {
+        try {
+            String token = authHeader.replace("Bearer ", "");
+            String email = jwtUtil.getSubject(token);
+            
+            if (email == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+            
+            User user = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+            
+            InvoiceSummaryResponse response = invoiceService.getInvoiceSummaryByUser(user.getId());
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error fetching user's invoice summary", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 }

@@ -35,7 +35,7 @@ public class RefundController {
         }
     }
 
-    // GET /api/refunds/{id}  (MERCHANT, ADMIN)
+    // GET /api/refunds/{id}  (MERCHANT)
     @GetMapping("/{id}")
     public ResponseEntity<?> getRefundById(@PathVariable Long id) {
         try {
@@ -47,7 +47,7 @@ public class RefundController {
         }
     }
 
-    // GET /api/refunds  (ADMIN)
+    // GET /api/refunds  (MERCHANT)
     @GetMapping
     public ResponseEntity<List<Refund>> getAllRefunds() {
         try {
@@ -59,7 +59,7 @@ public class RefundController {
         }
     }
 
-    // PATCH /api/refunds/{id}/status  (MERCHANT, ADMIN)
+    // PATCH /api/refunds/{id}/status  (MERCHANT)
     @PatchMapping("/{id}/status")
     public ResponseEntity<?> updateRefundStatus(@PathVariable Long id, @RequestBody RefundStatus status) {
         try {

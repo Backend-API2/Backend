@@ -15,6 +15,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -92,7 +93,7 @@ public class PaymentServiceImpl implements PaymentService{
     }
 
     @Override
-    public List<Payment> getPaymentsByDateRange(LocalDateTime startDate, LocalDateTime endDate){
+    public List<Payment> getPaymentsByDateRange(LocalDate startDate, LocalDate endDate){
         return paymentRepository.findByCreatedAtBetween(startDate, endDate);
     }
 
@@ -163,7 +164,7 @@ public class PaymentServiceImpl implements PaymentService{
     @Override
     public Page<Payment> findWithFilters(PaymentStatus status, String currency, 
                                        BigDecimal minAmount, BigDecimal maxAmount,
-                                       LocalDateTime startDate, LocalDateTime endDate, 
+                                       LocalDate startDate, LocalDate endDate, 
                                        Pageable pageable) {
         return paymentRepository.findWithFilters(status, currency, minAmount, maxAmount, startDate, endDate, pageable);
     }

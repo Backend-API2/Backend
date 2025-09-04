@@ -16,6 +16,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Repository
@@ -46,7 +47,7 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     List<Payment> findByAmountTotalGreaterThanEqual(@Param("minAmount") BigDecimal minAmount);
 
     @Query("SELECT p FROM Payment p WHERE p.created_at BETWEEN :startDate AND :endDate")
-    List<Payment> findByCreatedAtBetween(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
+    List<Payment> findByCreatedAtBetween(@Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
 
     @Query("SELECT p FROM Payment p WHERE p.user_id = :userId AND p.status = :status")
     List<Payment> findByUserIdAndStatus(@Param("userId") Long userId, @Param("status") PaymentStatus status);
@@ -87,8 +88,8 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
                                  @Param("currency") String currency,
                                  @Param("minAmount") BigDecimal minAmount,
                                  @Param("maxAmount") BigDecimal maxAmount,
-                                 @Param("startDate") LocalDateTime startDate,
-                                 @Param("endDate") LocalDateTime endDate,
+                                 @Param("startDate") LocalDate startDate,
+                                 @Param("endDate") LocalDate endDate,
                                  Pageable pageable);
     
     // Contar pagos por estado
