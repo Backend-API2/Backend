@@ -52,6 +52,9 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     @Query("SELECT p FROM Payment p WHERE p.user_id = :userId AND p.status = :status")
     List<Payment> findByUserIdAndStatus(@Param("userId") Long userId, @Param("status") PaymentStatus status);
 
+    @Query("SELECT p FROM Payment p WHERE p.provider_id = :providerId AND p.status = :status")
+    List<Payment> findByProviderIdAndStatus(@Param("providerId") Long providerId, @Param("status") PaymentStatus status);
+
     @Query("SELECT p FROM Payment p WHERE p.currency = :currency")
     List<Payment> findByCurrency(@Param("currency") String currency);
     
@@ -95,5 +98,13 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     // Contar pagos por estado
     @Query("SELECT COUNT(p) FROM Payment p WHERE p.status = :status")
     Long countByStatus(@Param("status") PaymentStatus status);
+    
+    // Total amount por user_id (pagos APPROVED)
+    @Query("SELECT COALESCE(SUM(p.amount_total), 0) FROM Payment p WHERE p.user_id = :userId AND p.status = 'APPROVED'")
+    BigDecimal getTotalAmountByUserId(@Param("userId") Long userId);
+    
+    // Total amount por provider_id (pagos APPROVED)
+    @Query("SELECT COALESCE(SUM(p.amount_total), 0) FROM Payment p WHERE p.provider_id = :providerId AND p.status = 'APPROVED'")
+    BigDecimal getTotalAmountByProviderId(@Param("providerId") Long providerId);
     
 }

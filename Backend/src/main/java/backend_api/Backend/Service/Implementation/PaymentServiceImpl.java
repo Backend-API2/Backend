@@ -103,6 +103,11 @@ public class PaymentServiceImpl implements PaymentService{
     }
 
     @Override
+    public List<Payment> getPaymentsByProviderAndStatus(Long providerId, PaymentStatus status){
+        return paymentRepository.findByProviderIdAndStatus(providerId, status);
+    }
+
+    @Override
     public List<Payment> getPaymentsByCurrency(String currency){
         return paymentRepository.findByCurrency(currency);
     }
@@ -134,11 +139,12 @@ public class PaymentServiceImpl implements PaymentService{
 
     @Override
     public BigDecimal getTotalAmountByUserId(Long userId){
-        List<Payment> payments = paymentRepository.findByUserId(userId);
-        return payments.stream()
-                .filter(payment -> payment.getStatus() == PaymentStatus.APPROVED)
-                .map(Payment::getAmount_total)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return paymentRepository.getTotalAmountByUserId(userId);
+    }
+    
+    @Override
+    public BigDecimal getTotalAmountByProviderId(Long providerId){
+        return paymentRepository.getTotalAmountByProviderId(providerId);
     }
         
     @Override
@@ -182,8 +188,8 @@ public class PaymentServiceImpl implements PaymentService{
             throw new RuntimeException("Payment has expired");
         }
         
-        if (payment.getStatus() != PaymentStatus.PENDING) {
-            throw new RuntimeException("Payment is not in pending status");
+        if (payment.getStatus() != PaymentStatus.PENDING_PAYMENT) {
+            throw new RuntimeException("Payment is not in pending_payment status");
         }
         
         paymentEventService.createEvent(

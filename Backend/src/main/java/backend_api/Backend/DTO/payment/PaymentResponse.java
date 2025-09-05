@@ -1,5 +1,6 @@
 package backend_api.Backend.DTO.payment;
 
+import backend_api.Backend.Entity.payment.PaymentMethod;
 import backend_api.Backend.Entity.payment.PaymentStatus;
 import lombok.Data;
 import java.math.BigDecimal;
@@ -20,7 +21,8 @@ public class PaymentResponse {
     private BigDecimal fees; 
     private BigDecimal amount_total;
     private String currency;
-    
+    private PaymentMethod method; 
+
     private PaymentStatus status;
     
     private LocalDateTime created_at;
@@ -45,6 +47,7 @@ public class PaymentResponse {
         response.setFees(payment.getFees());
         response.setAmount_total(payment.getAmount_total());
         response.setCurrency(payment.getCurrency());
+        response.setMethod(payment.getMethod());
         response.setStatus(payment.getStatus());
         response.setCreated_at(payment.getCreated_at());
         response.setUpdated_at(payment.getUpdated_at());

@@ -13,7 +13,7 @@ public class CreateRefundRequest {
     private Long paymentId;
 
     @NotNull(message = "amount es requerido")
-    @DecimalMin(value = "0.01", message = "amount debe ser mayor a 0")
+    @DecimalMin(value = "0.01", message = "Valor debe ser mayor a 0")
     private BigDecimal amount;
 
     // Opcional: motivo legible (ej: "customer_request", "duplicate_charge", etc.)

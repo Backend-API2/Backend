@@ -32,7 +32,7 @@ public class RefundServiceImpl implements RefundService {
             throw new IllegalArgumentException("payment_id es requerido");
         }
         if (refund.getAmount() == null || refund.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("El monto del refund debe ser mayor a 0");
+            throw new IllegalArgumentException("El monto del reembolso debe ser mayor a 0");
         }
 
         Payment payment = paymentRepository.findById(refund.getPayment_id())
@@ -77,7 +77,7 @@ public class RefundServiceImpl implements RefundService {
     @Override
     public Refund updateRefundStatus(Long id, RefundStatus status) {
         Refund existing = refundRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Refund no encontrado con id: " + id));
+                .orElseThrow(() -> new RuntimeException("Reemboloso no encontrado con id: " + id));
 
         existing.setStatus(status);
         Refund saved = refundRepository.save(existing);

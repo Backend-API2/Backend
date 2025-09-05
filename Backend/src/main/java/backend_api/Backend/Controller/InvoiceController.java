@@ -36,23 +36,23 @@ public class InvoiceController {
     @PostMapping
     @PreAuthorize("hasRole('MERCHANT')")
     public ResponseEntity<InvoiceResponse> createInvoice(@Valid @RequestBody CreateInvoiceRequest request) {
-        log.info("Creating new invoice for payment: {}", request.getPaymentId());
+        log.info("Creando nueva factura para el pago: {}", request.getPaymentId());
         InvoiceResponse response = invoiceService.createInvoice(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
-    
+    // que es fetching? = 
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('MERCHANT') or hasRole('CLIENT')")
+    @PreAuthorize("hasRole('MERCHANT') or hasRole('USER')")
     public ResponseEntity<InvoiceResponse> getInvoiceById(@PathVariable Long id) {
-        log.info("Fetching invoice with ID: {}", id);
+        log.info("Obteniendo factura con ID: {}", id);
         InvoiceResponse response = invoiceService.getInvoiceById(id);
         return ResponseEntity.ok(response);
     }
     
     @GetMapping("/number/{invoiceNumber}")
-    @PreAuthorize("hasRole('MERCHANT') or hasRole('CLIENT')")
+    @PreAuthorize("hasRole('MERCHANT') or hasRole('USER')")
     public ResponseEntity<InvoiceResponse> getInvoiceByNumber(@PathVariable String invoiceNumber) {
-        log.info("Fetching invoice with number: {}", invoiceNumber);
+        log.info("Obteniendo factura con número: {}", invoiceNumber);
         InvoiceResponse response = invoiceService.getInvoiceByNumber(invoiceNumber);
         return ResponseEntity.ok(response);
     }
@@ -62,7 +62,7 @@ public class InvoiceController {
     public ResponseEntity<InvoiceResponse> updateInvoice(
             @PathVariable Long id, 
             @Valid @RequestBody UpdateInvoiceRequest request) {
-        log.info("Updating invoice with ID: {}", id);
+        log.info("Actualizando factura con ID: {}", id);
         InvoiceResponse response = invoiceService.updateInvoice(id, request);
         return ResponseEntity.ok(response);
     }
@@ -70,7 +70,7 @@ public class InvoiceController {
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('MERCHANT')")
     public ResponseEntity<Map<String, String>> deleteInvoice(@PathVariable Long id) {
-        log.info("Deleting invoice with ID: {}", id);
+        log.info("Eliminando factura con ID: {}", id);
         invoiceService.deleteInvoice(id);
         
         Map<String, String> response = new HashMap<>();
@@ -84,7 +84,7 @@ public class InvoiceController {
     public ResponseEntity<InvoiceResponse> updateInvoiceStatus(
             @PathVariable Long id,
             @Valid @RequestBody UpdateInvoiceStatusRequest request) {
-        log.info("Updating status for invoice ID: {} to: {}", id, request.getStatus());
+        log.info("Actualizando estado de la factura ID: {} a: {}", id, request.getStatus());
         InvoiceResponse response = invoiceService.updateInvoiceStatus(id, request);
         return ResponseEntity.ok(response);
     }
@@ -92,7 +92,7 @@ public class InvoiceController {
     @PostMapping("/{id}/send")
     @PreAuthorize("hasRole('MERCHANT')")
     public ResponseEntity<InvoiceResponse> sendInvoice(@PathVariable Long id) {
-        log.info("Sending invoice with ID: {}", id);
+        log.info("Enviando factura con ID: {}", id);
         InvoiceResponse response = invoiceService.markAsSent(id);
         return ResponseEntity.ok(response);
     }
@@ -100,7 +100,7 @@ public class InvoiceController {
     @PostMapping("/{id}/pay")
     @PreAuthorize("hasRole('MERCHANT')")
     public ResponseEntity<InvoiceResponse> markInvoiceAsPaid(@PathVariable Long id) {
-        log.info("Marking invoice as paid with ID: {}", id);
+        log.info("Marcando factura como pagada con ID: {}", id);
         InvoiceResponse response = invoiceService.markAsPaid(id);
         return ResponseEntity.ok(response);
     }
@@ -108,27 +108,27 @@ public class InvoiceController {
     @PostMapping("/{id}/cancel")
     @PreAuthorize("hasRole('MERCHANT')")
     public ResponseEntity<InvoiceResponse> cancelInvoice(@PathVariable Long id) {
-        log.info("Canceling invoice with ID: {}", id);
+        log.info("Cancelando factura con ID: {}", id);
         InvoiceResponse response = invoiceService.cancelInvoice(id);
         return ResponseEntity.ok(response);
     }
     
     
     @PostMapping("/search")
-    @PreAuthorize("hasRole('MERCHANT') or hasRole('CLIENT')")
+    @PreAuthorize("hasRole('MERCHANT') or hasRole('USER')")
     public ResponseEntity<Page<InvoiceResponse>> searchInvoices(@Valid @RequestBody InvoiceSearchRequest request) {
-        log.info("Searching invoices with filters");
+        log.info("Buscando facturas con filtros");
         Page<InvoiceResponse> response = invoiceService.searchInvoices(request);
         return ResponseEntity.ok(response);
     }
     
     @GetMapping("/user/{userId}")
-    @PreAuthorize("hasRole('MERCHANT') or hasRole('CLIENT')")
+    @PreAuthorize("hasRole('MERCHANT') or hasRole('USER')")
     public ResponseEntity<Page<InvoiceResponse>> getInvoicesByUserId(
             @PathVariable Long userId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        log.info("Fetching invoices for user ID: {}", userId);
+        log.info("Obteniendo facturas para el ID de usuario: {}", userId);
         Page<InvoiceResponse> response = invoiceService.getInvoicesByUserId(userId, page, size);
         return ResponseEntity.ok(response);
     }
@@ -139,7 +139,7 @@ public class InvoiceController {
             @PathVariable Long providerId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        log.info("Fetching invoices for provider ID: {}", providerId);
+        log.info("Obteniendo facturas para el ID de proveedor: {}", providerId);
         Page<InvoiceResponse> response = invoiceService.getInvoicesByProviderId(providerId, page, size);
         return ResponseEntity.ok(response);
     }
@@ -150,16 +150,16 @@ public class InvoiceController {
             @PathVariable String status,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        log.info("Fetching invoices with status: {}", status);
+        log.info("Buscando facturas con estado: {}", status);
         InvoiceStatus invoiceStatus = InvoiceStatus.valueOf(status.toUpperCase());
         Page<InvoiceResponse> response = invoiceService.getInvoicesByStatus(invoiceStatus, page, size);
         return ResponseEntity.ok(response);
     }
     
     @GetMapping("/payment/{paymentId}")
-    @PreAuthorize("hasRole('MERCHANT') or hasRole('CLIENT')")
+    @PreAuthorize("hasRole('MERCHANT') or hasRole('USER')")
     public ResponseEntity<List<InvoiceResponse>> getInvoicesByPaymentId(@PathVariable Long paymentId) {
-        log.info("Fetching invoices for payment ID: {}", paymentId);
+        log.info("Obteniendo facturas para el ID de pago: {}", paymentId);
         List<InvoiceResponse> response = invoiceService.getInvoicesByPaymentId(paymentId);
         return ResponseEntity.ok(response);
     }
@@ -168,7 +168,7 @@ public class InvoiceController {
     @PostMapping("/{id}/pdf/generate")
     @PreAuthorize("hasRole('MERCHANT')")
     public ResponseEntity<Map<String, String>> generatePdf(@PathVariable Long id) {
-        log.info("Generating PDF for invoice ID: {}", id);
+        log.info("Generando PDF para la factura ID: {}", id);
         String pdfUrl = invoiceService.generatePdf(id);
         
         Map<String, String> response = new HashMap<>();
@@ -180,7 +180,7 @@ public class InvoiceController {
     @PostMapping("/{id}/pdf/regenerate")
     @PreAuthorize("hasRole('MERCHANT')")
     public ResponseEntity<Map<String, String>> regeneratePdf(@PathVariable Long id) {
-        log.info("Regenerating PDF for invoice ID: {}", id);
+        log.info("Regenerando PDF para la factura ID: {}", id);
         String pdfUrl = invoiceService.regeneratePdf(id);
         
         Map<String, String> response = new HashMap<>();
@@ -190,9 +190,9 @@ public class InvoiceController {
     }
     
     @GetMapping("/{id}/pdf/download")
-    @PreAuthorize("hasRole('MERCHANT') or hasRole('CLIENT')")
+    @PreAuthorize("hasRole('MERCHANT') or hasRole('USER')")
     public ResponseEntity<byte[]> downloadPdf(@PathVariable Long id) {
-        log.info("Downloading PDF for invoice ID: {}", id);
+        log.info("Descargando PDF para la factura ID: {}", id);
         byte[] pdfContent = invoiceService.downloadPdf(id);
         
         HttpHeaders headers = new HttpHeaders();
@@ -207,9 +207,9 @@ public class InvoiceController {
     
     
     @GetMapping("/{id}/timeline")
-    @PreAuthorize("hasRole('MERCHANT') or hasRole('CLIENT')")
+    @PreAuthorize("hasRole('MERCHANT') or hasRole('USER')")
     public ResponseEntity<List<InvoiceEventResponse>> getInvoiceTimeline(@PathVariable Long id) {
-        log.info("Fetching timeline for invoice ID: {}", id);
+        log.info("Obteniendo la línea de tiempo para la factura ID: {}", id);
         List<InvoiceEventResponse> response = invoiceService.getInvoiceTimeline(id);
         return ResponseEntity.ok(response);
     }
@@ -218,15 +218,15 @@ public class InvoiceController {
     @GetMapping("/provider/{providerId}/summary")
     @PreAuthorize("hasRole('MERCHANT')")
     public ResponseEntity<InvoiceSummaryResponse> getInvoiceSummary(@PathVariable Long providerId) {
-        log.info("Fetching invoice summary for provider ID: {}", providerId);
+        log.info("Obteniendo resumen de facturas para el ID de proveedor: {}", providerId);
         InvoiceSummaryResponse response = invoiceService.getInvoiceSummary(providerId);
         return ResponseEntity.ok(response);
     }
     
     @GetMapping("/user/{userId}/summary")
-    @PreAuthorize("hasRole('MERCHANT') or hasRole('CLIENT')")
+    @PreAuthorize("hasRole('MERCHANT') or hasRole('USER')")
     public ResponseEntity<InvoiceSummaryResponse> getInvoiceSummaryByUser(@PathVariable Long userId) {
-        log.info("Fetching invoice summary for user ID: {}", userId);
+        log.info("Obteniendo resumen de facturas para el ID de usuario: {}", userId);
         InvoiceSummaryResponse response = invoiceService.getInvoiceSummaryByUser(userId);
         return ResponseEntity.ok(response);
     }
@@ -235,7 +235,7 @@ public class InvoiceController {
     @PreAuthorize("hasRole('MERCHANT')")
     public ResponseEntity<List<InvoiceResponse>> getInvoicesDueSoon(
             @RequestParam(defaultValue = "7") int days) {
-        log.info("Fetching invoices due in {} days", days);
+        log.info("Obteniendo facturas que vencen en {} días", days);
         List<InvoiceResponse> response = invoiceService.getInvoicesDueSoon(days);
         return ResponseEntity.ok(response);
     }
@@ -245,14 +245,11 @@ public class InvoiceController {
     @PostMapping("/create-from-payment/{paymentId}")
     @PreAuthorize("hasRole('MERCHANT')")
     public ResponseEntity<InvoiceResponse> createInvoiceFromPayment(@PathVariable Long paymentId) {
-        log.info("Creating invoice from payment ID: {}", paymentId);
+        log.info("Creando factura a partir del ID de pago: {}", paymentId);
         InvoiceResponse response = invoiceService.createInvoiceFromPayment(paymentId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
     
-    // ===============================================
-    // NUEVOS ENDPOINTS SEGUROS CON TOKEN
-    // ===============================================
     
     // GET /api/invoices/my-invoices - Obtener MIS facturas usando el token
     @GetMapping("/my-invoices")
@@ -261,7 +258,6 @@ public class InvoiceController {
             @RequestParam(defaultValue = "10") int size,
             @RequestHeader("Authorization") String authHeader) {
         try {
-            // Extraer usuario del token JWT
             String token = authHeader.replace("Bearer ", "");
             String email = jwtUtil.getSubject(token);
             
@@ -269,14 +265,13 @@ public class InvoiceController {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
             }
             
-            // Buscar usuario por email 
             User user = userRepository.findByEmail(email)
                     .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
             
             Page<InvoiceResponse> response = invoiceService.getInvoicesByUserId(user.getId(), page, size);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            log.error("Error fetching user's invoices", e);
+            log.error("Error obteniendo facturas del usuario", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
@@ -299,7 +294,7 @@ public class InvoiceController {
             InvoiceSummaryResponse response = invoiceService.getInvoiceSummaryByUser(user.getId());
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            log.error("Error fetching user's invoice summary", e);
+            log.error("Error obteniendo resumen de facturas del usuario", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }

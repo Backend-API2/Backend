@@ -58,7 +58,7 @@ public class PaymentEventServiceImpl implements PaymentEventService {
     @Override
     public PaymentEvent getEventById(Long id) {
         Optional<PaymentEvent> event = paymentEventRepository.findById(id);
-        return event.orElseThrow(() -> new RuntimeException("PaymentEvent not found with id: " + id));
+        return event.orElseThrow(() -> new RuntimeException("PaymentEvent no fue encontrado con id: " + id));
     }
     
     @Override

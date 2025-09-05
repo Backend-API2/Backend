@@ -48,8 +48,8 @@ public class JwtUtil {
                     .withClaim("type", "access")
                     .sign(algorithm);
         } catch (JWTCreationException e) {
-            logger.error("Error creating JWT token: {}", e.getMessage());
-            throw new RuntimeException("Error creating JWT token", e);
+            logger.error("Error creando JWT token: {}", e.getMessage());
+            throw new RuntimeException("Error creando JWT token", e);
         }
     }
 
@@ -62,7 +62,7 @@ public class JwtUtil {
                     .verify(token);
             return jwt.getSubject();
         } catch (JWTVerificationException e) {
-            logger.warn("Invalid JWT token: {}", e.getMessage());
+            logger.warn("Invalido JWT token: {}", e.getMessage());
             return null;
         }
     }
@@ -76,8 +76,8 @@ public class JwtUtil {
                     .verify(token);
             return jwt.getClaim("roles").asList(String.class);
         } catch (JWTVerificationException e) {
-            logger.warn("Cannot extract roles from token: {}", e.getMessage());
-            return List.of("USER"); 
+            logger.warn("No se pueden extraer los roles del token: {}", e.getMessage());
+            return List.of("USER");
         }
     }
 
@@ -90,7 +90,7 @@ public class JwtUtil {
                     .verify(token);
             return true;
         } catch (JWTVerificationException e) {
-            logger.debug("JWT token validation failed: {}", e.getMessage());
+            logger.debug("Verificacion de JWT token fallida: {}", e.getMessage());
             return false;
         }
     }
@@ -117,7 +117,7 @@ public class JwtUtil {
                     .verify(token);
             return jwt.getExpiresAt();
         } catch (JWTVerificationException e) {
-            logger.warn("Cannot get expiration date from token: {}", e.getMessage());
+            logger.warn("No se puede obtener la fecha de expiracion del token: {}", e.getMessage());
             return null;
         }
     }

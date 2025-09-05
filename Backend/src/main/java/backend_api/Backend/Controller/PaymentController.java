@@ -29,6 +29,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+
 
 @RestController
 @RequestMapping("/api/payments")
@@ -94,7 +97,7 @@ public class PaymentController {
                                 .add(request.getFees());
             payment.setAmount_total(total);
             
-            payment.setStatus(PaymentStatus.PENDING);
+            payment.setStatus(PaymentStatus.PENDING_APPROVAL);
             payment.setCreated_at(LocalDateTime.now());
             payment.setUpdated_at(LocalDateTime.now());
 
@@ -202,8 +205,19 @@ public class PaymentController {
         }
     }
 
+    @GetMapping("/{paymentId}")
+    public ResponseEntity<PaymentResponse> getPaymentById(@PathVariable Long paymentId) {
+        try {
+            Payment payment = paymentService.getPaymentById(paymentId)
+                    .orElseThrow(() -> new RuntimeException("Pago no encontrado"));
+            return ResponseEntity.ok(PaymentResponse.fromEntity(payment));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
     
-    // GET /api/payments/my-payments - Obtener MIS pagos usando el token
+   // GET /api/payments/my-payments - Obtener MIS pagos usando el token
     @GetMapping("/my-payments")
     public ResponseEntity<List<PaymentResponse>> getMyPayments(
             @RequestHeader("Authorization") String authHeader,
@@ -220,7 +234,14 @@ public class PaymentController {
             User user = userRepository.findByEmail(email)
                     .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
             
-            List<Payment> payments = paymentService.getPaymentsByUserId(user.getId());
+            List<Payment> payments;
+            
+            if (user.getRole().name().equals("MERCHANT")) {
+                payments = paymentService.getPaymentsByProviderId(user.getId());
+            } else {
+                payments = paymentService.getPaymentsByUserId(user.getId());
+            }
+            
             List<PaymentResponse> responses = payments.stream()
                     .map(PaymentResponse::fromEntity)
                     .toList();
@@ -247,7 +268,14 @@ public class PaymentController {
             User user = userRepository.findByEmail(email)
                     .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
             
-            List<Payment> payments = paymentService.getPaymentsByUserAndStatus(user.getId(), status);
+            List<Payment> payments;
+            
+            if (user.getRole().name().equals("MERCHANT")) {
+                payments = paymentService.getPaymentsByProviderAndStatus(user.getId(), status);
+            } else {
+                payments = paymentService.getPaymentsByUserAndStatus(user.getId(), status);
+            }
+            
             List<PaymentResponse> responses = payments.stream()
                     .map(PaymentResponse::fromEntity)
                     .toList();
@@ -273,7 +301,14 @@ public class PaymentController {
             User user = userRepository.findByEmail(email)
                     .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
             
-            BigDecimal total = paymentService.getTotalAmountByUserId(user.getId());
+            BigDecimal total;
+            
+            if (user.getRole().name().equals("MERCHANT")) {
+                total = paymentService.getTotalAmountByProviderId(user.getId());
+            } else {
+                total = paymentService.getTotalAmountByUserId(user.getId());
+            }
+            
             return ResponseEntity.ok(total);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -298,7 +333,13 @@ public class PaymentController {
             User user = userRepository.findByEmail(email)
                     .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
             
-            List<Payment> userPayments = paymentService.getPaymentsByUserId(user.getId());
+            List<Payment> userPayments;
+            
+            if (user.getRole().name().equals("MERCHANT")) {
+                userPayments = paymentService.getPaymentsByProviderId(user.getId());
+            } else {
+                userPayments = paymentService.getPaymentsByUserId(user.getId());
+            }
             
             List<Payment> filteredPayments = userPayments.stream()
                 .filter(payment -> {

@@ -1,7 +1,8 @@
 package backend_api.Backend.Entity.payment;
 
 public enum PaymentStatus {
-    PENDING,
+    PENDING_APPROVAL,
+    PENDING_PAYMENT,
     APPROVED,
     COMPLETED,
     REJECTED,

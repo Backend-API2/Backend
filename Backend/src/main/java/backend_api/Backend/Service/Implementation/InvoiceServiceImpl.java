@@ -39,7 +39,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     
     @Override
     public InvoiceResponse createInvoice(CreateInvoiceRequest request) {
-        log.info("Creating new invoice for payment: {}", request.getPaymentId());
+        log.info("Creando nueva factura para el pago: {}", request.getPaymentId());
         
         Payment payment = paymentRepository.findById(request.getPaymentId())
                 .orElseThrow(() -> new EntityNotFoundException("Pago no encontrado: " + request.getPaymentId()));
@@ -75,7 +75,7 @@ public class InvoiceServiceImpl implements InvoiceService {
             request.getProviderId()
         );
         
-        log.info("Invoice created successfully: {}", savedInvoice.getInvoiceNumber());
+        log.info("Factura creada con éxito: {}", savedInvoice.getInvoiceNumber());
         return convertToResponse(savedInvoice, savedLines);
     }
     
@@ -130,7 +130,7 @@ public class InvoiceServiceImpl implements InvoiceService {
             id,
             InvoiceEventType.INVOICE_UPDATED,
             "Factura actualizada",
-            null // Obtener usuario actual
+            null 
         );
         
         return convertToResponse(updatedInvoice, lines);
@@ -221,7 +221,6 @@ public class InvoiceServiceImpl implements InvoiceService {
         if (invoiceOpt.isEmpty()) return false;
         
         Invoice invoice = invoiceOpt.get();
-        // No se puede modificar si está pagada o cancelada
         return invoice.getStatus() != InvoiceStatus.PAID && 
                invoice.getStatus() != InvoiceStatus.CANCELED;
     }
@@ -530,7 +529,6 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoiceRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Factura no encontrada: " + id));
         
-        // Por ahora devolver un PDF vacío o generar uno simple
         String content = "PDF content for invoice " + id;
         return content.getBytes();
     }
@@ -606,8 +604,8 @@ public class InvoiceServiceImpl implements InvoiceService {
                 null
             );
         }
-        
-        log.info("Processed {} overdue invoices", overdueInvoices.size());
+
+        log.info("Procesando {} facturas vencidas", overdueInvoices.size());
     }
     
     @Override
@@ -623,8 +621,8 @@ public class InvoiceServiceImpl implements InvoiceService {
                 null
             );
         }
-        
-        log.info("Sent reminders for {} invoices due soon", invoicesDueSoon.size());
+
+        log.info("Se enviaron recordatorios para {} facturas que vencen pronto", invoicesDueSoon.size());
     }
     
     @Override

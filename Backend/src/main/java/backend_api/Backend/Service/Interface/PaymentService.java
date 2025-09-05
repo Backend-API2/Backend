@@ -42,6 +42,8 @@ public interface PaymentService {
 
     List<Payment> getPaymentsByUserAndStatus(Long userId, PaymentStatus status);
 
+    List<Payment> getPaymentsByProviderAndStatus(Long providerId, PaymentStatus status);
+
     List<Payment> getPaymentsByCurrency(String currency);
 
     Payment updatePaymentStatus(Long id, PaymentStatus status);
@@ -51,6 +53,8 @@ public interface PaymentService {
 
 
     BigDecimal getTotalAmountByUserId (Long userId);
+    
+    BigDecimal getTotalAmountByProviderId (Long providerId);
     
     
     List<Payment> findByUserNameContaining(String userName);

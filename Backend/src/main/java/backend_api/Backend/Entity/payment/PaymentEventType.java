@@ -2,7 +2,6 @@ package backend_api.Backend.Entity.payment;
 
 public enum PaymentEventType {
   
-    
     AUTHORIZATION_STARTED,
     AUTHORIZATION_SUCCEEDED,
     AUTHORIZATION_FAILED,
