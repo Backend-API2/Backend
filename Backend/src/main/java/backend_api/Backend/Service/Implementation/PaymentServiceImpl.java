@@ -157,23 +157,7 @@ public class PaymentServiceImpl implements PaymentService{
         return paymentRepository.findByUserNameContaining(userName, pageable);
     }
     
-    @Override
-    public List<Payment> findByAmountTotalBetween(BigDecimal minAmount, BigDecimal maxAmount) {
-        return paymentRepository.findByAmountTotalBetween(minAmount, maxAmount);
-    }
-    
-    @Override
-    public Page<Payment> findByAmountTotalBetween(BigDecimal minAmount, BigDecimal maxAmount, Pageable pageable) {
-        return paymentRepository.findByAmountTotalBetween(minAmount, maxAmount, pageable);
-    }
-    
-    @Override
-    public Page<Payment> findWithFilters(PaymentStatus status, String currency, 
-                                       BigDecimal minAmount, BigDecimal maxAmount,
-                                       LocalDate startDate, LocalDate endDate, 
-                                       Pageable pageable) {
-        return paymentRepository.findWithFilters(status, currency, minAmount, maxAmount, startDate, endDate, pageable);
-    }
+
     
     @Override
     public Payment confirmPayment(Long paymentId, String paymentMethodType, String paymentMethodId, boolean captureImmediately) {

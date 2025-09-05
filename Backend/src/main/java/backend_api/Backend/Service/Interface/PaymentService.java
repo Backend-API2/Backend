@@ -61,15 +61,6 @@ public interface PaymentService {
 
     Page<Payment> findByUserNameContaining(String userName, Pageable pageable);
     
-    List<Payment> findByAmountTotalBetween(BigDecimal minAmount, BigDecimal maxAmount);
-
-    Page<Payment> findByAmountTotalBetween(BigDecimal minAmount, BigDecimal maxAmount, Pageable pageable);
-    
-    Page<Payment> findWithFilters(PaymentStatus status, String currency, 
-                                 BigDecimal minAmount, BigDecimal maxAmount,
-                                 LocalDate startDate, LocalDate endDate, 
-                                 Pageable pageable);
-    
     
     Payment confirmPayment(Long paymentId, String paymentMethodType, String paymentMethodId, boolean captureImmediately);
     
