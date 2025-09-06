@@ -144,7 +144,7 @@ public class PaymentController {
             Payment payment = paymentService.getPaymentById(paymentId)
                     .orElseThrow(() -> new RuntimeException("Pago no encontrado"));
             
-            if (payment.getStatus() != PaymentStatus.PENDING_PAYMENT) {
+            if (payment.getStatus() != PaymentStatus.PENDING_APPROVAL) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                         .body(null);
             }
