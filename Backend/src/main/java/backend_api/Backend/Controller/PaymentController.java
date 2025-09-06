@@ -29,8 +29,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 
 
 @RestController
@@ -139,19 +137,24 @@ public class PaymentController {
     }
     
     
-    @PostMapping("/{paymentId}/confirm")
+    @PutMapping("/{paymentId}/confirm")
     public ResponseEntity<PaymentResponse> confirmPayment(
-            @PathVariable Long paymentId,
-            @Valid @RequestBody ConfirmPaymentRequest request) {
+            @PathVariable Long paymentId) {
         try {
-            Payment payment = paymentService.confirmPayment(
-                paymentId,
-                request.getPaymentMethodType(),
-                request.getPaymentMethodId(),
-                request.isCaptureImmediately()
-            );
+            Payment payment = paymentService.getPaymentById(paymentId)
+                    .orElseThrow(() -> new RuntimeException("Pago no encontrado"));
             
-            return ResponseEntity.ok(PaymentResponse.fromEntity(payment));
+            if (payment.getStatus() != PaymentStatus.PENDING_PAYMENT) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(null);
+            }
+
+            Payment updatedPayment = paymentService.updatePaymentStatus(paymentId, PaymentStatus.APPROVED);
+           
+            paymentEventService.createEvent(paymentId,PaymentEventType.PAYMENT_APPROVED,  "{\"confirmed_by\": \"user_action\"}",
+            "system");
+            
+            return ResponseEntity.ok(PaymentResponse.fromEntity(updatedPayment));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().build();
         } catch (Exception e) {
