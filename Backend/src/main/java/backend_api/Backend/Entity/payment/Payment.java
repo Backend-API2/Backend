@@ -16,6 +16,7 @@ public class Payment {
     private Long provider_id;
     private Long solicitud_id;
     private Long cotizacion_id; // Se integra con el módulo Cotizacion
+    private Long refund_id;
     private BigDecimal amount_subtotal; // subtotal sin impuestos
     private BigDecimal taxes; // impuestos
     private BigDecimal fees; // comisiones
@@ -24,6 +25,7 @@ public class Payment {
     @Enumerated(EnumType.STRING)
     private PaymentStatus status; // la idea es que tenga diferentes estados de pago 
     private String gateway_txn_id; // id de la transaccion de gateway
+    
     @ManyToOne
     @JoinColumn(name = "payment_method_id")
     private PaymentMethod method; 

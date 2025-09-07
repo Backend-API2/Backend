@@ -14,6 +14,8 @@ public class PaymentResponse {
     private Long user_id;
     private Long provider_id; 
     private Long solicitud_id;
+    private Long refund_id;
+  //  private Long cotizacion_id; // Se integra con el módulo Cotizaciono
   //  private Long cotizacion_id; // Se integra con el módulo Cotizacion
     
     private BigDecimal amount_subtotal;
@@ -41,6 +43,7 @@ public class PaymentResponse {
         response.setUser_id(payment.getUser_id());
         response.setProvider_id(payment.getProvider_id());
         response.setSolicitud_id(payment.getSolicitud_id());
+        response.setRefund_id(payment.getRefund_id());
       //  response.setCotizacion_id(payment.getCotizacion_id());
         response.setAmount_subtotal(payment.getAmount_subtotal());
         response.setTaxes(payment.getTaxes());
