@@ -11,9 +11,9 @@ import lombok.Data;
 public class Refund {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long refund_id;
+    private Long id;  
 
-    @Column(name = "payment_id") // <-- corrige la columna en DB
+    @Column(name = "payment_id")
     private Long payment_id;
 
     private BigDecimal amount;

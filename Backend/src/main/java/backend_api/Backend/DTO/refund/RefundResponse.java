@@ -21,8 +21,8 @@ public class RefundResponse {
 
     public static RefundResponse fromEntity(Refund refund) {
         RefundResponse r = new RefundResponse();
-        r.setId(refund.getRefund_id());
-        r.setPaymentId(refund.getPayment_id()); // <- mapea del campo de entidad (typo)
+        r.setId(refund.getId());  
+        r.setPaymentId(refund.getPayment_id());
         r.setAmount(refund.getAmount());
         r.setReason(refund.getReason());
         r.setStatus(refund.getStatus());
