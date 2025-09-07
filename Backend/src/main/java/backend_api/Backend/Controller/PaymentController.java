@@ -2,6 +2,8 @@ package backend_api.Backend.Controller;
 
 import backend_api.Backend.Entity.payment.Payment;
 import backend_api.Backend.Entity.payment.PaymentStatus;
+import backend_api.Backend.Entity.payment.PaymentMethod;
+import backend_api.Backend.Entity.payment.types.PaymentMethodType;
 import backend_api.Backend.Service.Interface.PaymentService;
 import backend_api.Backend.DTO.payment.PaymentResponse;
 import backend_api.Backend.DTO.payment.PagedPaymentResponse;
@@ -95,7 +97,7 @@ public class PaymentController {
                                 .add(request.getFees());
             payment.setAmount_total(total);
             
-            payment.setStatus(PaymentStatus.PENDING_APPROVAL);
+            payment.setStatus(PaymentStatus.PENDING_PAYMENT);
             payment.setCreated_at(LocalDateTime.now());
             payment.setUpdated_at(LocalDateTime.now());
 
@@ -138,23 +140,45 @@ public class PaymentController {
     
     
     @PutMapping("/{paymentId}/confirm")
-    public ResponseEntity<PaymentResponse> confirmPayment(
-            @PathVariable Long paymentId) {
+    public ResponseEntity<PaymentResponse> confirmPayment(@PathVariable Long paymentId) {
         try {
             Payment payment = paymentService.getPaymentById(paymentId)
                     .orElseThrow(() -> new RuntimeException("Pago no encontrado"));
             
-            if (payment.getStatus() != PaymentStatus.PENDING_APPROVAL) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(null);
+            if (payment.getStatus() != PaymentStatus.PENDING_PAYMENT) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
             }
-
-            Payment updatedPayment = paymentService.updatePaymentStatus(paymentId, PaymentStatus.APPROVED);
-           
-            paymentEventService.createEvent(paymentId,PaymentEventType.PAYMENT_APPROVED,  "{\"confirmed_by\": \"user_action\"}",
-            "system");
+            
+            Payment updatedPayment;
+            PaymentEventType eventType;
+            
+            if (payment.getMethod() != null && 
+                (payment.getMethod().getType() == PaymentMethodType.CREDIT_CARD || 
+                 payment.getMethod().getType() == PaymentMethodType.DEBIT_CARD ||
+                 payment.getMethod().getType() == PaymentMethodType.BANK_TRANSFER)) {
+                updatedPayment = paymentService.updatePaymentStatus(paymentId, PaymentStatus.PENDING_APPROVAL);
+                eventType = PaymentEventType.PAYMENT_PENDING;
+                
+                paymentEventService.createEvent(
+                    paymentId,
+                    eventType,
+                    "{\"status\": \"pending_bank_approval\", \"method\": \"" + payment.getMethod().getType() + "\"}",
+                    "system"
+                );
+            } else {
+                updatedPayment = paymentService.updatePaymentStatus(paymentId, PaymentStatus.APPROVED);
+                eventType = PaymentEventType.PAYMENT_APPROVED;
+                
+                paymentEventService.createEvent(
+                    paymentId,
+                    eventType,
+                    "{\"status\": \"approved_directly\", \"method\": \"" + (payment.getMethod() != null ? payment.getMethod().getType() : "unknown") + "\"}",
+                    "system"
+                );
+            }
             
             return ResponseEntity.ok(PaymentResponse.fromEntity(updatedPayment));
+            
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().build();
         } catch (Exception e) {
