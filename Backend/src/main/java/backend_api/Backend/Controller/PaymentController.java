@@ -297,20 +297,46 @@ public class PaymentController {
             User user = userRepository.findByEmail(email)
                     .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
             
+            System.out.println("DEBUG - User ID: " + user.getId() + ", Role: " + user.getRole().name());
+            
             List<Payment> payments;
             
             if (user.getRole().name().equals("MERCHANT")) {
+                System.out.println("DEBUG - Buscando pagos por provider_id: " + user.getId());
                 payments = paymentService.getPaymentsByProviderId(user.getId());
             } else {
+                System.out.println("DEBUG - Buscando pagos por user_id: " + user.getId());
                 payments = paymentService.getPaymentsByUserId(user.getId());
             }
             
-            List<PaymentResponse> responses = payments.stream()
-                    .map(PaymentResponse::fromEntity)
-                    .toList();
+            System.out.println("DEBUG - Pagos encontrados: " + payments.size());
+            
+            List<PaymentResponse> responses;
+            try {
+                responses = payments.stream()
+                        .map(payment -> {
+                            try {
+                                System.out.println("DEBUG - Mapeando payment ID: " + payment.getId());
+                                return PaymentResponse.fromEntity(payment);
+                            } catch (Exception e) {
+                                System.out.println("ERROR al mapear payment ID: " + payment.getId() + " - " + e.getMessage());
+                                e.printStackTrace();
+                                throw new RuntimeException("Error al mapear payment", e);
+                            }
+                        })
+                        .toList();
+            } catch (Exception e) {
+                System.out.println("ERROR en el stream mapping: " + e.getMessage());
+                e.printStackTrace();
+                throw e;
+            }
+            
+            System.out.println("DEBUG - Responses creadas: " + responses.size());
             
             return ResponseEntity.ok(responses);
         } catch (Exception e) {
+            System.out.println("ERROR GENERAL en getMyPayments: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }

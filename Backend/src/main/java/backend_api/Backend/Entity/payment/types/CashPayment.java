@@ -2,6 +2,7 @@ package backend_api.Backend.Entity.payment.types;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
+import jakarta.persistence.DiscriminatorValue;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import java.time.LocalDateTime;
@@ -11,6 +12,7 @@ import backend_api.Backend.Entity.payment.PaymentMethod;
 @Entity
 @Data
 @EqualsAndHashCode(callSuper = true)
+@DiscriminatorValue("CASH")
 public class CashPayment extends PaymentMethod {
     
     private String branchCode;          // Código de sucursal
