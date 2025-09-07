@@ -5,6 +5,7 @@ import backend_api.Backend.Entity.payment.PaymentStatus;
 import backend_api.Backend.Entity.payment.PaymentMethod;
 import backend_api.Backend.Entity.payment.types.PaymentMethodType;
 import backend_api.Backend.Service.Interface.PaymentService;
+import backend_api.Backend.Service.Interface.PaymentMethodService;
 import backend_api.Backend.DTO.payment.PaymentResponse;
 import backend_api.Backend.DTO.payment.PagedPaymentResponse;
 import backend_api.Backend.Auth.JwtUtil;
@@ -13,6 +14,7 @@ import backend_api.Backend.Entity.user.User;
 import backend_api.Backend.DTO.payment.CreatePaymentRequest;
 import backend_api.Backend.DTO.payment.PaymentSearchRequest;
 import backend_api.Backend.DTO.payment.ConfirmPaymentRequest;
+import backend_api.Backend.DTO.payment.SelectPaymentMethodRequest;
 import backend_api.Backend.Entity.payment.PaymentEvent;
 import backend_api.Backend.Entity.payment.PaymentEventType;
 import backend_api.Backend.Entity.payment.PaymentAttempt;
@@ -52,6 +54,9 @@ public class PaymentController {
     
     @Autowired
     private PaymentAttemptService paymentAttemptService;
+    
+    @Autowired
+    private PaymentMethodService paymentMethodService;
 
     //  CREAR NUEVO PAGO 
     @PostMapping
@@ -138,6 +143,32 @@ public class PaymentController {
         }
     }
     
+    // PUT /api/payments/{paymentId}/payment-method - Seleccionar método de pago
+    @PutMapping("/{paymentId}/payment-method")
+    public ResponseEntity<PaymentResponse> selectPaymentMethod(
+            @PathVariable Long paymentId,
+            @Valid @RequestBody SelectPaymentMethodRequest request) {
+        try {
+            Payment payment = paymentService.getPaymentById(paymentId)
+                    .orElseThrow(() -> new RuntimeException("Pago no encontrado"));
+            
+            if (payment.getStatus() != PaymentStatus.PENDING_PAYMENT) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+            }
+            
+            PaymentMethod paymentMethod = paymentMethodService.createPaymentMethod(request);
+            
+            Payment updatedPayment = paymentService.updatePaymentMethod(paymentId, paymentMethod);
+            
+            return ResponseEntity.ok(PaymentResponse.fromEntity(updatedPayment));
+            
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+    
     
     @PutMapping("/{paymentId}/confirm")
     public ResponseEntity<PaymentResponse> confirmPayment(@PathVariable Long paymentId) {
@@ -149,13 +180,18 @@ public class PaymentController {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
             }
             
+            if (payment.getMethod() == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .header("Error-Message", "Debe seleccionar un método de pago primero")
+                        .build();
+            }
+            
             Payment updatedPayment;
             PaymentEventType eventType;
             
-            if (payment.getMethod() != null && 
-                (payment.getMethod().getType() == PaymentMethodType.CREDIT_CARD || 
-                 payment.getMethod().getType() == PaymentMethodType.DEBIT_CARD ||
-                 payment.getMethod().getType() == PaymentMethodType.BANK_TRANSFER)) {
+            if (payment.getMethod().getType() == PaymentMethodType.CREDIT_CARD || 
+                payment.getMethod().getType() == PaymentMethodType.DEBIT_CARD ||
+                payment.getMethod().getType() == PaymentMethodType.BANK_TRANSFER) {
                 updatedPayment = paymentService.updatePaymentStatus(paymentId, PaymentStatus.PENDING_APPROVAL);
                 eventType = PaymentEventType.PAYMENT_PENDING;
                 
@@ -172,7 +208,7 @@ public class PaymentController {
                 paymentEventService.createEvent(
                     paymentId,
                     eventType,
-                    "{\"status\": \"approved_directly\", \"method\": \"" + (payment.getMethod() != null ? payment.getMethod().getType() : "unknown") + "\"}",
+                    "{\"status\": \"approved_directly\", \"method\": \"" + payment.getMethod().getType() + "\"}",
                     "system"
                 );
             }

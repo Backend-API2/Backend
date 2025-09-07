@@ -289,4 +289,33 @@ public class PaymentServiceImpl implements PaymentService{
     private boolean simulateGatewayCall() {
         return Math.random() > 0.2;
     }
+    
+    @Override
+    public Payment updatePaymentMethod(Long paymentId, PaymentMethod paymentMethod) {
+        Optional<Payment> paymentOpt = paymentRepository.findById(paymentId);
+        if (!paymentOpt.isPresent()) {
+            throw new RuntimeException("Payment not found with id: " + paymentId);
+        }
+        
+        Payment payment = paymentOpt.get();
+        
+        if (payment.getStatus() != PaymentStatus.PENDING_PAYMENT) {
+            throw new RuntimeException("Cannot update payment method. Payment status must be PENDING_PAYMENT");
+        }
+        
+        payment.setMethod(paymentMethod);
+        
+        paymentEventService.createEvent(
+            paymentId,
+            PaymentEventType.PAYMENT_METHOD_UPDATED,
+            String.format("{\"payment_method_type\": \"%s\", \"payment_method_id\": %d}", 
+                paymentMethod.getType(), paymentMethod.getId()),
+            "user"
+        );
+        
+        return paymentRepository.save(payment);
+    }
+
+    
 }
+

@@ -27,6 +27,9 @@ public enum PaymentEventType {
     GATEWAY_ERROR,
     TIMEOUT_ERROR,
     
-    
+    PAYMENT_METHOD_UPDATED
     
 }
+    
+    
+    

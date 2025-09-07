@@ -33,7 +33,6 @@ public interface PaymentService {
 
     List<Payment> getPaymentsBySolicitudId(Long solicitudId);
 
-    // Se integra con el módulo Cotizacion
     List<Payment> getPaymentsByCotizacionId(Long cotizacionId);
 
     List<Payment> getPaymentsByAmountGreaterThan(BigDecimal minAmount);
@@ -71,5 +70,7 @@ public interface PaymentService {
     boolean isPaymentExpired(Payment payment);
     
     Payment processPaymentWithRetry(Long paymentId, int maxAttempts);
+    
+    Payment updatePaymentMethod(Long paymentId, PaymentMethod paymentMethod);
 
 }

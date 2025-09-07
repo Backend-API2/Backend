@@ -31,11 +31,6 @@ public class CreatePaymentRequest {
     @Pattern(regexp = "^[A-Z]{3}$", message = "Currency debe ser código ISO de 3 letras (ej: USD)")
     private String currency;
     
-    @NotBlank(message = "Payment method es requerido")
-    @Pattern(regexp = "^(credit_card|debit_card|bank_transfer|paypal|cash)$", 
-             message = "Payment method debe ser: credit_card, debit_card, bank_transfer, paypal, cash")
-    private String payment_method_type;
-    
     @Size(max = 1000, message = "Metadata no puede exceder 1000 caracteres")
     private String metadata;
     
