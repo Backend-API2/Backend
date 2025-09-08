@@ -6,6 +6,7 @@ import backend_api.Backend.Entity.refund.Refund;
 import backend_api.Backend.Entity.refund.RefundStatus;
 import backend_api.Backend.Repository.PaymentRepository;
 import backend_api.Backend.Repository.RefundRepository;
+import backend_api.Backend.Service.Interface.FundsService;
 import backend_api.Backend.Service.Interface.RefundService;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +26,9 @@ public class RefundServiceImpl implements RefundService {
 
     @Autowired
     private PaymentRepository paymentRepository;
+
+    @Autowired
+    private FundsService fundsService;
 
     @Override
     public Refund createRefund(Refund refund) {
@@ -82,10 +86,12 @@ public class RefundServiceImpl implements RefundService {
         existing.setStatus(status);
         Refund saved = refundRepository.save(existing);
 
-        // Si se completó, revisar si el pago quedó totalmente reembolsado
         if (status == RefundStatus.COMPLETED) {
             Payment payment = paymentRepository.findById(existing.getPayment_id())
                     .orElseThrow(() -> new RuntimeException("Pago no encontrado con id: " + existing.getPayment_id()));
+
+            // ✅ acreditar fondos en la tarjeta/cuenta de prueba
+            fundsService.creditForRefund(payment, existing.getAmount());
 
             BigDecimal remaining = getRemainingRefundable(payment.getId());
             if (remaining.compareTo(BigDecimal.ZERO) == 0) {
