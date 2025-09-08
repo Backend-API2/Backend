@@ -1,0 +1,21 @@
+name: Test EC2 SSH
+
+on:
+  push:
+    branches:
+      - master  # rama que vamos a probar
+
+jobs:
+  ssh-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test SSH to EC2
+        uses: appleboy/ssh-action@v0.1.9
+        with:
+          host: 18.191.118.13  # tu IP pública
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            whoami
+            ls -la
+
