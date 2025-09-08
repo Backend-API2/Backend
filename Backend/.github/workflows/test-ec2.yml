@@ -3,7 +3,7 @@ name: Test EC2 SSH
 on:
   push:
     branches:
-      - master  # rama que vamos a probar
+      - '**'
 
 jobs:
   ssh-test:
