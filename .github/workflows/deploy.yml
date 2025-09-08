@@ -1,0 +1,40 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - deploy-ec2  # Se ejecuta solo cuando hacemos push a este branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Clonar repo usando la Deploy Key
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          ssh-key: ${{ secrets.EC2_SSH_KEY }}
+
+      # 2️⃣ Subir el JAR a EC2
+      - name: Upload JAR to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "Backend-0.0.1-SNAPSHOT.jar"
+          target: "~/"
+
+      # 3️⃣ Reiniciar backend usando PM2
+      - name: Restart backend
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            pm2 delete backend || true
+            pm2 start ~/Backend-0.0.1-SNAPSHOT.jar --name backend --interpreter java
+            pm2 save
+
