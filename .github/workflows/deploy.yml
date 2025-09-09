@@ -24,6 +24,19 @@ jobs:
           cd Backend
           mvn clean package -DskipTests
 
+          # Verificar que el JAR se generó correctamente
+          echo "Verificando que el JAR se generó:"
+          ls -la target/
+          if [ -f target/Backend-0.0.1-SNAPSHOT.jar ]; then
+            echo "✓ JAR generado correctamente"
+            ls -la target/Backend-0.0.1-SNAPSHOT.jar
+          else
+            echo "✗ ERROR: JAR no se generó"
+            echo "Contenido del directorio target:"
+            ls -la target/
+            exit 1
+          fi
+
       - name: Copy JAR to EC2
         uses: appleboy/scp-action@v0.1.6
         with:
@@ -33,6 +46,8 @@ jobs:
           source: 'Backend/target/Backend-0.0.1-SNAPSHOT.jar'
           target: '/home/ec2-user/'
           strip_components: 0
+          timeout: 60s
+          command_timeout: 60s
 
       - name: Verify JAR was copied
         uses: appleboy/ssh-action@v0.1.9
@@ -42,15 +57,44 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             echo "Verificando que el JAR fue copiado correctamente:"
-            ls -la /home/ec2-user/Backend-0.0.1-SNAPSHOT.jar
+            echo "Contenido del directorio /home/ec2-user/:"
+            ls -la /home/ec2-user/
+            echo ""
+            echo "Buscando archivos JAR:"
+            find /home/ec2-user -name "*.jar" -type f
+            echo ""
             if [ -f /home/ec2-user/Backend-0.0.1-SNAPSHOT.jar ]; then
               echo "✓ JAR file found successfully"
+              ls -la /home/ec2-user/Backend-0.0.1-SNAPSHOT.jar
             else
               echo "✗ JAR file not found"
-              echo "Contents of /home/ec2-user/:"
-              ls -la /home/ec2-user/
+              echo "ERROR: El archivo Backend-0.0.1-SNAPSHOT.jar no existe en el servidor"
+              echo "Esto indica que el paso de copia (SCP) falló"
               exit 1
             fi
+
+      - name: Alternative copy with rsync (if SCP failed)
+        if: failure()
+        run: |
+          echo "SCP falló, intentando con rsync como alternativa..."
+          # Instalar rsync si no está disponible
+          sudo apt-get update && sudo apt-get install -y rsync
+
+          # Crear la clave SSH temporal
+          echo "${{ secrets.EC2_SSH_KEY }}" > /tmp/ec2_key
+          chmod 600 /tmp/ec2_key
+
+          # Copiar con rsync
+          rsync -avz -e "ssh -i /tmp/ec2_key -o StrictHostKeyChecking=no" \
+            Backend/target/Backend-0.0.1-SNAPSHOT.jar \
+            ec2-user@18.191.118.13:/home/ec2-user/
+
+          echo "Verificando que rsync funcionó:"
+          ssh -i /tmp/ec2_key -o StrictHostKeyChecking=no ec2-user@18.191.118.13 \
+            "ls -la /home/ec2-user/Backend-0.0.1-SNAPSHOT.jar"
+
+          # Limpiar la clave temporal
+          rm -f /tmp/ec2_key
 
       - name: Restart backend on EC2
         uses: appleboy/ssh-action@v0.1.9
