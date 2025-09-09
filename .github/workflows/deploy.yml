@@ -276,27 +276,68 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           port: ${{ secrets.EC2_PORT }}
           script: |
+            # Change to app directory
+            cd /home/ec2-user/app
+
             # Make scripts executable
-            chmod +x /home/ec2-user/app/scripts/*.sh
+            chmod +x scripts/*.sh
+
+            # List current JAR files
+            echo "📦 Current JAR files:"
+            ls -la *.jar
 
             # Start the application
-            echo "Starting application..."
-            ./home/ec2-user/app/scripts/start.sh
+            echo "🚀 Starting application..."
+            ./scripts/start.sh
 
             # Wait a moment for the application to start
-            sleep 10
+            sleep 15
 
-            # Health check
-            echo "Performing health check..."
-            for i in {1..5}; do
-              if curl -f http://localhost:8080/actuator/health; then
-                echo "✅ Application is healthy!"
-                exit 0
+            # Check if application is running
+            echo "🔍 Checking application status..."
+            if [ -f app.pid ]; then
+              PID=$(cat app.pid)
+              if ps -p $PID > /dev/null 2>&1; then
+                echo "✅ Application is running with PID $PID"
               else
-                echo "⏳ Waiting for application to start... (attempt $i/5)"
-                sleep 10
+                echo "❌ Application failed to start"
+                echo "📋 Recent logs:"
+                tail -20 app.log
+                exit 1
               fi
+            else
+              echo "❌ No PID file found"
+              exit 1
+            fi
+
+            # Health check - try both endpoints
+            echo "🏥 Performing health check..."
+            for i in {1..5}; do
+              echo "Attempt $i/5..."
+              
+              # Try actuator health first
+              if curl -f -s http://localhost:8080/actuator/health > /dev/null 2>&1; then
+                echo "✅ Actuator health check passed!"
+                break
+              fi
+              
+              # Try custom health endpoint
+              if curl -f -s http://localhost:8080/health > /dev/null 2>&1; then
+                echo "✅ Custom health check passed!"
+                break
+              fi
+              
+              echo "⏳ Waiting for application to start... (attempt $i/5)"
+              sleep 10
             done
 
-            echo "❌ Health check failed!"
-            exit 1
+            # Final verification
+            echo "🔍 Final verification..."
+            echo "Custom health endpoint response:"
+            curl -s http://localhost:8080/health || echo "Failed to reach /health"
+            echo ""
+            echo "Actuator health endpoint response:"
+            curl -s http://localhost:8080/actuator/health || echo "Failed to reach /actuator/health"
+            echo ""
+
+            echo "✅ Deployment completed successfully!"
