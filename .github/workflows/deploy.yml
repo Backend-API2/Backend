@@ -93,7 +93,7 @@ jobs:
 
             # Ejecutar aplicación en background
             nohup java $JAVA_OPTS -jar Backend-*.jar > app.log 2>&1 &
-            
+
             # Guardar PID para futuras referencias
             echo $! > app.pid
 
