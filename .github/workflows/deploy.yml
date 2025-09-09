@@ -94,7 +94,14 @@ jobs:
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
             echo '🔍 Checking for processes using port 8080...'
             
-            # Method 1: Kill processes using port 8080
+            # Method 1: Use stop script if it exists
+            if [ -f /home/ec2-user/app/scripts/stop.sh ]; then
+              echo 'Using stop script...'
+              cd /home/ec2-user/app
+              ./scripts/stop.sh || echo 'Stop script completed with warnings'
+            fi
+            
+            # Method 2: Kill processes using port 8080
             PORT_PIDS=\$(lsof -ti:8080 2>/dev/null || echo '')
             if [ ! -z \"\$PORT_PIDS\" ]; then
               echo \"Found processes using port 8080: \$PORT_PIDS\"
@@ -102,7 +109,7 @@ jobs:
                 echo \"Killing process \$PID...\"
                 kill -TERM \$PID 2>/dev/null || true
               done
-              sleep 3
+              sleep 5
               for PID in \$PORT_PIDS; do
                 if ps -p \$PID > /dev/null 2>&1; then
                   echo \"Force killing process \$PID...\"
@@ -119,7 +126,7 @@ jobs:
             # Method 2: Kill all Java processes with Backend in the command
             echo 'Killing Java Backend processes...'
             pkill -f 'java.*Backend' 2>/dev/null || echo 'No Java Backend processes found'
-            sleep 2
+            sleep 3
             
             # Method 3: Kill all Java processes using port 8080
             echo 'Killing Java processes using port 8080...'
@@ -130,13 +137,23 @@ jobs:
               fi
             done
             
-            # Method 4: Clean up PID file
+            # Method 4: Clean up PID file and any remaining processes
             if [ -f /home/ec2-user/app/app.pid ]; then
               PID=\$(cat /home/ec2-user/app/app.pid)
               echo \"Cleaning up PID file with PID \$PID...\"
               kill -KILL \$PID 2>/dev/null || true
               rm -f /home/ec2-user/app/app.pid
             fi
+            
+            # Method 5: Final cleanup - kill any remaining processes on port 8080
+            echo 'Final cleanup of port 8080...'
+            for PID in \$(lsof -ti:8080 2>/dev/null || echo ''); do
+              echo \"Force killing remaining process \$PID on port 8080...\"
+              kill -KILL \$PID 2>/dev/null || true
+            done
+            
+            # Clean up any stale log files
+            rm -f /home/ec2-user/app/app.log
           " || echo "⚠️  Second kill attempt completed with warnings"
 
       - name: Verify port is free
@@ -243,8 +260,30 @@ jobs:
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "cat > /home/ec2-user/app/scripts/restart.sh << 'EOF'
           #!/bin/bash
           echo \"🔄 Restarting Backend application...\"
-          ./stop.sh
+
+          # Stop any existing processes
+          echo \"🛑 Stopping existing processes...\"
+          ./stop.sh || echo \"Stop script completed with warnings\"
+
+          # Additional cleanup
+          echo \"🧹 Additional cleanup...\"
+          pkill -f 'java.*Backend' 2>/dev/null || true
+          sleep 2
+
+          # Kill any processes on port 8080
+          for PID in \$(lsof -ti:8080 2>/dev/null || echo ''); do
+            echo \"Killing process \$PID on port 8080...\"
+            kill -KILL \$PID 2>/dev/null || true
+          done
+
+          # Clean up files
+          rm -f app.pid app.log
+
+          # Wait a moment
           sleep 3
+
+          # Start the application
+          echo \"🚀 Starting application...\"
           ./start.sh
           EOF"
 
@@ -337,9 +376,9 @@ jobs:
             echo "📦 Current JAR files:"
             ls -la *.jar
 
-            # Start the application
-            echo "🚀 Starting application..."
-            ./scripts/start.sh
+            # Restart the application (this will stop any existing processes first)
+            echo "🔄 Restarting application..."
+            ./scripts/restart.sh
 
             # Wait a moment for the application to start
             sleep 15
