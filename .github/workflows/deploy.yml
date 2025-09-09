@@ -32,6 +32,25 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           source: 'Backend/target/Backend-0.0.1-SNAPSHOT.jar'
           target: '/home/ec2-user/'
+          strip_components: 0
+
+      - name: Verify JAR was copied
+        uses: appleboy/ssh-action@v0.1.9
+        with:
+          host: 18.191.118.13
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            echo "Verificando que el JAR fue copiado correctamente:"
+            ls -la /home/ec2-user/Backend-0.0.1-SNAPSHOT.jar
+            if [ -f /home/ec2-user/Backend-0.0.1-SNAPSHOT.jar ]; then
+              echo "✓ JAR file found successfully"
+            else
+              echo "✗ JAR file not found"
+              echo "Contents of /home/ec2-user/:"
+              ls -la /home/ec2-user/
+              exit 1
+            fi
 
       - name: Restart backend on EC2
         uses: appleboy/ssh-action@v0.1.9
@@ -49,10 +68,15 @@ jobs:
             pm2 stop backend || true
             pm2 delete backend || true
 
+            # Mostrar contenido del directorio para debug
+            echo "Contenido del directorio /home/ec2-user:"
+            ls -la /home/ec2-user/
+
             # Verificar que el archivo JAR existe
             if [ ! -f Backend-0.0.1-SNAPSHOT.jar ]; then
               echo "ERROR: Backend-0.0.1-SNAPSHOT.jar no encontrado en /home/ec2-user/"
-              ls -la /home/ec2-user/
+              echo "Buscando archivos JAR en el directorio:"
+              find /home/ec2-user -name "*.jar" -type f
               exit 1
             fi
 
