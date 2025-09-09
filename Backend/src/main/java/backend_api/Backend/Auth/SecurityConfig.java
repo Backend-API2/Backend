@@ -65,6 +65,8 @@ public class SecurityConfig {
 
                         .requestMatchers("/api/auth/register").permitAll()
                         .requestMatchers("/api/auth/login").permitAll()
+                        // Asegurar acceso público a Actuator también en la cadena principal
+                        .requestMatchers("/actuator/**").permitAll()
                         // Endpoints públicos (sin autenticación)
                         .requestMatchers("/api/payments/webhook/**").permitAll()
                         .requestMatchers("/api/invoices/webhook/**").permitAll()

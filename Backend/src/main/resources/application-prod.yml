@@ -1,0 +1,6 @@
+server:
+  port: 8080
+
+logging:
+  file:
+    name: ~/app/logs/app.log
