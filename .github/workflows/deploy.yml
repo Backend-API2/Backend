@@ -88,7 +88,8 @@ jobs:
           echo "Creating app directory structure..."
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "mkdir -p /home/ec2-user/app/scripts"
 
-          # Stop current application if running
+      - name: Stop current application
+        run: |
           echo "🛑 Stopping current application if running..."
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
             echo '🔍 Checking for processes using port 8080...'
@@ -109,16 +110,21 @@ jobs:
                 fi
               done
             fi
-            
+          " || echo "⚠️  First kill attempt completed with warnings"
+
+      - name: Kill Java Backend processes
+        run: |
+          echo "🔍 Killing all Java Backend processes..."
+          ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
             # Method 2: Kill all Java processes with Backend in the command
-            echo '🔍 Killing all Java Backend processes...'
-            pkill -f 'java.*Backend' || true
+            echo 'Killing Java Backend processes...'
+            pkill -f 'java.*Backend' 2>/dev/null || echo 'No Java Backend processes found'
             sleep 2
             
             # Method 3: Kill all Java processes using port 8080
-            echo '🔍 Killing all Java processes using port 8080...'
+            echo 'Killing Java processes using port 8080...'
             for PID in \$(lsof -ti:8080 2>/dev/null || echo ''); do
-              if ps -p \$PID -o comm= | grep -q java; then
+              if ps -p \$PID -o comm= 2>/dev/null | grep -q java; then
                 echo \"Killing Java process \$PID on port 8080...\"
                 kill -KILL \$PID 2>/dev/null || true
               fi
@@ -131,8 +137,12 @@ jobs:
               kill -KILL \$PID 2>/dev/null || true
               rm -f /home/ec2-user/app/app.pid
             fi
-            
-            # Final verification
+          " || echo "⚠️  Second kill attempt completed with warnings"
+
+      - name: Verify port is free
+        run: |
+          echo "🔍 Final verification..."
+          ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
             sleep 3
             if lsof -ti:8080 >/dev/null 2>&1; then
               echo \"⚠️  Port 8080 still in use after all attempts\"
@@ -140,6 +150,7 @@ jobs:
               lsof -i:8080 || true
               echo \"All Java processes:\"
               ps aux | grep java || true
+              exit 1
             else
               echo \"✅ Port 8080 is now free\"
             fi
