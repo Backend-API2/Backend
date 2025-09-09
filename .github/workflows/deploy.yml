@@ -31,8 +31,9 @@ jobs:
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cd /home/ec2-user/Backend
+            cd /home/ec2-user
             pm2 stop backend || true
-            cp /home/ec2-user/Backend/target/Backend-0.0.1-SNAPSHOT.jar backend.jar
+            pm2 delete backend || true
+            cp Backend/target/Backend-0.0.1-SNAPSHOT.jar backend.jar
             ./start-backend.sh
 
