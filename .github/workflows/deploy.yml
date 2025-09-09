@@ -1,0 +1,125 @@
+name: Deploy Backend to EC2
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+
+      - name: Run tests
+        run: |
+          cd Backend
+          mvn clean test
+
+      - name: Build application
+        run: |
+          cd Backend
+          mvn clean package -DskipTests
+
+      - name: Upload JAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-jar
+          path: Backend/target/Backend-*.jar
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+
+    steps:
+      - name: Download JAR artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-jar
+          path: ./artifacts
+
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_PORT }}
+          script: |
+            # Create app directory if it doesn't exist
+            mkdir -p /home/ubuntu/app/scripts
+
+            # Stop current application
+            if [ -f /home/ubuntu/app/app.pid ]; then
+              echo "Stopping current application..."
+              ./home/ubuntu/app/scripts/stop.sh || true
+            fi
+
+            # Backup current JAR if it exists
+            if [ -f /home/ubuntu/app/Backend-*.jar ]; then
+              echo "Backing up current JAR..."
+              mv /home/ubuntu/app/Backend-*.jar /home/ubuntu/app/Backend-backup-$(date +%Y%m%d-%H%M%S).jar || true
+            fi
+
+            # Clean up old backups (keep only last 3)
+            ls -t /home/ubuntu/app/Backend-backup-*.jar 2>/dev/null | tail -n +4 | xargs rm -f || true
+
+      - name: Copy JAR to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_PORT }}
+          source: 'artifacts/*.jar'
+          target: '/home/ubuntu/app/'
+
+      - name: Start application
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_PORT }}
+          script: |
+            # Make scripts executable
+            chmod +x /home/ubuntu/app/scripts/*.sh
+
+            # Start the application
+            echo "Starting application..."
+            ./home/ubuntu/app/scripts/start.sh
+
+            # Wait a moment for the application to start
+            sleep 10
+
+            # Health check
+            echo "Performing health check..."
+            for i in {1..5}; do
+              if curl -f http://localhost:8080/actuator/health; then
+                echo "✅ Application is healthy!"
+                exit 0
+              else
+                echo "⏳ Waiting for application to start... (attempt $i/5)"
+                sleep 10
+              fi
+            done
+
+            echo "❌ Health check failed!"
+            exit 1
