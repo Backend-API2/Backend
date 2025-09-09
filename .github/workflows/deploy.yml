@@ -37,6 +37,50 @@ jobs:
             exit 1
           fi
 
+      - name: Test JAR execution
+        run: |
+          cd Backend
+          echo "🧪 Testing JAR execution..."
+          # Ejecutar el JAR en background con el puerto correcto
+          java -Dserver.port=9090 -jar target/Backend-0.0.1-SNAPSHOT.jar &
+          JAR_PID=$!
+
+          # Esperar a que la aplicación se inicie
+          echo "Esperando a que la aplicación se inicie..."
+          sleep 20
+
+          # Verificar que el proceso está corriendo
+          if ps -p $JAR_PID > /dev/null; then
+            echo "✅ JAR ejecutándose correctamente (PID: $JAR_PID)"
+            
+            # Probar health check
+            echo "Probando health check..."
+            if curl -f -s http://localhost:9090/api/health/check > /dev/null 2>&1; then
+              echo "✅ Health check exitoso en /api/health/check"
+            elif curl -f -s http://localhost:9090/api/health/ping > /dev/null 2>&1; then
+              echo "✅ Health check exitoso en /api/health/ping"
+            elif curl -f -s http://localhost:9090/api/health/info > /dev/null 2>&1; then
+              echo "✅ Health check exitoso en /api/health/info"
+            else
+              echo "❌ Health check failed"
+              echo "Probando conectividad básica..."
+              if curl -f -s http://localhost:9090/ > /dev/null 2>&1; then
+                echo "✅ Backend responde en el puerto 9090"
+              else
+                echo "❌ Backend no responde en el puerto 9090"
+                exit 1
+              fi
+            fi
+            
+            # Terminar el proceso
+            echo "Terminando proceso de prueba..."
+            kill $JAR_PID
+            wait $JAR_PID 2>/dev/null
+          else
+            echo "❌ ERROR: JAR no se inició correctamente"
+            exit 1
+          fi
+
       - name: Copy JAR to EC2
         uses: appleboy/scp-action@v0.1.6
         with:
