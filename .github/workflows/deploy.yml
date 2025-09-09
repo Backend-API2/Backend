@@ -31,7 +31,7 @@ jobs:
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           source: "Backend/target/Backend-0.0.1-SNAPSHOT.jar"
-          target: "/home/ec2-user/backend.jar"
+          target: "/home/ec2-user/deploy/"
 
       - name: Restart backend on EC2
         uses: appleboy/ssh-action@v0.1.9
@@ -41,14 +41,15 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             cd /home/ec2-user
-            # Detener y eliminar cualquier proceso pm2 previo
             pm2 stop backend || true
             pm2 delete backend || true
-            # Asegurarse que backend.jar exista
+            # Mover el jar desde deploy a home
+            mv deploy/Backend-0.0.1-SNAPSHOT.jar backend.jar
+            # Verificar que backend.jar exista
             if [ ! -f backend.jar ]; then
               echo "ERROR: backend.jar no encontrado"
               exit 1
             fi
-            # Reiniciar la aplicación con puerto 9090
+            # Iniciar con puerto 9090
             pm2 start backend.jar --name backend -- -Dserver.port=9090
 
