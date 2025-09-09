@@ -169,17 +169,29 @@ jobs:
               echo "Puerto: 9090"
               echo "Estado: $(pm2 jlist | jq -r '.[] | select(.name=="backend") | .pm2_env.status')"
               
-              # Verificar que el backend responde (opcional)
-              echo "Verificando que el backend responde..."
-              sleep 10  # Dar tiempo extra para que la aplicación se inicie completamente
+              # Verificar que el backend responde
+              echo "🧪 Testing JAR execution..."
+              sleep 15  # Dar tiempo suficiente para que la aplicación se inicie completamente
               
-              # Intentar hacer una petición de health check si existe el endpoint
-              if curl -f -s http://localhost:9090/actuator/health > /dev/null 2>&1; then
-                echo "✅ Health check exitoso"
-              elif curl -f -s http://localhost:9090/ > /dev/null 2>&1; then
-                echo "✅ Backend responde en el puerto 9090"
+              # Intentar health check con el endpoint correcto
+              echo "Probando health check en puerto 9090..."
+              if curl -f -s http://localhost:9090/api/health/check > /dev/null 2>&1; then
+                echo "✅ Health check exitoso en /api/health/check"
+              elif curl -f -s http://localhost:9090/api/health/ping > /dev/null 2>&1; then
+                echo "✅ Health check exitoso en /api/health/ping"
+              elif curl -f -s http://localhost:9090/api/health/info > /dev/null 2>&1; then
+                echo "✅ Health check exitoso en /api/health/info"
               else
-                echo "⚠️  Backend iniciado pero no responde a health checks (esto puede ser normal si no hay endpoints de health configurados)"
+                echo "❌ Health check failed"
+                echo "Probando conectividad básica..."
+                if curl -f -s http://localhost:9090/ > /dev/null 2>&1; then
+                  echo "✅ Backend responde en el puerto 9090 pero sin endpoints de health"
+                else
+                  echo "❌ Backend no responde en el puerto 9090"
+                  echo "Logs del proceso:"
+                  pm2 logs backend --lines 30
+                  exit 1
+                fi
               fi
             else
               echo "❌ ERROR: Backend no se inició correctamente"
