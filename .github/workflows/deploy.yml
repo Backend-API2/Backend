@@ -260,31 +260,34 @@ jobs:
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "cat > /home/ec2-user/app/scripts/restart.sh << 'EOF'
           #!/bin/bash
           echo \"🔄 Restarting Backend application...\"
-
+          
+          # Change to app directory
+          cd /home/ec2-user/app
+          
           # Stop any existing processes
           echo \"🛑 Stopping existing processes...\"
-          ./stop.sh || echo \"Stop script completed with warnings\"
-
+          ./scripts/stop.sh || echo \"Stop script completed with warnings\"
+          
           # Additional cleanup
           echo \"🧹 Additional cleanup...\"
           pkill -f 'java.*Backend' 2>/dev/null || true
           sleep 2
-
+          
           # Kill any processes on port 8080
           for PID in \$(lsof -ti:8080 2>/dev/null || echo ''); do
             echo \"Killing process \$PID on port 8080...\"
             kill -KILL \$PID 2>/dev/null || true
           done
-
+          
           # Clean up files
           rm -f app.pid app.log
-
+          
           # Wait a moment
           sleep 3
-
+          
           # Start the application
           echo \"🚀 Starting application...\"
-          ./start.sh
+          ./scripts/start.sh
           EOF"
 
           # Create status.sh
