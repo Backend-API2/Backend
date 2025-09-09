@@ -115,9 +115,14 @@ jobs:
             # Crear directorio deploy si no existe
             mkdir -p deploy
 
-            # Parar procesos existentes
-            pm2 stop backend || true
-            pm2 delete backend || true
+            # Parar procesos existentes (solo si existen)
+            if pm2 list | grep -q "backend"; then
+              echo "Parando proceso backend existente..."
+              pm2 stop backend
+              pm2 delete backend
+            else
+              echo "No hay proceso backend ejecutándose, continuando..."
+            fi
 
             # Mostrar contenido del directorio para debug
             echo "Contenido del directorio /home/ec2-user:"
@@ -131,6 +136,13 @@ jobs:
               exit 1
             fi
 
+            # Limpiar archivos JAR antiguos (mantener solo el más reciente)
+            echo "Limpiando archivos JAR antiguos..."
+            if [ -f backend.jar ]; then
+              echo "Eliminando backend.jar anterior..."
+              rm -f backend.jar
+            fi
+
             # Mover el jar a la ubicación final
             mv Backend-0.0.1-SNAPSHOT.jar backend.jar
 
@@ -140,9 +152,38 @@ jobs:
               exit 1
             fi
 
+            echo "✅ Archivo JAR actualizado correctamente"
+            ls -la backend.jar
+
             # Iniciar con puerto 9090
             pm2 start backend.jar --name backend -- -Dserver.port=9090
 
             # Verificar que el proceso se inició correctamente
             sleep 5
+            echo "Estado de PM2 después del inicio:"
             pm2 status
+
+            # Verificar que el proceso está realmente corriendo
+            if pm2 list | grep -q "backend.*online"; then
+              echo "✅ Backend iniciado correctamente"
+              echo "Puerto: 9090"
+              echo "Estado: $(pm2 jlist | jq -r '.[] | select(.name=="backend") | .pm2_env.status')"
+              
+              # Verificar que el backend responde (opcional)
+              echo "Verificando que el backend responde..."
+              sleep 10  # Dar tiempo extra para que la aplicación se inicie completamente
+              
+              # Intentar hacer una petición de health check si existe el endpoint
+              if curl -f -s http://localhost:9090/actuator/health > /dev/null 2>&1; then
+                echo "✅ Health check exitoso"
+              elif curl -f -s http://localhost:9090/ > /dev/null 2>&1; then
+                echo "✅ Backend responde en el puerto 9090"
+              else
+                echo "⚠️  Backend iniciado pero no responde a health checks (esto puede ser normal si no hay endpoints de health configurados)"
+              fi
+            else
+              echo "❌ ERROR: Backend no se inició correctamente"
+              echo "Logs del proceso:"
+              pm2 logs backend --lines 20
+              exit 1
+            fi
