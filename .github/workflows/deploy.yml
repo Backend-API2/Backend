@@ -24,16 +24,23 @@ jobs:
           cd Backend
           mvn clean package -DskipTests
 
-      - name: Deploy to EC2
+      - name: Copy JAR to EC2
+        uses: appleboy/scp-action@v0.1.6
+        with:
+          host: 18.191.118.13
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "Backend/target/Backend-0.0.1-SNAPSHOT.jar"
+          target: "/home/ec2-user/backend.jar"
+
+      - name: Restart backend on EC2
         uses: appleboy/ssh-action@v0.1.9
         with:
           host: 18.191.118.13
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cd /home/ec2-user
             pm2 stop backend || true
             pm2 delete backend || true
-            cp Backend/target/Backend-0.0.1-SNAPSHOT.jar backend.jar
             ./start-backend.sh
 
