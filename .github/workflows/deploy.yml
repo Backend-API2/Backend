@@ -66,7 +66,7 @@ jobs:
             # Create app directory structure
             echo "Creating app directory structure..."
             mkdir -p /home/ubuntu/app/scripts
-            
+
             # Copy scripts if they don't exist
             if [ ! -f /home/ubuntu/app/scripts/start.sh ]; then
               echo "Scripts not found, they will be copied in the next step"
@@ -102,8 +102,8 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: ${{ secrets.EC2_PORT }}
-          source: 'scripts/*.sh'
-          target: '/home/ubuntu/app/scripts/'
+          source: 'scripts/'
+          target: '/home/ubuntu/app/'
 
       - name: Copy JAR to EC2
         uses: appleboy/scp-action@v0.1.7
