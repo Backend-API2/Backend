@@ -71,14 +71,14 @@ jobs:
         run: |
           # Create SSH directory
           mkdir -p ~/.ssh
-          
+
           # Add EC2 host to known_hosts
           ssh-keyscan -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
-          
+
           # Save private key
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          
+
           # Test SSH connection
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "echo 'SSH connection successful'"
 
@@ -87,7 +87,7 @@ jobs:
           # Create app directory structure
           echo "Creating app directory structure..."
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "mkdir -p /home/ec2-user/app/scripts"
-          
+
           # Stop current application if running
           echo "Stopping current application if running..."
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
@@ -114,12 +114,12 @@ jobs:
           JAR_FILE=\$(find \$APP_DIR -name \"Backend-*.jar\" -type f | head -1)
           PID_FILE=\"\$APP_DIR/app.pid\"
           LOG_FILE=\"\$APP_DIR/app.log\"
-          
+
           if [ ! -f \"\$JAR_FILE\" ]; then
               echo \"❌ Error: No JAR file found in \$APP_DIR\"
               exit 1
           fi
-          
+
           if [ -f \"\$PID_FILE\" ]; then
               PID=\$(cat \"\$PID_FILE\")
               if ps -p \$PID > /dev/null 2>&1; then
@@ -129,12 +129,12 @@ jobs:
                   rm -f \"\$PID_FILE\"
               fi
           fi
-          
+
           echo \"🚀 Starting Backend application...\"
           nohup java -jar -Dspring.profiles.active=prod \"\$JAR_FILE\" > \"\$LOG_FILE\" 2>&1 &
           APP_PID=\$!
           echo \$APP_PID > \"\$PID_FILE\"
-          
+
           sleep 5
           if ps -p \$APP_PID > /dev/null 2>&1; then
               echo \"✅ Application started successfully with PID \$APP_PID\"
@@ -144,28 +144,28 @@ jobs:
               exit 1
           fi
           EOF"
-          
+
           # Create stop.sh
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "cat > /home/ec2-user/app/scripts/stop.sh << 'EOF'
           #!/bin/bash
           APP_DIR=\"/home/ec2-user/app\"
           PID_FILE=\"\$APP_DIR/app.pid\"
-          
+
           if [ ! -f \"\$PID_FILE\" ]; then
               echo \"⚠️  No PID file found. Application might not be running.\"
               exit 0
           fi
-          
+
           PID=\$(cat \"\$PID_FILE\")
           if ! ps -p \$PID > /dev/null 2>&1; then
               echo \"⚠️  Process with PID \$PID is not running. Removing stale PID file.\"
               rm -f \"\$PID_FILE\"
               exit 0
           fi
-          
+
           echo \"🛑 Stopping Backend application (PID: \$PID)...\"
           kill -TERM \$PID
-          
+
           for i in {1..30}; do
               if ! ps -p \$PID > /dev/null 2>&1; then
                   echo \"✅ Application stopped gracefully\"
@@ -175,7 +175,7 @@ jobs:
               echo \"⏳ Waiting for graceful shutdown... (\$i/30)\"
               sleep 1
           done
-          
+
           echo \"⚠️  Graceful shutdown failed. Force killing...\"
           kill -KILL \$PID
           sleep 2
@@ -187,7 +187,7 @@ jobs:
               exit 1
           fi
           EOF"
-          
+
           # Create restart.sh
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "cat > /home/ec2-user/app/scripts/restart.sh << 'EOF'
           #!/bin/bash
@@ -196,22 +196,22 @@ jobs:
           sleep 3
           ./start.sh
           EOF"
-          
+
           # Create status.sh
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "cat > /home/ec2-user/app/scripts/status.sh << 'EOF'
           #!/bin/bash
           APP_DIR=\"/home/ec2-user/app\"
           PID_FILE=\"\$APP_DIR/app.pid\"
           LOG_FILE=\"\$APP_DIR/app.log\"
-          
+
           echo \"🔍 Backend Application Status\"
           echo \"==============================\"
-          
+
           if [ ! -f \"\$PID_FILE\" ]; then
               echo \"❌ Status: Not running (no PID file)\"
               exit 1
           fi
-          
+
           PID=\$(cat \"\$PID_FILE\")
           if ps -p \$PID > /dev/null 2>&1; then
               echo \"✅ Status: Running (PID: \$PID)\"
@@ -241,7 +241,7 @@ jobs:
               exit 1
           fi
           EOF"
-          
+
           # Make scripts executable
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "chmod +x /home/ec2-user/app/scripts/*.sh"
           echo "✅ Scripts created and made executable"
@@ -255,12 +255,12 @@ jobs:
             ls -la ./artifacts/
             exit 1
           fi
-          
+
           echo "📦 Found JAR file: $JAR_FILE"
-          
+
           # Copy JAR to EC2 using scp command
           scp -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} "$JAR_FILE" ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/
-          
+
           if [ $? -eq 0 ]; then
             echo "✅ JAR file copied successfully"
           else
