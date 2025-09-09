@@ -47,6 +47,7 @@ El CI/CD fallaba en el health check porque:
 - ✅ **Manejo de errores**: Captura excepciones y proporciona información detallada
 - ✅ **Status codes apropiados**: HTTP 200 para UP, 503 para DOWN
 - ✅ **Información detallada**: Incluye estado de BD, timestamp, versión
+- ✅ **Sin dependencias externas**: Usa solo DataSource nativo de Spring Boot
 
 ### 5. Script de Validación Local Mejorado
 
