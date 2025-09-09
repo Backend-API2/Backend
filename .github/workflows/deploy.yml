@@ -156,7 +156,7 @@ jobs:
             ls -la backend.jar
 
             # Iniciar con puerto 9090
-            pm2 start backend.jar --name backend -- -Dserver.port=9090
+            pm2 start "java -Dserver.port=9090 -jar backend.jar" --name backend
 
             # Verificar que el proceso se inició correctamente
             sleep 5
