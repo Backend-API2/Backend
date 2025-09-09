@@ -48,7 +48,9 @@ public class SecurityConfig {
                 .csrf((csrf) -> csrf.disable())
                 .sessionManagement((session) -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests((authorize) -> authorize
-
+                        // Health check endpoints - públicos
+                        .requestMatchers("/api/health/**").permitAll()
+                        
                         .requestMatchers("/api/auth/register").permitAll()
                         .requestMatchers("/api/auth/login").permitAll()
                         // Endpoints públicos (sin autenticación)
