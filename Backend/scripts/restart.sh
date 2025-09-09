@@ -3,7 +3,7 @@
 # Script para reiniciar la aplicación Spring Boot
 # Uso: ./restart.sh
 
-APP_DIR="/home/ubuntu/app"
+APP_DIR="$HOME/app"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "🔄 Reiniciando aplicación Spring Boot..."

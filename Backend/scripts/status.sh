@@ -3,7 +3,7 @@
 # Script para verificar el estado de la aplicación Spring Boot
 # Uso: ./status.sh
 
-APP_DIR="/home/ubuntu/app"
+APP_DIR="$HOME/app"
 PID_FILE="$APP_DIR/app.pid"
 LOG_FILE="$APP_DIR/app.log"
 

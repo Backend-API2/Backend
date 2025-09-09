@@ -3,8 +3,9 @@
 # Script para iniciar la aplicación Spring Boot
 # Uso: ./start.sh
 
-APP_DIR="/home/ubuntu/app"
-JAR_FILE=$(ls $APP_DIR/Backend-*.jar | head -1)
+APP_DIR="$HOME/app"
+# Tomar siempre el JAR más reciente
+JAR_FILE=$(ls -t $APP_DIR/Backend-*.jar 2>/dev/null | head -1)
 PID_FILE="$APP_DIR/app.pid"
 LOG_FILE="$APP_DIR/app.log"
 

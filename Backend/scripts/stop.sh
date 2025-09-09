@@ -3,7 +3,7 @@
 # Script para detener la aplicación Spring Boot
 # Uso: ./stop.sh
 
-APP_DIR="/home/ubuntu/app"
+APP_DIR="$HOME/app"
 PID_FILE="$APP_DIR/app.pid"
 
 # Verificar si el archivo PID existe
