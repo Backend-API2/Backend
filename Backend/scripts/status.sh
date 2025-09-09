@@ -24,16 +24,16 @@ if [ -f "$PID_FILE" ]; then
         echo "📊 Información del proceso:"
         ps -p "$PID" -o pid,ppid,cmd,etime,pcpu,pmem
         
-        # Verificar puerto
-        if netstat -tlnp 2>/dev/null | grep -q ":$PID.*:8080"; then
+        # Verificar puerto 8080
+        if netstat -tlnp 2>/dev/null | grep -q ":8080 "; then
             echo "🌐 Puerto 8080: ACTIVO"
         else
             echo "⚠️  Puerto 8080: NO DETECTADO"
         fi
         
-        # Verificar health endpoint
+        # Verificar health endpoint real
         echo "🏥 Health check:"
-        if curl -s -f http://localhost:8080/actuator/health >/dev/null 2>&1; then
+        if curl -s -f http://localhost:8080/api/auth/login >/dev/null 2>&1; then
             echo "✅ Aplicación responde correctamente"
         else
             echo "❌ Aplicación no responde en health endpoint"
