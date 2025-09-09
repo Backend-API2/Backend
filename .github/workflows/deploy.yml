@@ -31,7 +31,7 @@ jobs:
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           source: "Backend/target/Backend-0.0.1-SNAPSHOT.jar"
-          target: "/home/ec2-user/Backend-0.0.1-SNAPSHOT.jar"
+          target: "/home/ec2-user/"
 
       - name: Restart backend on EC2
         uses: appleboy/ssh-action@v0.1.9
@@ -43,6 +43,7 @@ jobs:
             pm2 stop backend || true
             pm2 delete backend || true
             cd /home/ec2-user
+            mv Backend-0.0.1-SNAPSHOT.jar backend.jar
             # Asegurarse que el puerto sea 9090 en start-backend.sh
             ./start-backend.sh
 
