@@ -49,20 +49,65 @@ else
 fi
 
 echo "📋 Step 6: Testing JAR execution..."
-echo "Starting application in background..."
+echo "Starting application in background with production profile..."
 nohup java -jar Backend/target/Backend-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod > app.log 2>&1 &
 APP_PID=$!
 
-echo "Waiting for application to start..."
-sleep 15
-
-echo "Testing health endpoint..."
-if curl -f http://localhost:8080/api/health/check > /dev/null 2>&1; then
-    echo -e "${GREEN}✅ Health endpoint working${NC}"
-else
-    echo -e "${RED}❌ Health endpoint failed${NC}"
-    echo "Application logs:"
+# Función para verificar health check con reintentos (igual que en CI/CD)
+check_health_local() {
+    local max_attempts=12
+    local attempt=1
+    local wait_time=5
+    
+    echo "Esperando a que la aplicación se inicie completamente..."
+    
+    while [ $attempt -le $max_attempts ]; do
+        echo "Intento $attempt/$max_attempts - Esperando ${wait_time}s..."
+        sleep $wait_time
+        
+        # Verificar que el proceso sigue corriendo
+        if ! ps -p $APP_PID > /dev/null; then
+            echo -e "${RED}❌ ERROR: La aplicación se detuvo inesperadamente${NC}"
+            echo "Logs de la aplicación:"
+            cat app.log
+            return 1
+        fi
+        
+        # Probar health check
+        echo "Probando conectividad en puerto 8080..."
+        if curl -f -s --connect-timeout 5 --max-time 10 http://localhost:8080/api/health/check > /dev/null 2>&1; then
+            echo -e "${GREEN}✅ Health check exitoso en /api/health/check${NC}"
+            return 0
+        elif curl -f -s --connect-timeout 5 --max-time 10 http://localhost:8080/api/health/ping > /dev/null 2>&1; then
+            echo -e "${GREEN}✅ Health check exitoso en /api/health/ping${NC}"
+            return 0
+        elif curl -f -s --connect-timeout 5 --max-time 10 http://localhost:8080/api/health/info > /dev/null 2>&1; then
+            echo -e "${GREEN}✅ Health check exitoso en /api/health/info${NC}"
+            return 0
+        else
+            echo -e "${YELLOW}⚠️ Health check falló en intento $attempt, reintentando...${NC}"
+            
+            # Mostrar logs parciales para debugging
+            if [ $attempt -eq 6 ]; then
+                echo "Logs parciales de la aplicación (mitad del proceso):"
+                tail -20 app.log
+            fi
+        fi
+        
+        attempt=$((attempt + 1))
+    done
+    
+    echo -e "${RED}❌ Health check falló después de $max_attempts intentos${NC}"
+    echo "Logs completos de la aplicación:"
     cat app.log
+    return 1
+}
+
+# Ejecutar health check
+if check_health_local; then
+    echo -e "${GREEN}✅ Aplicación iniciada y funcionando correctamente${NC}"
+else
+    echo -e "${RED}❌ ERROR: La aplicación no pudo inicializarse correctamente${NC}"
     kill $APP_PID 2>/dev/null || true
     exit 1
 fi

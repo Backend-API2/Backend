@@ -41,45 +41,82 @@ jobs:
         run: |
           cd Backend
           echo "🧪 Testing JAR execution..."
-          # Ejecutar el JAR en background (puerto 8080 por defecto)
-          java -jar target/Backend-0.0.1-SNAPSHOT.jar &
+
+          # Ejecutar el JAR en background con logs detallados
+          echo "Iniciando aplicación con perfil de producción..."
+          java -jar target/Backend-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod > app.log 2>&1 &
           JAR_PID=$!
 
-          # Esperar a que la aplicación se inicie
-          echo "Esperando a que la aplicación se inicie..."
-          sleep 20
-
-          # Verificar que el proceso está corriendo
-          if ps -p $JAR_PID > /dev/null; then
-            echo "✅ JAR ejecutándose correctamente (PID: $JAR_PID)"
+          # Función para verificar health check con reintentos
+          check_health() {
+            local max_attempts=12
+            local attempt=1
+            local wait_time=5
             
-            # Probar health check
-            echo "Probando health check..."
-            if curl -f -s http://localhost:8080/api/health/check > /dev/null 2>&1; then
-              echo "✅ Health check exitoso en /api/health/check"
-            elif curl -f -s http://localhost:8080/api/health/ping > /dev/null 2>&1; then
-              echo "✅ Health check exitoso en /api/health/ping"
-            elif curl -f -s http://localhost:8080/api/health/info > /dev/null 2>&1; then
-              echo "✅ Health check exitoso en /api/health/info"
-            else
-              echo "❌ Health check failed"
-              echo "Probando conectividad básica..."
-              if curl -f -s http://localhost:8080/ > /dev/null 2>&1; then
-                echo "✅ Backend responde en el puerto 8080"
-              else
-                echo "❌ Backend no responde en el puerto 8080"
+            echo "Esperando a que la aplicación se inicie completamente..."
+            
+            while [ $attempt -le $max_attempts ]; do
+              echo "Intento $attempt/$max_attempts - Esperando ${wait_time}s..."
+              sleep $wait_time
+              
+              # Verificar que el proceso sigue corriendo
+              if ! ps -p $JAR_PID > /dev/null; then
+                echo "❌ ERROR: La aplicación se detuvo inesperadamente"
+                echo "Logs de la aplicación:"
+                cat app.log
                 exit 1
               fi
-            fi
+              
+              # Probar health check
+              echo "Probando conectividad en puerto 8080..."
+              if curl -f -s --connect-timeout 5 --max-time 10 http://localhost:8080/api/health/check > /dev/null 2>&1; then
+                echo "✅ Health check exitoso en /api/health/check"
+                return 0
+              elif curl -f -s --connect-timeout 5 --max-time 10 http://localhost:8080/api/health/ping > /dev/null 2>&1; then
+                echo "✅ Health check exitoso en /api/health/ping"
+                return 0
+              elif curl -f -s --connect-timeout 5 --max-time 10 http://localhost:8080/api/health/info > /dev/null 2>&1; then
+                echo "✅ Health check exitoso en /api/health/info"
+                return 0
+              else
+                echo "⚠️ Health check falló en intento $attempt, reintentando..."
+                
+                # Mostrar logs parciales para debugging
+                if [ $attempt -eq 6 ]; then
+                  echo "Logs parciales de la aplicación (mitad del proceso):"
+                  tail -20 app.log
+                fi
+              fi
+              
+              attempt=$((attempt + 1))
+            done
             
-            # Terminar el proceso
-            echo "Terminando proceso de prueba..."
-            kill $JAR_PID
-            wait $JAR_PID 2>/dev/null
+            echo "❌ Health check falló después de $max_attempts intentos"
+            echo "Logs completos de la aplicación:"
+            cat app.log
+            return 1
+          }
+
+          # Ejecutar health check
+          if check_health; then
+            echo "✅ Aplicación iniciada y funcionando correctamente"
+            
+            # Probar conectividad básica adicional
+            echo "Probando conectividad básica..."
+            if curl -f -s --connect-timeout 5 --max-time 10 http://localhost:8080/ > /dev/null 2>&1; then
+              echo "✅ Backend responde correctamente en el puerto 8080"
+            else
+              echo "⚠️ Backend no responde en la ruta raíz, pero health check funciona"
+            fi
           else
-            echo "❌ ERROR: JAR no se inició correctamente"
+            echo "❌ ERROR: La aplicación no pudo inicializarse correctamente"
             exit 1
           fi
+
+          # Terminar el proceso
+          echo "Terminando proceso de prueba..."
+          kill $JAR_PID
+          wait $JAR_PID 2>/dev/null
 
       - name: Copy JAR to EC2
         uses: appleboy/scp-action@v0.1.6
@@ -213,29 +250,77 @@ jobs:
               echo "Puerto: 8080"
               echo "Estado: $(pm2 jlist | jq -r '.[] | select(.name=="backend") | .pm2_env.status')"
               
-              # Verificar que el backend responde
+              # Verificar que el backend responde con health check robusto
               echo "🧪 Testing JAR execution..."
-              sleep 15  # Dar tiempo suficiente para que la aplicación se inicie completamente
               
-              # Intentar health check con el endpoint correcto
-              echo "Probando health check en puerto 8080..."
-              if curl -f -s http://localhost:8080/api/health/check > /dev/null 2>&1; then
-                echo "✅ Health check exitoso en /api/health/check"
-              elif curl -f -s http://localhost:8080/api/health/ping > /dev/null 2>&1; then
-                echo "✅ Health check exitoso en /api/health/ping"
-              elif curl -f -s http://localhost:8080/api/health/info > /dev/null 2>&1; then
-                echo "✅ Health check exitoso en /api/health/info"
-              else
-                echo "❌ Health check failed"
+              # Función para health check con reintentos en EC2
+              check_ec2_health() {
+                local max_attempts=15
+                local attempt=1
+                local wait_time=8
+                
+                echo "Esperando a que la aplicación se inicie completamente en EC2..."
+                
+                while [ $attempt -le $max_attempts ]; do
+                  echo "Intento $attempt/$max_attempts - Esperando ${wait_time}s..."
+                  sleep $wait_time
+                  
+                  # Verificar que el proceso sigue corriendo en PM2
+                  if ! pm2 list | grep -q "backend.*online"; then
+                    echo "❌ ERROR: El proceso backend se detuvo inesperadamente"
+                    echo "Estado de PM2:"
+                    pm2 status
+                    echo "Logs del proceso:"
+                    pm2 logs backend --lines 50
+                    exit 1
+                  fi
+                  
+                  # Probar health check
+                  echo "Probando conectividad en puerto 8080..."
+                  if curl -f -s --connect-timeout 10 --max-time 15 http://localhost:8080/api/health/check > /dev/null 2>&1; then
+                    echo "✅ Health check exitoso en /api/health/check"
+                    return 0
+                  elif curl -f -s --connect-timeout 10 --max-time 15 http://localhost:8080/api/health/ping > /dev/null 2>&1; then
+                    echo "✅ Health check exitoso en /api/health/ping"
+                    return 0
+                  elif curl -f -s --connect-timeout 10 --max-time 15 http://localhost:8080/api/health/info > /dev/null 2>&1; then
+                    echo "✅ Health check exitoso en /api/health/info"
+                    return 0
+                  else
+                    echo "⚠️ Health check falló en intento $attempt, reintentando..."
+                    
+                    # Mostrar logs parciales para debugging
+                    if [ $attempt -eq 8 ]; then
+                      echo "Logs parciales de la aplicación (mitad del proceso):"
+                      pm2 logs backend --lines 20
+                    fi
+                  fi
+                  
+                  attempt=$((attempt + 1))
+                done
+                
+                echo "❌ Health check falló después de $max_attempts intentos"
+                echo "Estado final de PM2:"
+                pm2 status
+                echo "Logs completos del proceso:"
+                pm2 logs backend --lines 50
+                return 1
+              }
+
+              # Ejecutar health check robusto
+              if check_ec2_health; then
+                echo "✅ Aplicación iniciada y funcionando correctamente en EC2"
+                
+                # Probar conectividad básica adicional
                 echo "Probando conectividad básica..."
-                if curl -f -s http://localhost:8080/ > /dev/null 2>&1; then
-                  echo "✅ Backend responde en el puerto 8080 pero sin endpoints de health"
+                if curl -f -s --connect-timeout 10 --max-time 15 http://localhost:8080/ > /dev/null 2>&1; then
+                  echo "✅ Backend responde correctamente en el puerto 8080"
                 else
-                  echo "❌ Backend no responde en el puerto 8080"
-                  echo "Logs del proceso:"
-                  pm2 logs backend --lines 30
-                  exit 1
+                  echo "⚠️ Backend no responde en la ruta raíz, pero health check funciona"
                 fi
+              else
+                echo "❌ ERROR: La aplicación no pudo inicializarse correctamente en EC2"
+                exit 1
               fi
             else
               echo "❌ ERROR: Backend no se inició correctamente"
