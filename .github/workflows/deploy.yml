@@ -41,8 +41,8 @@ jobs:
         run: |
           cd Backend
           echo "🧪 Testing JAR execution..."
-          # Ejecutar el JAR en background con el puerto correcto
-          java -Dserver.port=9090 -jar target/Backend-0.0.1-SNAPSHOT.jar &
+          # Ejecutar el JAR en background (puerto 8080 por defecto)
+          java -jar target/Backend-0.0.1-SNAPSHOT.jar &
           JAR_PID=$!
 
           # Esperar a que la aplicación se inicie
@@ -55,19 +55,19 @@ jobs:
             
             # Probar health check
             echo "Probando health check..."
-            if curl -f -s http://localhost:9090/api/health/check > /dev/null 2>&1; then
+            if curl -f -s http://localhost:8080/api/health/check > /dev/null 2>&1; then
               echo "✅ Health check exitoso en /api/health/check"
-            elif curl -f -s http://localhost:9090/api/health/ping > /dev/null 2>&1; then
+            elif curl -f -s http://localhost:8080/api/health/ping > /dev/null 2>&1; then
               echo "✅ Health check exitoso en /api/health/ping"
-            elif curl -f -s http://localhost:9090/api/health/info > /dev/null 2>&1; then
+            elif curl -f -s http://localhost:8080/api/health/info > /dev/null 2>&1; then
               echo "✅ Health check exitoso en /api/health/info"
             else
               echo "❌ Health check failed"
               echo "Probando conectividad básica..."
-              if curl -f -s http://localhost:9090/ > /dev/null 2>&1; then
-                echo "✅ Backend responde en el puerto 9090"
+              if curl -f -s http://localhost:8080/ > /dev/null 2>&1; then
+                echo "✅ Backend responde en el puerto 8080"
               else
-                echo "❌ Backend no responde en el puerto 9090"
+                echo "❌ Backend no responde en el puerto 8080"
                 exit 1
               fi
             fi
@@ -199,8 +199,8 @@ jobs:
             echo "✅ Archivo JAR actualizado correctamente"
             ls -la backend.jar
 
-            # Iniciar con puerto 9090
-            pm2 start "java -Dserver.port=9090 -jar backend.jar" --name backend
+            # Iniciar con puerto 8080 (por defecto)
+            pm2 start "java -jar backend.jar" --name backend
 
             # Verificar que el proceso se inició correctamente
             sleep 5
@@ -210,7 +210,7 @@ jobs:
             # Verificar que el proceso está realmente corriendo
             if pm2 list | grep -q "backend.*online"; then
               echo "✅ Backend iniciado correctamente"
-              echo "Puerto: 9090"
+              echo "Puerto: 8080"
               echo "Estado: $(pm2 jlist | jq -r '.[] | select(.name=="backend") | .pm2_env.status')"
               
               # Verificar que el backend responde
@@ -218,20 +218,20 @@ jobs:
               sleep 15  # Dar tiempo suficiente para que la aplicación se inicie completamente
               
               # Intentar health check con el endpoint correcto
-              echo "Probando health check en puerto 9090..."
-              if curl -f -s http://localhost:9090/api/health/check > /dev/null 2>&1; then
+              echo "Probando health check en puerto 8080..."
+              if curl -f -s http://localhost:8080/api/health/check > /dev/null 2>&1; then
                 echo "✅ Health check exitoso en /api/health/check"
-              elif curl -f -s http://localhost:9090/api/health/ping > /dev/null 2>&1; then
+              elif curl -f -s http://localhost:8080/api/health/ping > /dev/null 2>&1; then
                 echo "✅ Health check exitoso en /api/health/ping"
-              elif curl -f -s http://localhost:9090/api/health/info > /dev/null 2>&1; then
+              elif curl -f -s http://localhost:8080/api/health/info > /dev/null 2>&1; then
                 echo "✅ Health check exitoso en /api/health/info"
               else
                 echo "❌ Health check failed"
                 echo "Probando conectividad básica..."
-                if curl -f -s http://localhost:9090/ > /dev/null 2>&1; then
-                  echo "✅ Backend responde en el puerto 9090 pero sin endpoints de health"
+                if curl -f -s http://localhost:8080/ > /dev/null 2>&1; then
+                  echo "✅ Backend responde en el puerto 8080 pero sin endpoints de health"
                 else
-                  echo "❌ Backend no responde en el puerto 9090"
+                  echo "❌ Backend no responde en el puerto 8080"
                   echo "Logs del proceso:"
                   pm2 logs backend --lines 30
                   exit 1
