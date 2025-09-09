@@ -83,191 +83,168 @@ jobs:
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "echo 'SSH connection successful'"
 
       - name: Setup EC2 directories
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          port: ${{ secrets.EC2_PORT }}
-          script: |
-            # Create app directory structure
-            echo "Creating app directory structure..."
-            mkdir -p /home/ubuntu/app/scripts
-
-            # Copy scripts if they don't exist
-            if [ ! -f /home/ubuntu/app/scripts/start.sh ]; then
-              echo "Scripts not found, they will be copied in the next step"
+        run: |
+          # Create app directory structure
+          echo "Creating app directory structure..."
+          ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "mkdir -p /home/ec2-user/app/scripts"
+          
+          # Stop current application if running
+          echo "Stopping current application if running..."
+          ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
+            if [ -f /home/ec2-user/app/app.pid ]; then
+              PID=\$(cat /home/ec2-user/app/app.pid)
+              if ps -p \$PID > /dev/null 2>&1; then
+                echo 'Stopping current application...'
+                kill -TERM \$PID
+                sleep 5
+                if ps -p \$PID > /dev/null 2>&1; then
+                  kill -KILL \$PID
+                fi
+              fi
+              rm -f /home/ec2-user/app/app.pid
             fi
-
-      - name: Deploy to EC2
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          port: ${{ secrets.EC2_PORT }}
-          script: |
-            # Stop current application
-            if [ -f /home/ubuntu/app/app.pid ]; then
-              echo "Stopping current application..."
-              ./home/ubuntu/app/scripts/stop.sh || true
-            fi
-
-            # Backup current JAR if it exists
-            if [ -f /home/ubuntu/app/Backend-*.jar ]; then
-              echo "Backing up current JAR..."
-              mv /home/ubuntu/app/Backend-*.jar /home/ubuntu/app/Backend-backup-$(date +%Y%m%d-%H%M%S).jar || true
-            fi
-
-            # Clean up old backups (keep only last 3)
-            ls -t /home/ubuntu/app/Backend-backup-*.jar 2>/dev/null | tail -n +4 | xargs rm -f || true
+          "
 
       - name: Create scripts on EC2
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          port: ${{ secrets.EC2_PORT }}
-          script: |
-            # Create start.sh
-            cat > /home/ubuntu/app/scripts/start.sh << 'EOF'
-            #!/bin/bash
-            APP_DIR="/home/ubuntu/app"
-            JAR_FILE=$(find $APP_DIR -name "Backend-*.jar" -type f | head -1)
-            PID_FILE="$APP_DIR/app.pid"
-            LOG_FILE="$APP_DIR/app.log"
-
-            if [ ! -f "$JAR_FILE" ]; then
-                echo "❌ Error: No JAR file found in $APP_DIR"
-                exit 1
-            fi
-
-            if [ -f "$PID_FILE" ]; then
-                PID=$(cat "$PID_FILE")
-                if ps -p $PID > /dev/null 2>&1; then
-                    echo "⚠️  Application is already running with PID $PID"
-                    exit 1
-                else
-                    rm -f "$PID_FILE"
-                fi
-            fi
-
-            echo "🚀 Starting Backend application..."
-            nohup java -jar -Dspring.profiles.active=prod "$JAR_FILE" > "$LOG_FILE" 2>&1 &
-            APP_PID=$!
-            echo $APP_PID > "$PID_FILE"
-
-            sleep 5
-            if ps -p $APP_PID > /dev/null 2>&1; then
-                echo "✅ Application started successfully with PID $APP_PID"
-            else
-                echo "❌ Failed to start application"
-                rm -f "$PID_FILE"
-                exit 1
-            fi
-            EOF
-
-            # Create stop.sh
-            cat > /home/ubuntu/app/scripts/stop.sh << 'EOF'
-            #!/bin/bash
-            APP_DIR="/home/ubuntu/app"
-            PID_FILE="$APP_DIR/app.pid"
-
-            if [ ! -f "$PID_FILE" ]; then
-                echo "⚠️  No PID file found. Application might not be running."
-                exit 0
-            fi
-
-            PID=$(cat "$PID_FILE")
-            if ! ps -p $PID > /dev/null 2>&1; then
-                echo "⚠️  Process with PID $PID is not running. Removing stale PID file."
-                rm -f "$PID_FILE"
-                exit 0
-            fi
-
-            echo "🛑 Stopping Backend application (PID: $PID)..."
-            kill -TERM $PID
-
-            for i in {1..30}; do
-                if ! ps -p $PID > /dev/null 2>&1; then
-                    echo "✅ Application stopped gracefully"
-                    rm -f "$PID_FILE"
-                    exit 0
-                fi
-                echo "⏳ Waiting for graceful shutdown... ($i/30)"
-                sleep 1
-            done
-
-            echo "⚠️  Graceful shutdown failed. Force killing..."
-            kill -KILL $PID
-            sleep 2
-            if ! ps -p $PID > /dev/null 2>&1; then
-                echo "✅ Application force stopped"
-                rm -f "$PID_FILE"
-            else
-                echo "❌ Failed to stop application"
-                exit 1
-            fi
-            EOF
-
-            # Create restart.sh
-            cat > /home/ubuntu/app/scripts/restart.sh << 'EOF'
-            #!/bin/bash
-            echo "🔄 Restarting Backend application..."
-            ./stop.sh
-            sleep 3
-            ./start.sh
-            EOF
-
-            # Create status.sh
-            cat > /home/ubuntu/app/scripts/status.sh << 'EOF'
-            #!/bin/bash
-            APP_DIR="/home/ubuntu/app"
-            PID_FILE="$APP_DIR/app.pid"
-            LOG_FILE="$APP_DIR/app.log"
-
-            echo "🔍 Backend Application Status"
-            echo "=============================="
-
-            if [ ! -f "$PID_FILE" ]; then
-                echo "❌ Status: Not running (no PID file)"
-                exit 1
-            fi
-
-            PID=$(cat "$PID_FILE")
-            if ps -p $PID > /dev/null 2>&1; then
-                echo "✅ Status: Running (PID: $PID)"
-                echo "📊 Process Info:"
-                ps -p $PID -o pid,ppid,cmd,etime,pcpu,pmem
-                
-                if netstat -tlnp 2>/dev/null | grep -q ":$PID.*:8080"; then
-                    echo "🌐 Port 8080: Listening"
-                else
-                    echo "⚠️  Port 8080: Not listening"
-                fi
-                
-                echo "🏥 Health Check:"
-                if curl -f -s http://localhost:8080/actuator/health > /dev/null 2>&1; then
-                    echo "✅ Health: OK"
-                else
-                    echo "❌ Health: FAILED"
-                fi
-                
-                echo ""
-                echo "📋 Recent Logs (last 10 lines):"
-                echo "--------------------------------"
-                tail -10 "$LOG_FILE" 2>/dev/null || echo "No logs available"
-            else
-                echo "❌ Status: Not running (stale PID file)"
-                rm -f "$PID_FILE"
-                exit 1
-            fi
-            EOF
-
-            # Make scripts executable
-            chmod +x /home/ubuntu/app/scripts/*.sh
-            echo "✅ Scripts created and made executable"
+        run: |
+          # Create start.sh
+          ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "cat > /home/ec2-user/app/scripts/start.sh << 'EOF'
+          #!/bin/bash
+          APP_DIR=\"/home/ec2-user/app\"
+          JAR_FILE=\$(find \$APP_DIR -name \"Backend-*.jar\" -type f | head -1)
+          PID_FILE=\"\$APP_DIR/app.pid\"
+          LOG_FILE=\"\$APP_DIR/app.log\"
+          
+          if [ ! -f \"\$JAR_FILE\" ]; then
+              echo \"❌ Error: No JAR file found in \$APP_DIR\"
+              exit 1
+          fi
+          
+          if [ -f \"\$PID_FILE\" ]; then
+              PID=\$(cat \"\$PID_FILE\")
+              if ps -p \$PID > /dev/null 2>&1; then
+                  echo \"⚠️  Application is already running with PID \$PID\"
+                  exit 1
+              else
+                  rm -f \"\$PID_FILE\"
+              fi
+          fi
+          
+          echo \"🚀 Starting Backend application...\"
+          nohup java -jar -Dspring.profiles.active=prod \"\$JAR_FILE\" > \"\$LOG_FILE\" 2>&1 &
+          APP_PID=\$!
+          echo \$APP_PID > \"\$PID_FILE\"
+          
+          sleep 5
+          if ps -p \$APP_PID > /dev/null 2>&1; then
+              echo \"✅ Application started successfully with PID \$APP_PID\"
+          else
+              echo \"❌ Failed to start application\"
+              rm -f \"\$PID_FILE\"
+              exit 1
+          fi
+          EOF"
+          
+          # Create stop.sh
+          ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "cat > /home/ec2-user/app/scripts/stop.sh << 'EOF'
+          #!/bin/bash
+          APP_DIR=\"/home/ec2-user/app\"
+          PID_FILE=\"\$APP_DIR/app.pid\"
+          
+          if [ ! -f \"\$PID_FILE\" ]; then
+              echo \"⚠️  No PID file found. Application might not be running.\"
+              exit 0
+          fi
+          
+          PID=\$(cat \"\$PID_FILE\")
+          if ! ps -p \$PID > /dev/null 2>&1; then
+              echo \"⚠️  Process with PID \$PID is not running. Removing stale PID file.\"
+              rm -f \"\$PID_FILE\"
+              exit 0
+          fi
+          
+          echo \"🛑 Stopping Backend application (PID: \$PID)...\"
+          kill -TERM \$PID
+          
+          for i in {1..30}; do
+              if ! ps -p \$PID > /dev/null 2>&1; then
+                  echo \"✅ Application stopped gracefully\"
+                  rm -f \"\$PID_FILE\"
+                  exit 0
+              fi
+              echo \"⏳ Waiting for graceful shutdown... (\$i/30)\"
+              sleep 1
+          done
+          
+          echo \"⚠️  Graceful shutdown failed. Force killing...\"
+          kill -KILL \$PID
+          sleep 2
+          if ! ps -p \$PID > /dev/null 2>&1; then
+              echo \"✅ Application force stopped\"
+              rm -f \"\$PID_FILE\"
+          else
+              echo \"❌ Failed to stop application\"
+              exit 1
+          fi
+          EOF"
+          
+          # Create restart.sh
+          ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "cat > /home/ec2-user/app/scripts/restart.sh << 'EOF'
+          #!/bin/bash
+          echo \"🔄 Restarting Backend application...\"
+          ./stop.sh
+          sleep 3
+          ./start.sh
+          EOF"
+          
+          # Create status.sh
+          ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "cat > /home/ec2-user/app/scripts/status.sh << 'EOF'
+          #!/bin/bash
+          APP_DIR=\"/home/ec2-user/app\"
+          PID_FILE=\"\$APP_DIR/app.pid\"
+          LOG_FILE=\"\$APP_DIR/app.log\"
+          
+          echo \"🔍 Backend Application Status\"
+          echo \"==============================\"
+          
+          if [ ! -f \"\$PID_FILE\" ]; then
+              echo \"❌ Status: Not running (no PID file)\"
+              exit 1
+          fi
+          
+          PID=\$(cat \"\$PID_FILE\")
+          if ps -p \$PID > /dev/null 2>&1; then
+              echo \"✅ Status: Running (PID: \$PID)\"
+              echo \"📊 Process Info:\"
+              ps -p \$PID -o pid,ppid,cmd,etime,pcpu,pmem
+              
+              if netstat -tlnp 2>/dev/null | grep -q \":\$PID.*:8080\"; then
+                  echo \"🌐 Port 8080: Listening\"
+              else
+                  echo \"⚠️  Port 8080: Not listening\"
+              fi
+              
+              echo \"🏥 Health Check:\"
+              if curl -f -s http://localhost:8080/actuator/health > /dev/null 2>&1; then
+                  echo \"✅ Health: OK\"
+              else
+                  echo \"❌ Health: FAILED\"
+              fi
+              
+              echo \"\"
+              echo \"📋 Recent Logs (last 10 lines):\"
+              echo \"--------------------------------\"
+              tail -10 \"\$LOG_FILE\" 2>/dev/null || echo \"No logs available\"
+          else
+              echo \"❌ Status: Not running (stale PID file)\"
+              rm -f \"\$PID_FILE\"
+              exit 1
+          fi
+          EOF"
+          
+          # Make scripts executable
+          ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "chmod +x /home/ec2-user/app/scripts/*.sh"
+          echo "✅ Scripts created and made executable"
 
       - name: Copy JAR to EC2
         run: |
@@ -282,7 +259,7 @@ jobs:
           echo "📦 Found JAR file: $JAR_FILE"
           
           # Copy JAR to EC2 using scp command
-          scp -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} "$JAR_FILE" ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ubuntu/app/
+          scp -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} "$JAR_FILE" ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/
           
           if [ $? -eq 0 ]; then
             echo "✅ JAR file copied successfully"
@@ -300,11 +277,11 @@ jobs:
           port: ${{ secrets.EC2_PORT }}
           script: |
             # Make scripts executable
-            chmod +x /home/ubuntu/app/scripts/*.sh
+            chmod +x /home/ec2-user/app/scripts/*.sh
 
             # Start the application
             echo "Starting application..."
-            ./home/ubuntu/app/scripts/start.sh
+            ./home/ec2-user/app/scripts/start.sh
 
             # Wait a moment for the application to start
             sleep 10
