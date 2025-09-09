@@ -20,7 +20,10 @@ jobs:
         java-version: 17
 
     - name: Build with Maven
-      run: mvn clean package -DskipTests
+      run:
+	|
+	cd Backend 
+	mvn clean package -DskipTests
 
     - name: Copy jar to EC2
       uses: appleboy/scp-action@v0.1.6
