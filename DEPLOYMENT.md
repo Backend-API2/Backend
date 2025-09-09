@@ -5,12 +5,14 @@ Esta guía explica cómo configurar y desplegar la aplicación Spring Boot en EC
 ## 📋 Prerrequisitos
 
 ### En tu EC2:
+
 1. **Java 21** instalado
 2. **Curl** para health checks
 3. **Usuario ubuntu** con permisos sudo
 4. **Puerto 8080** abierto en Security Groups
 
 ### En GitHub:
+
 1. **Secrets** configurados en el repositorio
 2. **Rama master/main** como rama principal
 
@@ -42,11 +44,13 @@ EC2_PORT=22
 ## 🔄 Flujo de CI/CD
 
 ### 1. **Push a master/main**
+
 - Se ejecuta automáticamente el workflow
 - Compila y ejecuta tests
 - Crea el JAR ejecutable
 
 ### 2. **Deployment automático**
+
 - Detiene la aplicación actual
 - Copia el nuevo JAR a EC2
 - Inicia la nueva versión
@@ -55,24 +59,28 @@ EC2_PORT=22
 ## 🛠️ Scripts de Gestión
 
 ### Iniciar aplicación
+
 ```bash
 cd /home/ubuntu/app/scripts
 ./start.sh
 ```
 
 ### Detener aplicación
+
 ```bash
 cd /home/ubuntu/app/scripts
 ./stop.sh
 ```
 
 ### Reiniciar aplicación
+
 ```bash
 cd /home/ubuntu/app/scripts
 ./restart.sh
 ```
 
 ### Ver estado
+
 ```bash
 cd /home/ubuntu/app/scripts
 ./status.sh
@@ -81,16 +89,19 @@ cd /home/ubuntu/app/scripts
 ## 🔍 Monitoreo
 
 ### Health Check
+
 ```bash
 curl http://tu-ip-ec2:8080/actuator/health
 ```
 
 ### Ver logs en tiempo real
+
 ```bash
 tail -f /home/ubuntu/app/app.log
 ```
 
 ### Ver logs recientes
+
 ```bash
 tail -50 /home/ubuntu/app/app.log
 ```
@@ -119,16 +130,19 @@ export SERVER_PORT="8080"
 ## 🚨 Troubleshooting
 
 ### La aplicación no inicia
+
 1. Verificar logs: `tail -f /home/ubuntu/app/app.log`
 2. Verificar Java: `java -version`
 3. Verificar puerto: `netstat -tlnp | grep 8080`
 
 ### Error de conexión a base de datos
+
 1. Verificar Security Groups de RDS
 2. Verificar credenciales en `application-prod.properties`
 3. Verificar conectividad: `telnet tu-db.amazonaws.com 3306`
 
 ### Puerto ocupado
+
 ```bash
 # Encontrar proceso usando puerto 8080
 sudo lsof -i :8080
@@ -140,11 +154,13 @@ sudo kill -9 PID
 ## 📊 Métricas y Monitoreo
 
 ### Endpoints disponibles:
+
 - `GET /actuator/health` - Estado de la aplicación
 - `GET /actuator/info` - Información de la aplicación
 - `GET /actuator/metrics` - Métricas de la aplicación
 
 ### Logs importantes:
+
 - **ERROR**: Errores críticos
 - **WARN**: Advertencias
 - **INFO**: Información general de la aplicación
@@ -154,16 +170,19 @@ sudo kill -9 PID
 Si necesitas volver a una versión anterior:
 
 1. **Listar versiones disponibles:**
+
 ```bash
 ls -la /home/ubuntu/app/Backend-*.jar
 ```
 
 2. **Detener aplicación actual:**
+
 ```bash
 ./stop.sh
 ```
 
 3. **Ejecutar versión anterior:**
+
 ```bash
 java -jar Backend-version-anterior.jar
 ```
