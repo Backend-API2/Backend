@@ -29,11 +29,11 @@ jobs:
 
       - name: Build with Maven
         working-directory: ./Backend
-        run: mvn clean compile -DskipTests
+        run: mvn clean compile -DskipTests -Dspring.profiles.active=test
 
       - name: Run tests
         working-directory: ./Backend
-        run: mvn test
+        run: mvn test -Dspring.profiles.active=test
 
       - name: Package application
         working-directory: ./Backend
