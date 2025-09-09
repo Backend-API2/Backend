@@ -45,7 +45,7 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           source: 'Backend/target/Backend-0.0.1-SNAPSHOT.jar'
           target: '/home/ec2-user/'
-          strip_components: 0
+          strip_components: 2
           timeout: 60s
           command_timeout: 60s
 
@@ -63,11 +63,18 @@ jobs:
             echo "Buscando archivos JAR:"
             find /home/ec2-user -name "*.jar" -type f
             echo ""
+
+            # Verificar en la ubicación esperada (con strip_components: 2)
             if [ -f /home/ec2-user/Backend-0.0.1-SNAPSHOT.jar ]; then
-              echo "✓ JAR file found successfully"
+              echo "✓ JAR file found successfully at expected location"
+              ls -la /home/ec2-user/Backend-0.0.1-SNAPSHOT.jar
+            # Verificar en la ubicación alternativa (sin strip_components)
+            elif [ -f /home/ec2-user/Backend/target/Backend-0.0.1-SNAPSHOT.jar ]; then
+              echo "✓ JAR file found at alternative location, moving to expected location"
+              mv /home/ec2-user/Backend/target/Backend-0.0.1-SNAPSHOT.jar /home/ec2-user/Backend-0.0.1-SNAPSHOT.jar
               ls -la /home/ec2-user/Backend-0.0.1-SNAPSHOT.jar
             else
-              echo "✗ JAR file not found"
+              echo "✗ JAR file not found in any expected location"
               echo "ERROR: El archivo Backend-0.0.1-SNAPSHOT.jar no existe en el servidor"
               echo "Esto indica que el paso de copia (SCP) falló"
               exit 1
@@ -84,8 +91,8 @@ jobs:
           echo "${{ secrets.EC2_SSH_KEY }}" > /tmp/ec2_key
           chmod 600 /tmp/ec2_key
 
-          # Copiar con rsync
-          rsync -avz -e "ssh -i /tmp/ec2_key -o StrictHostKeyChecking=no" \
+          # Copiar con rsync (usando --remove-source-files para simular strip_components)
+          rsync -avz --remove-source-files -e "ssh -i /tmp/ec2_key -o StrictHostKeyChecking=no" \
             Backend/target/Backend-0.0.1-SNAPSHOT.jar \
             ec2-user@18.191.118.13:/home/ec2-user/
 
