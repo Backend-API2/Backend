@@ -89,20 +89,45 @@ jobs:
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "mkdir -p /home/ec2-user/app/scripts"
 
           # Stop current application if running
-          echo "Stopping current application if running..."
+          echo "🛑 Stopping current application if running..."
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
+            # Kill any process using port 8080
+            echo 'Checking for processes using port 8080...'
+            PORT_PID=\$(lsof -ti:8080 2>/dev/null || echo '')
+            if [ ! -z \"\$PORT_PID\" ]; then
+              echo \"Found process \$PORT_PID using port 8080, killing it...\"
+              kill -TERM \$PORT_PID 2>/dev/null || true
+              sleep 3
+              if ps -p \$PORT_PID > /dev/null 2>&1; then
+                echo \"Force killing process \$PORT_PID...\"
+                kill -KILL \$PORT_PID 2>/dev/null || true
+              fi
+            fi
+            
+            # Also try to stop using PID file
             if [ -f /home/ec2-user/app/app.pid ]; then
               PID=\$(cat /home/ec2-user/app/app.pid)
               if ps -p \$PID > /dev/null 2>&1; then
-                echo 'Stopping current application...'
-                kill -TERM \$PID
+                echo \"Stopping application with PID \$PID...\"
+                kill -TERM \$PID 2>/dev/null || true
                 sleep 5
                 if ps -p \$PID > /dev/null 2>&1; then
-                  kill -KILL \$PID
+                  echo \"Force killing PID \$PID...\"
+                  kill -KILL \$PID 2>/dev/null || true
                 fi
               fi
               rm -f /home/ec2-user/app/app.pid
             fi
+            
+            # Final check - make sure port 8080 is free
+            sleep 2
+            if lsof -ti:8080 >/dev/null 2>&1; then
+              echo \"⚠️  Port 8080 still in use, force killing all Java processes...\"
+              pkill -f 'java.*Backend' || true
+              sleep 3
+            fi
+            
+            echo \"✅ Port 8080 should now be free\"
           "
 
       - name: Create scripts on EC2
