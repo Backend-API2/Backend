@@ -55,11 +55,13 @@ APP_PID=$!
 
 # Función para verificar health check con reintentos (igual que en CI/CD)
 check_health_local() {
-    local max_attempts=12
+    local max_attempts=20
     local attempt=1
-    local wait_time=5
+    local wait_time=8
     
     echo "Esperando a que la aplicación se inicie completamente..."
+    echo "Tiempo inicial de espera para que Spring Boot termine de arrancar..."
+    sleep 15  # Espera inicial más larga para que termine la inicialización
     
     while [ $attempt -le $max_attempts ]; do
         echo "Intento $attempt/$max_attempts - Esperando ${wait_time}s..."
@@ -73,24 +75,33 @@ check_health_local() {
             return 1
         fi
         
+        # Verificar que el puerto esté abierto primero
+        echo "Verificando que el puerto 8080 esté abierto..."
+        if ! netstat -tuln | grep -q ":8080 "; then
+            echo -e "${YELLOW}⚠️ Puerto 8080 aún no está abierto, esperando...${NC}"
+            attempt=$((attempt + 1))
+            continue
+        fi
+        
+        echo -e "${GREEN}✅ Puerto 8080 está abierto, probando health check...${NC}"
+        
         # Probar health check
-        echo "Probando conectividad en puerto 8080..."
-        if curl -f -s --connect-timeout 5 --max-time 10 http://localhost:8080/api/health/check > /dev/null 2>&1; then
+        if curl -f -s --connect-timeout 10 --max-time 15 http://localhost:8080/api/health/check > /dev/null 2>&1; then
             echo -e "${GREEN}✅ Health check exitoso en /api/health/check${NC}"
             return 0
-        elif curl -f -s --connect-timeout 5 --max-time 10 http://localhost:8080/api/health/ping > /dev/null 2>&1; then
+        elif curl -f -s --connect-timeout 10 --max-time 15 http://localhost:8080/api/health/ping > /dev/null 2>&1; then
             echo -e "${GREEN}✅ Health check exitoso en /api/health/ping${NC}"
             return 0
-        elif curl -f -s --connect-timeout 5 --max-time 10 http://localhost:8080/api/health/info > /dev/null 2>&1; then
+        elif curl -f -s --connect-timeout 10 --max-time 15 http://localhost:8080/api/health/info > /dev/null 2>&1; then
             echo -e "${GREEN}✅ Health check exitoso en /api/health/info${NC}"
             return 0
         else
             echo -e "${YELLOW}⚠️ Health check falló en intento $attempt, reintentando...${NC}"
             
             # Mostrar logs parciales para debugging
-            if [ $attempt -eq 6 ]; then
+            if [ $attempt -eq 10 ]; then
                 echo "Logs parciales de la aplicación (mitad del proceso):"
-                tail -20 app.log
+                tail -30 app.log
             fi
         fi
         

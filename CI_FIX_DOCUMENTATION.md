@@ -8,6 +8,19 @@ El CI/CD fallaba en el health check porque:
 2. **Conexión a base de datos**: La conexión a MySQL tardaba más de lo esperado
 3. **Health check no robusto**: No había reintentos ni manejo de errores adecuado
 4. **Falta de logging**: No había suficiente información para debugging
+5. **Verificación de puerto**: No se verificaba que el puerto estuviera abierto antes del health check
+
+### Análisis de Logs del Error
+
+Los logs mostraban que:
+
+- ✅ Spring Boot iniciaba correctamente
+- ✅ Los repositorios JPA se configuraban (14 repositorios)
+- ✅ Tomcat se inicializaba en puerto 8080
+- ✅ HikariCP comenzaba a iniciarse
+- ❌ **Pero el health check se ejecutaba antes de que terminara la inicialización**
+
+El error `curl: (7) Failed to connect to localhost port 8080` indicaba que el puerto aún no estaba disponible para conexiones.
 
 ## Soluciones Implementadas
 
@@ -15,10 +28,12 @@ El CI/CD fallaba en el health check porque:
 
 **Archivo**: `.github/workflows/deploy.yml`
 
-- ✅ **Sistema de reintentos**: 12 intentos con 5 segundos de espera (total: 60 segundos)
+- ✅ **Sistema de reintentos mejorado**: 20 intentos con 8 segundos de espera + 15s inicial (total: 175 segundos)
+- ✅ **Espera inicial**: 15 segundos de espera inicial para que Spring Boot termine de arrancar
+- ✅ **Verificación de puerto**: Verifica que el puerto 8080 esté abierto antes del health check
 - ✅ **Múltiples endpoints**: Prueba `/api/health/check`, `/api/health/ping`, `/api/health/info`
-- ✅ **Timeouts configurados**: `--connect-timeout 5 --max-time 10`
-- ✅ **Logging detallado**: Muestra logs parciales en el intento 6 y completos al final
+- ✅ **Timeouts configurados**: `--connect-timeout 10 --max-time 15`
+- ✅ **Logging detallado**: Muestra logs parciales en el intento 10 y completos al final
 - ✅ **Verificación de proceso**: Confirma que la aplicación sigue corriendo
 
 ### 2. Configuración de Base de Datos Optimizada
@@ -86,10 +101,14 @@ server.tomcat.min-spare-threads=10
 ### Health Check (CI/CD)
 
 ```bash
-# 12 intentos × 5 segundos = 60 segundos máximo
-max_attempts=12
-wait_time=5
-curl --connect-timeout 5 --max-time 10
+# 20 intentos × 8 segundos + 15s inicial = 175 segundos máximo
+max_attempts=20
+wait_time=8
+initial_wait=15
+curl --connect-timeout 10 --max-time 15
+
+# Verificación de puerto antes del health check
+netstat -tuln | grep ":8080 "
 ```
 
 ## Endpoints de Health Check
@@ -146,3 +165,64 @@ El health check ahora proporciona información detallada:
 2. **Monitorear** el próximo deployment en GitHub Actions
 3. **Verificar** que el health check pasa correctamente
 4. **Confirmar** que la aplicación se despliega en EC2 sin problemas
+
+## Resultados de Pruebas Locales
+
+### ✅ Prueba Exitosa del Health Check
+
+**Tiempo de inicialización**: 6.557 segundos
+**Tiempo total hasta health check exitoso**: ~15 segundos
+
+**Endpoints probados**:
+
+1. **`/api/health/check`** ✅
+
+   ```json
+   {
+     "environment": "production",
+     "database": "connected",
+     "message": "Backend is running successfully!",
+     "version": "1.0.0",
+     "status": "UP",
+     "timestamp": "2025-09-08T23:17:10.916489",
+     "uptime": "running"
+   }
+   ```
+
+2. **`/api/health/ping`** ✅
+
+   ```
+   pong
+   ```
+
+3. **`/api/health/info`** ✅
+   ```json
+   {
+     "application": "Backend API",
+     "description": "Sistema de gestión de pagos e invoices",
+     "status": "operational",
+     "uptime": "running",
+     "timestamp": "2025-09-08T23:17:16.132658"
+   }
+   ```
+
+### 🔧 Configuración Final
+
+- **Espera inicial**: 15 segundos
+- **Reintentos**: 20 intentos × 8 segundos = 160 segundos adicionales
+- **Tiempo total máximo**: 175 segundos
+- **Verificación de puerto**: Antes de cada health check
+- **Timeouts**: 10s connect, 15s max-time
+
+### 📊 Comparación Antes vs Después
+
+| Aspecto                | Antes         | Después        |
+| ---------------------- | ------------- | -------------- |
+| Espera inicial         | 0s            | 15s            |
+| Reintentos             | 12 × 5s = 60s | 20 × 8s = 160s |
+| Verificación de puerto | ❌            | ✅             |
+| Timeouts               | 5s/10s        | 10s/15s        |
+| Logging                | Básico        | Detallado      |
+| Tiempo total           | 60s           | 175s           |
+
+La solución es robusta y debería resolver completamente el problema del CI/CD.

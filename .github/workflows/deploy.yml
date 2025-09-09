@@ -49,11 +49,13 @@ jobs:
 
           # Función para verificar health check con reintentos
           check_health() {
-            local max_attempts=12
+            local max_attempts=20
             local attempt=1
-            local wait_time=5
+            local wait_time=8
             
             echo "Esperando a que la aplicación se inicie completamente..."
+            echo "Tiempo inicial de espera para que Spring Boot termine de arrancar..."
+            sleep 15  # Espera inicial más larga para que termine la inicialización
             
             while [ $attempt -le $max_attempts ]; do
               echo "Intento $attempt/$max_attempts - Esperando ${wait_time}s..."
@@ -67,24 +69,33 @@ jobs:
                 exit 1
               fi
               
+              # Verificar que el puerto esté abierto primero
+              echo "Verificando que el puerto 8080 esté abierto..."
+              if ! netstat -tuln | grep -q ":8080 "; then
+                echo "⚠️ Puerto 8080 aún no está abierto, esperando..."
+                attempt=$((attempt + 1))
+                continue
+              fi
+              
+              echo "✅ Puerto 8080 está abierto, probando health check..."
+              
               # Probar health check
-              echo "Probando conectividad en puerto 8080..."
-              if curl -f -s --connect-timeout 5 --max-time 10 http://localhost:8080/api/health/check > /dev/null 2>&1; then
+              if curl -f -s --connect-timeout 10 --max-time 15 http://localhost:8080/api/health/check > /dev/null 2>&1; then
                 echo "✅ Health check exitoso en /api/health/check"
                 return 0
-              elif curl -f -s --connect-timeout 5 --max-time 10 http://localhost:8080/api/health/ping > /dev/null 2>&1; then
+              elif curl -f -s --connect-timeout 10 --max-time 15 http://localhost:8080/api/health/ping > /dev/null 2>&1; then
                 echo "✅ Health check exitoso en /api/health/ping"
                 return 0
-              elif curl -f -s --connect-timeout 5 --max-time 10 http://localhost:8080/api/health/info > /dev/null 2>&1; then
+              elif curl -f -s --connect-timeout 10 --max-time 15 http://localhost:8080/api/health/info > /dev/null 2>&1; then
                 echo "✅ Health check exitoso en /api/health/info"
                 return 0
               else
                 echo "⚠️ Health check falló en intento $attempt, reintentando..."
                 
                 # Mostrar logs parciales para debugging
-                if [ $attempt -eq 6 ]; then
+                if [ $attempt -eq 10 ]; then
                   echo "Logs parciales de la aplicación (mitad del proceso):"
-                  tail -20 app.log
+                  tail -30 app.log
                 fi
               fi
               
@@ -255,11 +266,13 @@ jobs:
               
               # Función para health check con reintentos en EC2
               check_ec2_health() {
-                local max_attempts=15
+                local max_attempts=20
                 local attempt=1
-                local wait_time=8
+                local wait_time=10
                 
                 echo "Esperando a que la aplicación se inicie completamente en EC2..."
+                echo "Tiempo inicial de espera para que Spring Boot termine de arrancar..."
+                sleep 20  # Espera inicial más larga para EC2
                 
                 while [ $attempt -le $max_attempts ]; do
                   echo "Intento $attempt/$max_attempts - Esperando ${wait_time}s..."
@@ -275,24 +288,33 @@ jobs:
                     exit 1
                   fi
                   
+                  # Verificar que el puerto esté abierto primero
+                  echo "Verificando que el puerto 8080 esté abierto..."
+                  if ! netstat -tuln | grep -q ":8080 "; then
+                    echo "⚠️ Puerto 8080 aún no está abierto, esperando..."
+                    attempt=$((attempt + 1))
+                    continue
+                  fi
+                  
+                  echo "✅ Puerto 8080 está abierto, probando health check..."
+                  
                   # Probar health check
-                  echo "Probando conectividad en puerto 8080..."
-                  if curl -f -s --connect-timeout 10 --max-time 15 http://localhost:8080/api/health/check > /dev/null 2>&1; then
+                  if curl -f -s --connect-timeout 15 --max-time 20 http://localhost:8080/api/health/check > /dev/null 2>&1; then
                     echo "✅ Health check exitoso en /api/health/check"
                     return 0
-                  elif curl -f -s --connect-timeout 10 --max-time 15 http://localhost:8080/api/health/ping > /dev/null 2>&1; then
+                  elif curl -f -s --connect-timeout 15 --max-time 20 http://localhost:8080/api/health/ping > /dev/null 2>&1; then
                     echo "✅ Health check exitoso en /api/health/ping"
                     return 0
-                  elif curl -f -s --connect-timeout 10 --max-time 15 http://localhost:8080/api/health/info > /dev/null 2>&1; then
+                  elif curl -f -s --connect-timeout 15 --max-time 20 http://localhost:8080/api/health/info > /dev/null 2>&1; then
                     echo "✅ Health check exitoso en /api/health/info"
                     return 0
                   else
                     echo "⚠️ Health check falló en intento $attempt, reintentando..."
                     
                     # Mostrar logs parciales para debugging
-                    if [ $attempt -eq 8 ]; then
+                    if [ $attempt -eq 10 ]; then
                       echo "Logs parciales de la aplicación (mitad del proceso):"
-                      pm2 logs backend --lines 20
+                      pm2 logs backend --lines 30
                     fi
                   fi
                   
