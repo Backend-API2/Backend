@@ -10,11 +10,18 @@ import backend_api.Backend.Service.Interface.CardValidationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.HexFormat;
+
 @Service
 public class PaymentMethodServiceImpl implements PaymentMethodService {
     
     @Autowired
     private CashPaymentRepository cashPaymentRepository;
+
+    @Autowired
+    private TestCardRepository testCardRepository;
     
     @Autowired
     private MercadoPagoPaymentRepository mercadoPagoRepository;
@@ -80,60 +87,67 @@ public class PaymentMethodServiceImpl implements PaymentMethodService {
         
         return paypalPaymentRepository.save(paypalMethod);
     }
-    
+
     private PaymentMethod createCreditCardMethod(SelectPaymentMethodRequest request) {
         if (request.getCardNumber() == null || request.getCardNumber().trim().isEmpty()) {
             throw new RuntimeException("Número de tarjeta es requerido");
         }
-        
         if (!cardValidationService.isValidCardBin(request.getCardNumber())) {
             throw new RuntimeException("Los primeros 3 dígitos de la tarjeta no son válidos. Pago rechazado.");
         }
-        
+
         CreditCardPayment creditCard = new CreditCardPayment();
         creditCard.setType(PaymentMethodType.CREDIT_CARD);
-        
+
         String cleanCardNumber = request.getCardNumber().replaceAll("[\\s-]", "");
         if (cleanCardNumber.length() >= 4) {
             creditCard.setLast4Digits(cleanCardNumber.substring(cleanCardNumber.length() - 4));
         }
-        
         creditCard.setHolder_name(request.getCardHolderName());
         creditCard.setExpiration_month(request.getExpirationMonth());
         creditCard.setExpiration_year(request.getExpirationYear());
-        
+
         String bin = cardValidationService.extractBin(request.getCardNumber());
         creditCard.setCard_network(determineCardNetwork(bin));
-        
+
+        TestCard tc = findTestCardOrNull(request.getCardNumber(), request.getCvv());
+        if (tc != null) {
+            creditCard.setTestCard(tc);
+        } else {
+        }
+
         return creditCardRepository.save(creditCard);
     }
-    
+
     private PaymentMethod createDebitCardMethod(SelectPaymentMethodRequest request) {
         if (request.getCardNumber() == null || request.getCardNumber().trim().isEmpty()) {
             throw new RuntimeException("Número de tarjeta es requerido");
         }
-        
         if (!cardValidationService.isValidCardBin(request.getCardNumber())) {
             throw new RuntimeException("Los primeros 3 dígitos de la tarjeta no son válidos. Pago rechazado.");
         }
-        
+
         DebitCardPayment debitCard = new DebitCardPayment();
         debitCard.setType(PaymentMethodType.DEBIT_CARD);
-        
+
         String cleanCardNumber = request.getCardNumber().replaceAll("[\\s-]", "");
         if (cleanCardNumber.length() >= 4) {
             debitCard.setLast4Digits(cleanCardNumber.substring(cleanCardNumber.length() - 4));
         }
-        
         debitCard.setHolder_name(request.getCardHolderName());
         debitCard.setExpiration_month(request.getExpirationMonth());
         debitCard.setExpiration_year(request.getExpirationYear());
         debitCard.setBank_name(request.getBankName());
         debitCard.setCbu(request.getCbu());
-        
+
         String bin = cardValidationService.extractBin(request.getCardNumber());
         debitCard.setCard_network(determineCardNetwork(bin));
-        
+
+        TestCard tc = findTestCardOrNull(request.getCardNumber(), request.getCvv());
+        if (tc != null) {
+            debitCard.setTestCard(tc);
+        }
+
         return debitCardRepository.save(debitCard);
     }
     
@@ -198,5 +212,23 @@ public class PaymentMethodServiceImpl implements PaymentMethodService {
     }
     
     private static class BasicPaymentMethod extends PaymentMethod {
+    }
+
+    private String sha256(String s) {
+        try {
+            var md = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(md.digest(s.getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private TestCard findTestCardOrNull(String pan, String cvv) {
+        if (pan == null || cvv == null) return null;
+        String panHash = sha256(pan.replaceAll("[\\s-]", ""));
+        String cvvHash = sha256(cvv.trim());
+        return testCardRepository
+                .findByPanSha256AndCvvSha256AndIsActiveTrue(panHash, cvvHash)
+                .orElse(null);
     }
 }

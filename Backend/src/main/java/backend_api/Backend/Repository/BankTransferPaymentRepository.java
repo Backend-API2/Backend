@@ -1,7 +1,6 @@
 package backend_api.Backend.Repository;
 
-import backend_api.Backend.Entity.payment.types.MercadoPagoPayment;
-
+import backend_api.Backend.Entity.payment.types.BankTransferPayment;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -13,19 +12,19 @@ import org.springframework.stereotype.Repository;
 import java.util.Optional;
 
 @Repository
-public interface MercadoPagoPaymentRepository extends JpaRepository<MercadoPagoPayment, Long> {
+public interface BankTransferPaymentRepository extends JpaRepository<BankTransferPayment, Long> {
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT m FROM MercadoPagoPayment m WHERE m.id = :id")
-    Optional<MercadoPagoPayment> findByIdForUpdate(@Param("id") Long id);
+    @Query("SELECT b FROM BankTransferPayment b WHERE b.id = :id")
+    Optional<BankTransferPayment> findByIdForUpdate(@Param("id") Long id);
 
     @Modifying
-    @Query("UPDATE MercadoPagoPayment m SET m.availableBalance = m.availableBalance - :amount " +
-            "WHERE m.id = :id AND m.currency = :currency AND m.availableBalance >= :amount")
+    @Query("UPDATE BankTransferPayment b SET b.availableBalance = b.availableBalance - :amount " +
+            "WHERE b.id = :id AND b.currency = :currency AND b.availableBalance >= :amount")
     int debitIfEnough(@Param("id") Long id, @Param("currency") String currency, @Param("amount") java.math.BigDecimal amount);
 
     @Modifying
-    @Query("UPDATE MercadoPagoPayment m SET m.availableBalance = m.availableBalance + :amount " +
-            "WHERE m.id = :id AND m.currency = :currency")
+    @Query("UPDATE BankTransferPayment b SET b.availableBalance = b.availableBalance + :amount " +
+            "WHERE b.id = :id AND b.currency = :currency")
     int credit(@Param("id") Long id, @Param("currency") String currency, @Param("amount") java.math.BigDecimal amount);
 }
