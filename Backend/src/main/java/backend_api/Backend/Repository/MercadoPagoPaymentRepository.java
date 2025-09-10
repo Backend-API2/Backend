@@ -2,30 +2,9 @@ package backend_api.Backend.Repository;
 
 import backend_api.Backend.Entity.payment.types.MercadoPagoPayment;
 
-import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Lock;
-import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-
-import java.util.Optional;
 
 @Repository
 public interface MercadoPagoPaymentRepository extends JpaRepository<MercadoPagoPayment, Long> {
-
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT m FROM MercadoPagoPayment m WHERE m.id = :id")
-    Optional<MercadoPagoPayment> findByIdForUpdate(@Param("id") Long id);
-
-    @Modifying
-    @Query("UPDATE MercadoPagoPayment m SET m.availableBalance = m.availableBalance - :amount " +
-            "WHERE m.id = :id AND m.currency = :currency AND m.availableBalance >= :amount")
-    int debitIfEnough(@Param("id") Long id, @Param("currency") String currency, @Param("amount") java.math.BigDecimal amount);
-
-    @Modifying
-    @Query("UPDATE MercadoPagoPayment m SET m.availableBalance = m.availableBalance + :amount " +
-            "WHERE m.id = :id AND m.currency = :currency")
-    int credit(@Param("id") Long id, @Param("currency") String currency, @Param("amount") java.math.BigDecimal amount);
 }
