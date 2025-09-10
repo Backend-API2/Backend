@@ -15,6 +15,6 @@ public interface RefundService {
     List<Refund> getRefundsByStatus(RefundStatus status);
     Refund updateRefundStatus(Long id, RefundStatus status);
 
-    BigDecimal getRefundedAmountForPayment(Long paymentId);   // suma PENDING+COMPLETED
+    BigDecimal getRefundedAmountForPayment(Long paymentId);   // suma PARTIAL_REFUND+TOTAL_REFUND
     BigDecimal getRemainingRefundable(Long paymentId);        // total pagado - reembolsado
 }

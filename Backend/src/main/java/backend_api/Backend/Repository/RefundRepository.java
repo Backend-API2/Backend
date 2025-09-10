@@ -40,7 +40,7 @@ public interface RefundRepository extends JpaRepository<Refund, Long> {
     List<Refund> findByPayment_idAndStatus(@Param("paymentId") Long paymentId,
                                            @Param("status") RefundStatus status);
 
-    // Suma total por payment para ciertos estados (PENDING/COMPLETED)
+    // Suma total por payment para ciertos estados (PARTIAL_REFUND/TOTAL_REFUND)
     @Query("""
            SELECT COALESCE(SUM(r.amount), 0)
            FROM Refund r

@@ -82,8 +82,7 @@ public class RefundServiceImpl implements RefundService {
         existing.setStatus(status);
         Refund saved = refundRepository.save(existing);
 
-        // Si se completó, revisar si el pago quedó totalmente reembolsado
-        if (status == RefundStatus.COMPLETED) {
+        if (status == RefundStatus.PARTIAL_REFUND || status == RefundStatus.TOTAL_REFUND) {
             Payment payment = paymentRepository.findById(existing.getPayment_id())
                     .orElseThrow(() -> new RuntimeException("Pago no encontrado con id: " + existing.getPayment_id()));
 
@@ -102,7 +101,7 @@ public class RefundServiceImpl implements RefundService {
     public BigDecimal getRefundedAmountForPayment(Long paymentId) {
         return refundRepository.sumAmountByPaymentIdAndStatuses(
                 paymentId,
-                List.copyOf(EnumSet.of(RefundStatus.PENDING, RefundStatus.COMPLETED))
+                List.copyOf(EnumSet.of(RefundStatus.PARTIAL_REFUND, RefundStatus.TOTAL_REFUND))
         );
     }
 

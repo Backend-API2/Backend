@@ -21,7 +21,7 @@ public class RefundController {
     private RefundService refundService;
 
     // POST /api/refunds  (MERCHANT, ADMIN)
-    @PostMapping
+    @PostMapping("/api/refunds/create")
     public ResponseEntity<?> createRefund(@RequestBody Refund refund) {
         try {
             Refund created = refundService.createRefund(refund);
@@ -48,7 +48,7 @@ public class RefundController {
     }
 
     // GET /api/refunds  (MERCHANT)
-    @GetMapping
+    @GetMapping("/api/refunds/all")
     public ResponseEntity<List<Refund>> getAllRefunds() {
         try {
             List<Refund> refunds = refundService.getAllRefunds();
