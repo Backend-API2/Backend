@@ -1,24 +1,25 @@
 package backend_api.Backend.Entity.payment;
 
 import backend_api.Backend.Entity.payment.types.PaymentMethodType;
-import jakarta.persistence.*;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Table;
+import jakarta.persistence.Id;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.DiscriminatorColumn;
+import jakarta.persistence.DiscriminatorType;
+import jakarta.persistence.Inheritance;
+import jakarta.persistence.InheritanceType;
 import lombok.Data;
 
+@Table(name = "payment_methods")
 @Data
 @Entity
-@Table(name = "payment_methods")
-@Inheritance(strategy = InheritanceType.JOINED) // tablas por subtipo
+@Inheritance(strategy = InheritanceType.SINGLE_TABLE)
+@DiscriminatorColumn(name = "dtype", discriminatorType = DiscriminatorType.STRING)
 public abstract class PaymentMethod {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @Enumerated(EnumType.STRING) // guarda el nombre del enum
-    @Column(nullable = false, length = 32)
     private PaymentMethodType type;
-
-    @Version
-    @Column(name = "version")
-    private Long version;
 }

@@ -6,8 +6,8 @@ import backend_api.Backend.Entity.refund.Refund;
 import backend_api.Backend.Entity.refund.RefundStatus;
 import backend_api.Backend.Repository.PaymentRepository;
 import backend_api.Backend.Repository.RefundRepository;
-import backend_api.Backend.Service.Interface.FundsService;
 import backend_api.Backend.Service.Interface.RefundService;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -25,9 +25,6 @@ public class RefundServiceImpl implements RefundService {
 
     @Autowired
     private PaymentRepository paymentRepository;
-
-    @Autowired
-    private FundsService fundsService;
 
     @Override
     public Refund createRefund(Refund refund) {
@@ -80,18 +77,14 @@ public class RefundServiceImpl implements RefundService {
     @Override
     public Refund updateRefundStatus(Long id, RefundStatus status) {
         Refund existing = refundRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Reembolso no encontrado con id: " + id));
+                .orElseThrow(() -> new RuntimeException("Reemboloso no encontrado con id: " + id));
 
         existing.setStatus(status);
         Refund saved = refundRepository.save(existing);
 
-        // Acreditar fondos cuando el reembolso pasa a parcial o total
         if (status == RefundStatus.PARTIAL_REFUND || status == RefundStatus.TOTAL_REFUND) {
             Payment payment = paymentRepository.findById(existing.getPayment_id())
                     .orElseThrow(() -> new RuntimeException("Pago no encontrado con id: " + existing.getPayment_id()));
-
-            // acreditar fondos en el medio de pago de prueba
-            fundsService.creditForRefund(payment, existing.getAmount());
 
             BigDecimal remaining = getRemainingRefundable(payment.getId());
             if (remaining.compareTo(BigDecimal.ZERO) == 0) {
