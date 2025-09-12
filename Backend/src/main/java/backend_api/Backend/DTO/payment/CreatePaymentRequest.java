@@ -14,6 +14,8 @@ public class CreatePaymentRequest {
     @NotBlank(message = "Provider reference es requerido")
     private String provider_reference; // ej: "PROV-STRIPE-001", "PROV-PAYPAL-002"
     
+    private Long provider_id; 
+    
     // Montos
     @NotNull(message = "Amount subtotal es requerido")
     @DecimalMin(value = "0.01", message = "Amount subtotal debe ser mayor a 0")
@@ -37,7 +39,7 @@ public class CreatePaymentRequest {
     // user_id = extraído del JWT token automáticamente
     // solicitud_id = buscado por solicitud_reference  
     // cotizacion_id = buscado por cotizacion_reference - Se integra con el módulo Cotizacion
-    // provider_id = buscado por provider_reference
+    // provider_id = se puede especificar directamente o buscar por provider_reference
     // payment_method_id = buscado por payment_method_type
     // amount_total = amount_subtotal + taxes + fees
     // gateway_txn_id = generado por el gateway 

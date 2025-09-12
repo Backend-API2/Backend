@@ -82,11 +82,12 @@ public class PaymentController {
             
             payment.setUser_id(user.getId());
             
-            // TODO: Buscar provider_id por provider_reference
-            // Temporalmente usar provider_reference como string para pruebas
-            // Long providerId = providerService.findIdByReference(request.getProvider_reference());
-            // payment.setProvider_id(providerId);
-            payment.setProvider_id(1L); 
+            if (request.getProvider_id() != null) {
+                payment.setProvider_id(request.getProvider_id());
+            } else {
+                // TODO: Buscar provider_id por provider_reference
+                payment.setProvider_id(1L);
+            } 
             
             payment.setAmount_subtotal(request.getAmount_subtotal());
             payment.setTaxes(request.getTaxes());
@@ -269,11 +270,41 @@ public class PaymentController {
     }
 
     @GetMapping("/{paymentId}")
-    public ResponseEntity<PaymentResponse> getPaymentById(@PathVariable Long paymentId) {
+    public ResponseEntity<PaymentResponse> getPaymentById(
+            @PathVariable Long paymentId,
+            @RequestHeader("Authorization") String authHeader) {
         try {
+            String token = authHeader.replace("Bearer ", "");
+            String email = jwtUtil.getSubject(token);
+            
+            if (email == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+            
+            User currentUser = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+            
             Payment payment = paymentService.getPaymentById(paymentId)
                     .orElseThrow(() -> new RuntimeException("Pago no encontrado"));
-            return ResponseEntity.ok(PaymentResponse.fromEntity(payment));
+            
+            boolean hasAccess = false;
+            if (currentUser.getRole().name().equals("MERCHANT")) {
+                hasAccess = payment.getProvider_id().equals(currentUser.getId());
+            } else {
+                hasAccess = payment.getUser_id().equals(currentUser.getId());
+            }
+            
+            if (!hasAccess) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
+            
+            PaymentResponse response = PaymentResponse.fromEntityWithNames(
+                payment, 
+                userRepository, 
+                currentUser.getRole().name()
+            );
+            
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
@@ -317,7 +348,11 @@ public class PaymentController {
                         .map(payment -> {
                             try {
                                 System.out.println("DEBUG - Mapeando payment ID: " + payment.getId());
-                                return PaymentResponse.fromEntity(payment);
+                                return PaymentResponse.fromEntityWithNames(
+                                    payment, 
+                                    userRepository, 
+                                    user.getRole().name()
+                                );
                             } catch (Exception e) {
                                 System.out.println("ERROR al mapear payment ID: " + payment.getId() + " - " + e.getMessage());
                                 e.printStackTrace();
@@ -366,7 +401,11 @@ public class PaymentController {
             }
             
             List<PaymentResponse> responses = payments.stream()
-                    .map(PaymentResponse::fromEntity)
+                    .map(payment -> PaymentResponse.fromEntityWithNames(
+                        payment, 
+                        userRepository, 
+                        user.getRole().name()
+                    ))
                     .toList();
             
             return ResponseEntity.ok(responses);
@@ -469,7 +508,11 @@ public class PaymentController {
                 filteredPayments.subList(start, end) : new ArrayList<>();
             
             List<PaymentResponse> responses = pageContent.stream()
-                .map(PaymentResponse::fromEntity)
+                .map(payment -> PaymentResponse.fromEntityWithNames(
+                    payment, 
+                    userRepository, 
+                    user.getRole().name()
+                ))
                 .collect(Collectors.toList());
             
             PagedPaymentResponse pagedResponse = new PagedPaymentResponse();
