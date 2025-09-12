@@ -128,6 +128,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/refunds/create").hasAnyRole("MERCHANT", "USER")
                         .requestMatchers(HttpMethod.GET, "/api/refunds/{id}").hasAnyRole("MERCHANT", "USER")
                         .requestMatchers(HttpMethod.GET, "/api/refunds/all").hasAnyRole("MERCHANT", "USER")
+                        .requestMatchers(HttpMethod.POST, "/api/refunds/create").permitAll()
                         
                          // Endpoints adicionales de Refund
                         .requestMatchers(HttpMethod.PATCH, "/api/refunds/{id}/status").hasAnyRole("MERCHANT", "USER")

@@ -1,119 +1,150 @@
 package backend_api.Backend.Service.Implementation;
 
+import backend_api.Backend.DTO.refund.CreateRefundRequest;
 import backend_api.Backend.Entity.payment.Payment;
+import backend_api.Backend.Entity.payment.PaymentEventType;
 import backend_api.Backend.Entity.payment.PaymentStatus;
 import backend_api.Backend.Entity.refund.Refund;
 import backend_api.Backend.Entity.refund.RefundStatus;
 import backend_api.Backend.Repository.PaymentRepository;
 import backend_api.Backend.Repository.RefundRepository;
+import backend_api.Backend.Service.Interface.PaymentEventService;
 import backend_api.Backend.Service.Interface.RefundService;
-
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.persistence.EntityNotFoundException;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 
 @Service
+@RequiredArgsConstructor
+@Transactional
 public class RefundServiceImpl implements RefundService {
 
-    @Autowired
-    private RefundRepository refundRepository;
-
-    @Autowired
-    private PaymentRepository paymentRepository;
+    private final RefundRepository refundRepository;
+    private final PaymentRepository paymentRepository;
+    private final PaymentEventService paymentEventService;
 
     @Override
-    public Refund createRefund(Refund refund) {
-        if (refund.getPayment_id() == null) {
-            throw new IllegalArgumentException("payment_id es requerido");
-        }
-        if (refund.getAmount() == null || refund.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("El monto del reembolso debe ser mayor a 0");
-        }
+    public Refund createRefund(CreateRefundRequest request) {
+        Payment payment = paymentRepository.findById(request.getPaymentId())
+                .orElseThrow(() -> new EntityNotFoundException("Pago no encontrado: " + request.getPaymentId()));
 
-        Payment payment = paymentRepository.findById(refund.getPayment_id())
-                .orElseThrow(() -> new RuntimeException("Pago no encontrado con id: " + refund.getPayment_id()));
-
-        // Solo pagos aprobados (o ya parcialmente reembolsados) pueden reembolsarse
-        if (!(payment.getStatus() == PaymentStatus.APPROVED || payment.getStatus() == PaymentStatus.REFUNDED)) {
-            throw new IllegalStateException("El pago no está en estado válido para refund (APPROVED/REFUNDED)");
+        // Estados no reembolsables
+        if (payment.getStatus() == PaymentStatus.CANCELLED ||
+                payment.getStatus() == PaymentStatus.REJECTED ||
+                payment.getStatus() == PaymentStatus.PENDING_APPROVAL ||
+                payment.getStatus() == PaymentStatus.PENDING_PAYMENT ||
+                payment.getStatus() == PaymentStatus.EXPIRED) {
+            throw new IllegalStateException("El pago no es reembolsable en su estado actual: " + payment.getStatus());
         }
 
-        BigDecimal remaining = getRemainingRefundable(payment.getId());
-        if (refund.getAmount().compareTo(remaining) > 0) {
-            throw new IllegalArgumentException("El monto solicitado excede el saldo reembolsable. Restante: " + remaining);
+        // Monto disponible = total - ya reembolsado
+        BigDecimal yaReembolsado = refundRepository
+                .sumAmountByPaymentIdAndStatuses(payment.getId(),
+                        List.of(RefundStatus.PARTIAL_REFUND, RefundStatus.TOTAL_REFUND));
+        if (yaReembolsado == null) yaReembolsado = BigDecimal.ZERO;
+
+        BigDecimal disponible = payment.getAmount_total().subtract(yaReembolsado);
+        if (request.getAmount().compareTo(disponible) > 0) {
+            throw new IllegalArgumentException("El monto excede lo disponible para reembolso: " + disponible);
         }
 
+        // Crear refund en PENDING
+        Refund refund = new Refund();
+        refund.setPayment_id(payment.getId());
+        refund.setAmount(request.getAmount());
+        refund.setReason(request.getReason());
         refund.setStatus(RefundStatus.PENDING);
         refund.setCreated_at(LocalDateTime.now());
+        refund = refundRepository.save(refund);
 
-        return refundRepository.save(refund);
+        // Evento iniciado
+        paymentEventService.createEvent(
+                payment.getId(),
+                PaymentEventType.REFUND_INITIATED,
+                String.format("{\"refund_id\": %d, \"amount\": %s}", refund.getId(), refund.getAmount()),
+                "system"
+        );
+
+        // Simular resultado inmediato
+        BigDecimal restante = disponible.subtract(request.getAmount());
+        boolean esTotal = restante.compareTo(BigDecimal.ZERO) == 0;
+
+        refund.setGateway_refund_id("RF-" + System.currentTimeMillis());
+        refund.setStatus(esTotal ? RefundStatus.TOTAL_REFUND : RefundStatus.PARTIAL_REFUND);
+        refundRepository.save(refund);
+
+        if (esTotal) {
+            payment.setStatus(PaymentStatus.REFUNDED);
+            payment.setRefund_id(refund.getId());
+            payment.setUpdated_at(LocalDateTime.now());
+            paymentRepository.save(payment);
+        }
+
+        // Evento completado
+        paymentEventService.createEvent(
+                payment.getId(),
+                PaymentEventType.REFUND_COMPLETED,
+                String.format("{\"refund_id\": %d, \"status\": \"%s\"}", refund.getId(), refund.getStatus()),
+                "system"
+        );
+
+        return refund;
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<Refund> getRefundById(Long id) {
         return refundRepository.findById(id);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Refund> getAllRefunds() {
         return refundRepository.findAll();
     }
 
     @Override
+    public Refund updateRefundStatus(Long id, RefundStatus status) {
+        Refund refund = refundRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Refund no encontrado: " + id));
+
+        refund.setStatus(status);
+        refundRepository.save(refund);
+
+        if (status == RefundStatus.TOTAL_REFUND) {
+            Payment payment = paymentRepository.findById(refund.getPayment_id())
+                    .orElseThrow(() -> new EntityNotFoundException("Pago no encontrado para el refund: " + refund.getPayment_id()));
+            payment.setStatus(PaymentStatus.REFUNDED);
+            payment.setRefund_id(refund.getId());
+            payment.setUpdated_at(LocalDateTime.now());
+            paymentRepository.save(payment);
+        }
+
+        paymentEventService.createEvent(
+                refund.getPayment_id(),
+                (status == RefundStatus.FAILED) ? PaymentEventType.REFUND_FAILED : PaymentEventType.REFUND_COMPLETED,
+                String.format("{\"refund_id\": %d, \"status\": \"%s\"}", refund.getId(), status),
+                "system"
+        );
+
+        return refund;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<Refund> getRefundsByPaymentId(Long paymentId) {
         return refundRepository.findByPayment_id(paymentId);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Refund> getRefundsByStatus(RefundStatus status) {
         return refundRepository.findByStatus(status);
-    }
-
-    @Override
-    public Refund updateRefundStatus(Long id, RefundStatus status) {
-        Refund existing = refundRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Reemboloso no encontrado con id: " + id));
-
-        existing.setStatus(status);
-        Refund saved = refundRepository.save(existing);
-
-        if (status == RefundStatus.PARTIAL_REFUND || status == RefundStatus.TOTAL_REFUND) {
-            Payment payment = paymentRepository.findById(existing.getPayment_id())
-                    .orElseThrow(() -> new RuntimeException("Pago no encontrado con id: " + existing.getPayment_id()));
-
-            BigDecimal remaining = getRemainingRefundable(payment.getId());
-            if (remaining.compareTo(BigDecimal.ZERO) == 0) {
-                payment.setStatus(PaymentStatus.REFUNDED);
-                payment.setUpdated_at(LocalDateTime.now());
-                paymentRepository.save(payment);
-            }
-        }
-
-        return saved;
-    }
-
-    @Override
-    public BigDecimal getRefundedAmountForPayment(Long paymentId) {
-        return refundRepository.sumAmountByPaymentIdAndStatuses(
-                paymentId,
-                List.copyOf(EnumSet.of(RefundStatus.PARTIAL_REFUND, RefundStatus.TOTAL_REFUND))
-        );
-    }
-
-    @Override
-    public BigDecimal getRemainingRefundable(Long paymentId) {
-        Payment payment = paymentRepository.findById(paymentId)
-                .orElseThrow(() -> new RuntimeException("Pago no encontrado con id: " + paymentId));
-
-        BigDecimal already = getRefundedAmountForPayment(paymentId);
-        BigDecimal total = payment.getAmount_total() != null ? payment.getAmount_total() : BigDecimal.ZERO;
-
-        BigDecimal remaining = total.subtract(already);
-        return remaining.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO : remaining;
     }
 }
