@@ -1,3 +1,4 @@
+// backend_api/Backend/Service/Interface/RefundService.java
 package backend_api.Backend.Service.Interface;
 
 import backend_api.Backend.DTO.refund.CreateRefundRequest;
@@ -8,10 +9,13 @@ import java.util.List;
 import java.util.Optional;
 
 public interface RefundService {
-    Refund createRefund(CreateRefundRequest request);
+    Refund createRefund(CreateRefundRequest request, Long requesterUserId);
+    Refund approveRefund(Long refundId, Long merchantUserId, String message);
+    Refund declineRefund(Long refundId, Long merchantUserId, String message);
+
     Optional<Refund> getRefundById(Long id);
     List<Refund> getAllRefunds();
-    Refund updateRefundStatus(Long id, RefundStatus status);
+    Refund updateRefundStatus(Long id, RefundStatus status); // si querés dejarlo para uso interno
     List<Refund> getRefundsByPaymentId(Long paymentId);
     List<Refund> getRefundsByStatus(RefundStatus status);
 }
