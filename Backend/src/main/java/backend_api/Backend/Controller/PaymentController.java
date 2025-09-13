@@ -6,6 +6,7 @@ import backend_api.Backend.Entity.payment.PaymentMethod;
 import backend_api.Backend.Entity.payment.types.PaymentMethodType;
 import backend_api.Backend.Service.Interface.PaymentService;
 import backend_api.Backend.Service.Interface.PaymentMethodService;
+import backend_api.Backend.Service.Interface.BalanceService;
 import backend_api.Backend.DTO.payment.PaymentResponse;
 import backend_api.Backend.DTO.payment.PagedPaymentResponse;
 import backend_api.Backend.Auth.JwtUtil;
@@ -57,6 +58,9 @@ public class PaymentController {
     
     @Autowired
     private PaymentMethodService paymentMethodService;
+    
+    @Autowired
+    private BalanceService balanceService;
 
     //  CREAR NUEVO PAGO 
     @PostMapping
@@ -78,6 +82,20 @@ public class PaymentController {
             
             User user = userOpt.get();
             
+            BigDecimal total = request.getAmount_subtotal()
+                                .add(request.getTaxes())
+                                .add(request.getFees());
+            
+            if (user.getRole().name().equals("USER")) {
+                if (!balanceService.hasSufficientBalance(user.getId(), total)) {
+                    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                            .header("Error-Message", "Saldo insuficiente. Saldo disponible: " + 
+                                    balanceService.getCurrentBalance(user.getId()) + 
+                                    ", Monto requerido: " + total)
+                            .build();
+                }
+            }
+            
             Payment payment = new Payment();
             
             payment.setUser_id(user.getId());
@@ -95,12 +113,6 @@ public class PaymentController {
             payment.setCurrency(request.getCurrency());
             payment.setMetadata(request.getMetadata());
             
-            // TODO: Convertir payment_method_type a PaymentMethod entity
-            // Por ahora guardamos como string en un campo si existe, o manejar como corresponda
-            
-            BigDecimal total = request.getAmount_subtotal()
-                                .add(request.getTaxes())
-                                .add(request.getFees());
             payment.setAmount_total(total);
             
             payment.setStatus(PaymentStatus.PENDING_PAYMENT);
@@ -203,6 +215,31 @@ public class PaymentController {
                     "system"
                 );
             } else {
+                User user = userRepository.findById(payment.getUser_id())
+                        .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+                
+                if (user.getRole().name().equals("USER")) {
+                    try {
+                        balanceService.deductBalance(user.getId(), payment.getAmount_total());
+                    } catch (IllegalStateException e) {
+                        payment.setStatus(PaymentStatus.REJECTED);
+                        payment.setRejected_by_balance(true);
+                        payment.setUpdated_at(LocalDateTime.now());
+                        paymentService.createPayment(payment); // Actualizar
+                        
+                        paymentEventService.createEvent(
+                            paymentId,
+                            PaymentEventType.PAYMENT_REJECTED,
+                            "{\"status\": \"rejected_insufficient_balance\", \"method\": \"" + payment.getMethod().getType() + "\"}",
+                            "system"
+                        );
+                        
+                        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                .header("Error-Message", "Saldo insuficiente para completar el pago")
+                                .build();
+                    }
+                }
+                
                 updatedPayment = paymentService.updatePaymentStatus(paymentId, PaymentStatus.APPROVED);
                 eventType = PaymentEventType.PAYMENT_APPROVED;
                 
@@ -255,15 +292,62 @@ public class PaymentController {
         }
     }
     
-    @PostMapping("/{paymentId}/retry")
-    public ResponseEntity<PaymentResponse> retryPayment(
+    
+    // Reintentar pago rechazado por saldo insuficiente
+    @PostMapping("/{paymentId}/retry-balance")
+    public ResponseEntity<PaymentResponse> retryPaymentByBalance(
             @PathVariable Long paymentId,
-            @RequestParam(defaultValue = "3") int maxAttempts) {
+            @RequestHeader("Authorization") String authHeader) {
         try {
-            Payment payment = paymentService.processPaymentWithRetry(paymentId, maxAttempts);
-            return ResponseEntity.ok(PaymentResponse.fromEntity(payment));
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().build();
+            String token = authHeader.replace("Bearer ", "");
+            String email = jwtUtil.getSubject(token);
+            
+            if (email == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+            
+            User user = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+            
+            Payment payment = paymentService.getPaymentById(paymentId)
+                    .orElseThrow(() -> new RuntimeException("Pago no encontrado"));
+            
+            if (!payment.getUser_id().equals(user.getId())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
+            
+            // Verificar que puede ser reintentado (solo por saldo insuficiente)
+            if (!balanceService.canRetryPayment(paymentId)) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .header("Error-Message", "Este pago no puede ser reintentado. Solo pagos rechazados por saldo insuficiente con menos de 3 intentos.")
+                        .build();
+            }
+            
+            // Verificar saldo actual
+            if (!balanceService.hasSufficientBalance(user.getId(), payment.getAmount_total())) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .header("Error-Message", "Saldo insuficiente para reintentar el pago. Saldo disponible: " + 
+                                balanceService.getCurrentBalance(user.getId()))
+                        .build();
+            }
+            
+            // Reintentar el pago
+            payment.setStatus(PaymentStatus.PENDING_PAYMENT);
+            payment.setRejected_by_balance(false);
+            payment.setRetry_attempts(payment.getRetry_attempts() + 1);
+            payment.setUpdated_at(LocalDateTime.now());
+            
+            Payment updatedPayment = paymentService.createPayment(payment);
+            
+            paymentEventService.createEvent(
+                paymentId,
+                PaymentEventType.PAYMENT_PENDING,
+                "{\"status\": \"retry_attempt\", \"attempt\": " + payment.getRetry_attempts() + ", \"reason\": \"balance_retry\"}",
+                "user_" + user.getId()
+            );
+            
+            return ResponseEntity.ok(PaymentResponse.fromEntity(updatedPayment));
+            
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
@@ -442,6 +526,36 @@ public class PaymentController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
+    
+    // GET /api/payments/my-balance - MI saldo disponible (solo usuarios)
+    @GetMapping("/my-balance")
+    public ResponseEntity<BigDecimal> getMyBalance(
+            @RequestHeader("Authorization") String authHeader) {
+        try {
+            String token = authHeader.replace("Bearer ", "");
+            String email = jwtUtil.getSubject(token);
+            
+            if (email == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+            
+            User user = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+            
+            // Solo usuarios tienen saldo, merchants no
+            if (user.getRole().name().equals("MERCHANT")) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .header("Error-Message", "Los merchants no tienen saldo disponible")
+                        .build();
+            }
+            
+            BigDecimal balance = balanceService.getCurrentBalance(user.getId());
+            return ResponseEntity.ok(balance);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+    
     
     // POST /api/payments/my-search - Buscar MIS pagos con filtros
     @PostMapping("/my-search")

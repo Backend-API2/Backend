@@ -2,6 +2,7 @@ package backend_api.Backend.Entity.user;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -26,6 +27,9 @@ public class User {
     
     @Enumerated(EnumType.STRING)
     private UserRole role = UserRole.USER;
+    
+    @Column(precision = 10, scale = 2)
+    private BigDecimal saldo_disponible = BigDecimal.ZERO;
     
     private LocalDateTime created_at;
     private LocalDateTime updated_at;

@@ -9,8 +9,10 @@ import backend_api.Backend.Entity.refund.Refund;
 import backend_api.Backend.Entity.refund.RefundStatus;
 import backend_api.Backend.Repository.PaymentRepository;
 import backend_api.Backend.Repository.RefundRepository;
+import backend_api.Backend.Repository.UserRepository;
 import backend_api.Backend.Service.Interface.PaymentEventService;
 import backend_api.Backend.Service.Interface.RefundService;
+import backend_api.Backend.Service.Interface.BalanceService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -29,6 +31,8 @@ public class RefundServiceImpl implements RefundService {
     private final RefundRepository refundRepository;
     private final PaymentRepository paymentRepository;
     private final PaymentEventService paymentEventService;
+    private final UserRepository userRepository;
+    private final BalanceService balanceService;
 
     @Override
     public Refund createRefund(CreateRefundRequest request, Long requesterUserId) {
@@ -119,11 +123,14 @@ public class RefundServiceImpl implements RefundService {
             payment.setUpdated_at(LocalDateTime.now());
             paymentRepository.save(payment);
         }
+        
+        balanceService.addBalance(payment.getUser_id(), refund.getAmount());
 
         paymentEventService.createEvent(
                 payment.getId(),
                 PaymentEventType.REFUND_COMPLETED,
-                String.format("{\"refund_id\": %d, \"status\": \"%s\"}", refund.getId(), refund.getStatus()),
+                String.format("{\"refund_id\": %d, \"status\": \"%s\", \"amount_refunded\": %s}", 
+                    refund.getId(), refund.getStatus(), refund.getAmount()),
                 "merchant_" + merchantUserId
         );
 

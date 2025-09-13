@@ -14,6 +14,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
+import java.math.BigDecimal;
+import java.util.Random;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -47,6 +49,12 @@ public class AuthController {
                 user.setRole(UserRole.valueOf(request.getRole().toUpperCase()));
             } catch (Exception e) {
                 user.setRole(UserRole.USER); // Por defecto USER
+            }
+            
+            if (user.getRole() == UserRole.USER) {
+                Random random = new Random();
+                double saldo = 10000 + (random.nextDouble() * 40000);
+                user.setSaldo_disponible(BigDecimal.valueOf(saldo).setScale(2, java.math.RoundingMode.HALF_UP));
             }
             
             User savedUser = userRepository.save(user);
