@@ -44,6 +44,10 @@ public class RefundServiceImpl implements RefundService {
             throw new IllegalStateException("El pago no pertenece al usuario autenticado.");
         }
 
+        if (refundRepository.existsActiveRefundForPayment(payment.getId())) {
+            throw new IllegalStateException("Ya existe un reembolso activo para este pago. Solo se permite un reembolso por pago.");
+        }
+
         // Estados NO reembolsables (idéntico a lo que ya tenías)
         if (payment.getStatus() == PaymentStatus.CANCELLED ||
                 payment.getStatus() == PaymentStatus.REJECTED ||
@@ -117,12 +121,14 @@ public class RefundServiceImpl implements RefundService {
         refund.setStatus(esTotal ? RefundStatus.TOTAL_REFUND : RefundStatus.PARTIAL_REFUND);
         refundRepository.save(refund);
 
+        payment.setRefund_id(refund.getId());
+        payment.setUpdated_at(LocalDateTime.now());
+        
         if (esTotal) {
             payment.setStatus(PaymentStatus.REFUNDED);
-            payment.setRefund_id(refund.getId());
-            payment.setUpdated_at(LocalDateTime.now());
-            paymentRepository.save(payment);
         }
+        
+        paymentRepository.save(payment);
         
         balanceService.addBalance(payment.getUser_id(), refund.getAmount());
 

@@ -49,4 +49,12 @@ public interface RefundRepository extends JpaRepository<Refund, Long> {
            """)
     BigDecimal sumAmountByPaymentIdAndStatuses(@Param("paymentId") Long paymentId,
                                                @Param("statuses") List<RefundStatus> statuses);
+
+    @Query("""
+           SELECT COUNT(r) > 0
+           FROM Refund r
+           WHERE r.payment_id = :paymentId
+             AND r.status != 'DECLINED'
+           """)
+    boolean existsActiveRefundForPayment(@Param("paymentId") Long paymentId);
 }
