@@ -102,7 +102,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/payments/{id}/confirm").hasAnyRole("USER", "MERCHANT")
                         .requestMatchers(HttpMethod.POST, "/api/payments/{id}/cancel").hasAnyRole("USER", "MERCHANT")
                         .requestMatchers(HttpMethod.GET, "/api/payments/{id}/attempts").hasAnyRole("MERCHANT")
-                        .requestMatchers(HttpMethod.POST, "/api/payments/{id}/retry").hasAnyRole("MERCHANT")
+                        .requestMatchers(HttpMethod.POST, "/api/payments/{id}/retry-balance").hasAnyRole("USER")
 
                         // Payment filtering and pagination endpoints
                         .requestMatchers(HttpMethod.POST, "/api/payments/search").hasAnyRole("USER", "MERCHANT")
