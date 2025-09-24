@@ -67,47 +67,19 @@ jobs:
           echo "Files in scripts directory:"
           ls -la scripts/ || echo "Scripts directory not found"
 
-      - name: Debug runner env
+      - name: Setup SSH
         run: |
-          whoami
-          echo "HOME=$HOME"
-          ls -ld "$HOME" || true
-          ls -la "$HOME/.ssh" || true
+          # Create SSH directory
+          mkdir -p ~/.ssh
 
-      - name: Create SSH directory
-        run: |
-          mkdir -p "$HOME/.ssh"
-          chmod 700 "$HOME/.ssh"
+          # Add EC2 host to known_hosts
+          ssh-keyscan -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Add EC2 host to known_hosts
-        run: |
-          PORT="${{ secrets.EC2_PORT }}"
-          HOST="${{ secrets.EC2_HOST }}"
-          if [ -z "$HOST" ]; then
-            echo "EC2_HOST secret is empty" >&2
-            exit 1
-          fi
-          # Best-effort: ssh-keyscan may fail if the port/host is firewalled; don't fail the job
-          if [ -n "$PORT" ]; then
-            (ssh-keyscan -T 5 -p "$PORT" "$HOST" >> "$HOME/.ssh/known_hosts" 2>/dev/null && echo "Known host added for $HOST:$PORT") || echo "⚠️  ssh-keyscan failed for $HOST:$PORT; continuing with StrictHostKeyChecking=no"
-          else
-            (ssh-keyscan -T 5 "$HOST" >> "$HOME/.ssh/known_hosts" 2>/dev/null && echo "Known host added for $HOST") || echo "⚠️  ssh-keyscan failed for $HOST; continuing with StrictHostKeyChecking=no"
-          fi
-          if [ -f "$HOME/.ssh/known_hosts" ]; then
-            chmod 644 "$HOME/.ssh/known_hosts"
-          fi
+          # Save private key
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
 
-      - name: Save SSH private key
-        run: |
-          if [ -z "${{ secrets.EC2_SSH_KEY }}" ]; then
-            echo "EC2_SSH_KEY secret is empty" >&2
-            exit 1
-          fi
-          printf "%s" "${{ secrets.EC2_SSH_KEY }}" > "$HOME/.ssh/id_rsa"
-          chmod 600 "$HOME/.ssh/id_rsa"
-
-      - name: Test SSH connection
-        run: |
+          # Test SSH connection
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "echo 'SSH connection successful'"
 
       - name: Setup EC2 directories
