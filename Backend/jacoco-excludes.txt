@@ -1,0 +1,31 @@
+# JaCoCo Exclusion Patterns
+# Este archivo define qué clases deben ser excluidas del análisis de cobertura
+
+# Clases principales de aplicación (no necesitan testing)
+**/BackendApplication.class
+
+# DTOs (Data Transfer Objects) - Solo contenedores de datos
+**/dto/**/*.class
+**/DTO/**/*.class
+
+# Entidades JPA - Solo mapeo de datos
+**/entity/**/*.class
+**/Entity/**/*.class
+
+# Configuraciones - Configuración del framework
+**/config/**/*.class
+**/Config/**/*.class
+
+# Tests de contexto - Solo verifican que Spring Boot carga
+**/BackendApplicationTests.class
+
+# Clases generadas automáticamente
+**/generated/**/*.class
+
+# Clases de configuración de seguridad
+**/SecurityConfig.class
+**/JwtAuthFilter.class
+
+# Clases de utilidades estáticas
+**/SecurityUtils.class
+**/JwtUtil.class
