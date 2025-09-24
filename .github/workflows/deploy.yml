@@ -67,19 +67,44 @@ jobs:
           echo "Files in scripts directory:"
           ls -la scripts/ || echo "Scripts directory not found"
 
-      - name: Setup SSH
+      - name: Debug runner env
         run: |
-          # Create SSH directory
-          mkdir -p ~/.ssh
+          whoami
+          echo "HOME=$HOME"
+          ls -ld "$HOME" || true
+          ls -la "$HOME/.ssh" || true
 
-          # Add EC2 host to known_hosts
-          ssh-keyscan -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+      - name: Create SSH directory
+        run: |
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
 
-          # Save private key
-          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
+      - name: Add EC2 host to known_hosts
+        run: |
+          PORT="${{ secrets.EC2_PORT }}"
+          HOST="${{ secrets.EC2_HOST }}"
+          if [ -z "$HOST" ]; then
+            echo "EC2_HOST secret is empty" >&2
+            exit 1
+          fi
+          if [ -n "$PORT" ]; then
+            ssh-keyscan -p "$PORT" "$HOST" >> "$HOME/.ssh/known_hosts"
+          else
+            ssh-keyscan "$HOST" >> "$HOME/.ssh/known_hosts"
+          fi
+          chmod 644 "$HOME/.ssh/known_hosts"
 
-          # Test SSH connection
+      - name: Save SSH private key
+        run: |
+          if [ -z "${{ secrets.EC2_SSH_KEY }}" ]; then
+            echo "EC2_SSH_KEY secret is empty" >&2
+            exit 1
+          fi
+          printf "%s" "${{ secrets.EC2_SSH_KEY }}" > "$HOME/.ssh/id_rsa"
+          chmod 600 "$HOME/.ssh/id_rsa"
+
+      - name: Test SSH connection
+        run: |
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "echo 'SSH connection successful'"
 
       - name: Setup EC2 directories
