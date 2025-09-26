@@ -35,6 +35,9 @@
                 <jacoco.version>0.8.13</jacoco.version>
 		<coverage.minimum>50.0</coverage.minimum>
         <jacoco.skip>false</jacoco.skip>
+		<maven.compiler.source>21</maven.compiler.source>
+		<maven.compiler.target>21</maven.compiler.target>
+		<maven.surefire.version>3.5.3</maven.surefire.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -182,7 +185,7 @@
 				<plugin>
 					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-surefire-plugin</artifactId>
-					<version>3.5.3</version>
+					<version>${maven.surefire.version}</version>
 					<configuration>
 						<argLine>@{argLine} -Dfile.encoding=UTF-8</argLine>
 						<systemPropertyVariables>
@@ -313,6 +316,23 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
+                <version>${maven.surefire.version}</version>
+                <configuration>
+                    <argLine>@{argLine} -Dfile.encoding=UTF-8</argLine>
+                    <systemPropertyVariables>
+                        <jacoco.version>${jacoco.version}</jacoco.version>
+                    </systemPropertyVariables>
+                    <excludes>
+                        <exclude>**/*$*</exclude>
+                    </excludes>
+                </configuration>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.jacoco</groupId>
+                        <artifactId>org.jacoco.agent</artifactId>
+                        <version>${jacoco.version}</version>
+                    </dependency>
+                </dependencies>
             </plugin>
 		</plugins>
 	</build>
