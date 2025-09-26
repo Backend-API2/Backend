@@ -30,6 +30,7 @@
 		<java.version>21</java.version>
 		<springdoc.version>2.5.0</springdoc.version>
 		<sonar.organization>backend-devapps</sonar.organization>
+		<sonar.projectKey>backend-devapps_modulo-pagos-y-facturacion</sonar.projectKey>
 	</properties>
 	<dependencies>
 		<dependency>
