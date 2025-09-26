@@ -138,10 +138,29 @@
 				<artifactId>org.jacoco.agent</artifactId>
 				<version>${jacoco.version}</version>
 			</dependency>
+			<dependency>
+				<groupId>org.jacoco</groupId>
+				<artifactId>org.jacoco.core</artifactId>
+				<version>${jacoco.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.jacoco</groupId>
+				<artifactId>org.jacoco.report</artifactId>
+				<version>${jacoco.version}</version>
+			</dependency>
 		</dependencies>
 	</dependencyManagement>
 
 	<build>
+		<pluginManagement>
+			<plugins>
+				<plugin>
+					<groupId>org.jacoco</groupId>
+					<artifactId>jacoco-maven-plugin</artifactId>
+					<version>${jacoco.version}</version>
+				</plugin>
+			</plugins>
+		</pluginManagement>
 		<plugins>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
@@ -249,6 +268,9 @@
                 <version>3.5.3</version>
                 <configuration>
                     <argLine>@{argLine} -Dfile.encoding=UTF-8</argLine>
+                    <systemPropertyVariables>
+                        <jacoco.version>${jacoco.version}</jacoco.version>
+                    </systemPropertyVariables>
                 </configuration>
             </plugin>
 		</plugins>
