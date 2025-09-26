@@ -191,10 +191,6 @@
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
                 <version>${jacoco.version}</version>
-                <configuration>
-                    <!-- Skip JaCoCo if Java version is not supported -->
-                    <skip>${jacoco.skip}</skip>
-                </configuration>
                 <executions>
                     <execution>
                         <goals>
