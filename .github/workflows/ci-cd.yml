@@ -1,24 +1,29 @@
-name: Deploy Backend to EC2
+name: CI/CD and Deploy to EC2
 
 on:
   push:
     branches: [master]
-  pull_request:
-    branches: [master]
+
+env:
+  JAVA_VERSION: '21'
+  WORKDIR: Backend
 
 jobs:
-  test:
+  build:
     runs-on: ubuntu-latest
-
+    defaults:
+      run:
+        working-directory: ${{ env.WORKDIR }}
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up JDK 21
+      - name: Set up Temurin Java
         uses: actions/setup-java@v4
         with:
-          java-version: '21'
           distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: 'maven'
 
       - name: Cache Maven dependencies
         uses: actions/cache@v4
@@ -27,27 +32,97 @@ jobs:
           key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
           restore-keys: ${{ runner.os }}-m2
 
-      - name: Run tests
-        run: |
-          cd Backend
-          mvn clean test
-
-      - name: Build application
-        run: |
-          cd Backend
-          mvn clean package -DskipTests
+      - name: Build with Maven (skip tests)
+        run: mvn -B -DskipTests clean package
 
       - name: Upload JAR artifact
         uses: actions/upload-artifact@v4
         with:
           name: backend-jar
-          path: Backend/target/Backend-*.jar
+          path: ${{ env.WORKDIR }}/target/Backend-*.jar
+
+  test:
+    runs-on: ubuntu-latest
+    needs: build
+    defaults:
+      run:
+        working-directory: ${{ env.WORKDIR }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Temurin Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: 'maven'
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+
+      - name: Run tests with JaCoCo
+        run: mvn -B test jacoco:report
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            ${{ env.WORKDIR }}/target/site/jacoco
+            ${{ env.WORKDIR }}/target/jacoco.exec
+
+  sonar:
+    runs-on: ubuntu-latest
+    needs: test
+    defaults:
+      run:
+        working-directory: ${{ env.WORKDIR }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Temurin Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: 'maven'
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+
+      - name: Download coverage artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report
+          path: ${{ env.WORKDIR }}/target
+
+      - name: SonarCloud Scan
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mvn -B -DskipTests \
+            -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }} \
+            -Dsonar.organization=${{ secrets.SONAR_ORG }} \
+            -Dsonar.host.url=https://sonarcloud.io \
+            -Dsonar.login=${SONAR_TOKEN} \
+            -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml \
+            verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
 
   deploy:
-    needs: test
+    needs: [build, test, sonar]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/master' && github.event_name == 'push'
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -69,39 +144,27 @@ jobs:
 
       - name: Setup SSH
         run: |
-          # Create SSH directory
           mkdir -p ~/.ssh
-
-          # Add EC2 host to known_hosts
           ssh-keyscan -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
-
-          # Save private key
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-
-          # Test SSH connection
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "echo 'SSH connection successful'"
 
       - name: Setup EC2 directories
         run: |
-          # Create app directory structure
           echo "Creating app directory structure..."
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "mkdir -p /home/ec2-user/app/scripts"
 
-      - name: Stop current application
+      - name: Stop current application and free port 8080
         run: |
           echo "🛑 Stopping current application if running..."
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
             echo '🔍 Checking for processes using port 8080...'
-            
-            # Method 1: Use stop script if it exists
             if [ -f /home/ec2-user/app/scripts/stop.sh ]; then
               echo 'Using stop script...'
               cd /home/ec2-user/app
               ./scripts/stop.sh || echo 'Stop script completed with warnings'
             fi
-            
-            # Method 2: Kill processes using port 8080
             PORT_PIDS=\$(lsof -ti:8080 2>/dev/null || echo '')
             if [ ! -z \"\$PORT_PIDS\" ]; then
               echo \"Found processes using port 8080: \$PORT_PIDS\"
@@ -119,16 +182,13 @@ jobs:
             fi
           " || echo "⚠️  First kill attempt completed with warnings"
 
-      - name: Kill Java Backend processes
+      - name: Kill Java Backend processes and cleanup
         run: |
           echo "🔍 Killing all Java Backend processes..."
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
-            # Method 2: Kill all Java processes with Backend in the command
             echo 'Killing Java Backend processes...'
             pkill -f 'java.*Backend' 2>/dev/null || echo 'No Java Backend processes found'
             sleep 3
-            
-            # Method 3: Kill all Java processes using port 8080
             echo 'Killing Java processes using port 8080...'
             for PID in \$(lsof -ti:8080 2>/dev/null || echo ''); do
               if ps -p \$PID -o comm= 2>/dev/null | grep -q java; then
@@ -136,23 +196,17 @@ jobs:
                 kill -KILL \$PID 2>/dev/null || true
               fi
             done
-            
-            # Method 4: Clean up PID file and any remaining processes
             if [ -f /home/ec2-user/app/app.pid ]; then
               PID=\$(cat /home/ec2-user/app/app.pid)
               echo \"Cleaning up PID file with PID \$PID...\"
               kill -KILL \$PID 2>/dev/null || true
               rm -f /home/ec2-user/app/app.pid
             fi
-            
-            # Method 5: Final cleanup - kill any remaining processes on port 8080
             echo 'Final cleanup of port 8080...'
             for PID in \$(lsof -ti:8080 2>/dev/null || echo ''); do
               echo \"Force killing remaining process \$PID on port 8080...\"
               kill -KILL \$PID 2>/dev/null || true
             done
-            
-            # Clean up any stale log files
             rm -f /home/ec2-user/app/app.log
           " || echo "⚠️  Second kill attempt completed with warnings"
 
@@ -175,185 +229,165 @@ jobs:
 
       - name: Create scripts on EC2
         run: |
-          # Create start.sh
+          # start.sh
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "cat > /home/ec2-user/app/scripts/start.sh << 'EOF'
           #!/bin/bash
-          APP_DIR=\"/home/ec2-user/app\"
-          JAR_FILE=\$(find \$APP_DIR -name \"Backend-*.jar\" -type f | head -1)
-          PID_FILE=\"\$APP_DIR/app.pid\"
-          LOG_FILE=\"\$APP_DIR/app.log\"
+          APP_DIR="/home/ec2-user/app"
+          JAR_FILE=$(find $APP_DIR -name "Backend-*.jar" -type f | head -1)
+          PID_FILE="$APP_DIR/app.pid"
+          LOG_FILE="$APP_DIR/app.log"
 
-          if [ ! -f \"\$JAR_FILE\" ]; then
-              echo \"❌ Error: No JAR file found in \$APP_DIR\"
+          if [ ! -f "$JAR_FILE" ]; then
+              echo "❌ Error: No JAR file found in $APP_DIR"
               exit 1
           fi
 
-          if [ -f \"\$PID_FILE\" ]; then
-              PID=\$(cat \"\$PID_FILE\")
-              if ps -p \$PID > /dev/null 2>&1; then
-                  echo \"⚠️  Application is already running with PID \$PID\"
+          if [ -f "$PID_FILE" ]; then
+              PID=$(cat "$PID_FILE")
+              if ps -p $PID > /dev/null 2>&1; then
+                  echo "⚠️  Application is already running with PID $PID"
                   exit 1
               else
-                  rm -f \"\$PID_FILE\"
+                  rm -f "$PID_FILE"
               fi
           fi
 
-          echo \"🚀 Starting Backend application...\"
-          nohup java -jar -Dspring.profiles.active=prod \"\$JAR_FILE\" > \"\$LOG_FILE\" 2>&1 &
-          APP_PID=\$!
-          echo \$APP_PID > \"\$PID_FILE\"
+          echo "🚀 Starting Backend application..."
+          nohup java -jar -Dspring.profiles.active=prod "$JAR_FILE" > "$LOG_FILE" 2>&1 &
+          APP_PID=$!
+          echo $APP_PID > "$PID_FILE"
 
           sleep 5
-          if ps -p \$APP_PID > /dev/null 2>&1; then
-              echo \"✅ Application started successfully with PID \$APP_PID\"
+          if ps -p $APP_PID > /dev/null 2>&1; then
+              echo "✅ Application started successfully with PID $APP_PID"
           else
-              echo \"❌ Failed to start application\"
-              rm -f \"\$PID_FILE\"
+              echo "❌ Failed to start application"
+              rm -f "$PID_FILE"
               exit 1
           fi
           EOF"
 
-          # Create stop.sh
+          # stop.sh
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "cat > /home/ec2-user/app/scripts/stop.sh << 'EOF'
           #!/bin/bash
-          APP_DIR=\"/home/ec2-user/app\"
-          PID_FILE=\"\$APP_DIR/app.pid\"
+          APP_DIR="/home/ec2-user/app"
+          PID_FILE="$APP_DIR/app.pid"
 
-          if [ ! -f \"\$PID_FILE\" ]; then
-              echo \"⚠️  No PID file found. Application might not be running.\"
+          if [ ! -f "$PID_FILE" ]; then
+              echo "⚠️  No PID file found. Application might not be running."
               exit 0
           fi
 
-          PID=\$(cat \"\$PID_FILE\")
-          if ! ps -p \$PID > /dev/null 2>&1; then
-              echo \"⚠️  Process with PID \$PID is not running. Removing stale PID file.\"
-              rm -f \"\$PID_FILE\"
+          PID=$(cat "$PID_FILE")
+          if ! ps -p $PID > /dev/null 2>&1; then
+              echo "⚠️  Process with PID $PID is not running. Removing stale PID file."
+              rm -f "$PID_FILE"
               exit 0
           fi
 
-          echo \"🛑 Stopping Backend application (PID: \$PID)...\"
-          kill -TERM \$PID
+          echo "🛑 Stopping Backend application (PID: $PID)..."
+          kill -TERM $PID
 
           for i in {1..30}; do
-              if ! ps -p \$PID > /dev/null 2>&1; then
-                  echo \"✅ Application stopped gracefully\"
-                  rm -f \"\$PID_FILE\"
+              if ! ps -p $PID > /dev/null 2>&1; then
+                  echo "✅ Application stopped gracefully"
+                  rm -f "$PID_FILE"
                   exit 0
               fi
-              echo \"⏳ Waiting for graceful shutdown... (\$i/30)\"
+              echo "⏳ Waiting for graceful shutdown... ($i/30)"
               sleep 1
           done
 
-          echo \"⚠️  Graceful shutdown failed. Force killing...\"
-          kill -KILL \$PID
+          echo "⚠️  Graceful shutdown failed. Force killing..."
+          kill -KILL $PID
           sleep 2
-          if ! ps -p \$PID > /dev/null 2>&1; then
-              echo \"✅ Application force stopped\"
-              rm -f \"\$PID_FILE\"
+          if ! ps -p $PID > /dev/null 2>&1; then
+              echo "✅ Application force stopped"
+              rm -f "$PID_FILE"
           else
-              echo \"❌ Failed to stop application\"
+              echo "❌ Failed to stop application"
               exit 1
           fi
           EOF"
 
-          # Create restart.sh
+          # restart.sh
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "cat > /home/ec2-user/app/scripts/restart.sh << 'EOF'
           #!/bin/bash
-          echo \"🔄 Restarting Backend application...\"
-
-          # Change to app directory
+          echo "🔄 Restarting Backend application..."
           cd /home/ec2-user/app
-
-          # Stop any existing processes
-          echo \"🛑 Stopping existing processes...\"
-          ./scripts/stop.sh || echo \"Stop script completed with warnings\"
-
-          # Additional cleanup
-          echo \"🧹 Additional cleanup...\"
+          echo "🛑 Stopping existing processes..."
+          ./scripts/stop.sh || echo "Stop script completed with warnings"
+          echo "🧹 Additional cleanup..."
           pkill -f 'java.*Backend' 2>/dev/null || true
           sleep 2
-
-          # Kill any processes on port 8080
           for PID in \$(lsof -ti:8080 2>/dev/null || echo ''); do
-            echo \"Killing process \$PID on port 8080...\"
+            echo "Killing process \$PID on port 8080..."
             kill -KILL \$PID 2>/dev/null || true
           done
-
-          # Clean up files
           rm -f app.pid app.log
-
-          # Wait a moment
           sleep 3
-
-          # Start the application
-          echo \"🚀 Starting application...\"
+          echo "🚀 Starting application..."
           ./scripts/start.sh
           EOF"
 
-          # Create status.sh
+          # status.sh
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "cat > /home/ec2-user/app/scripts/status.sh << 'EOF'
           #!/bin/bash
-          APP_DIR=\"/home/ec2-user/app\"
-          PID_FILE=\"\$APP_DIR/app.pid\"
-          LOG_FILE=\"\$APP_DIR/app.log\"
+          APP_DIR="/home/ec2-user/app"
+          PID_FILE="$APP_DIR/app.pid"
+          LOG_FILE="$APP_DIR/app.log"
 
-          echo \"🔍 Backend Application Status\"
-          echo \"==============================\"
+          echo "🔍 Backend Application Status"
+          echo "=============================="
 
-          if [ ! -f \"\$PID_FILE\" ]; then
-              echo \"❌ Status: Not running (no PID file)\"
+          if [ ! -f "$PID_FILE" ]; then
+              echo "❌ Status: Not running (no PID file)"
               exit 1
           fi
 
-          PID=\$(cat \"\$PID_FILE\")
-          if ps -p \$PID > /dev/null 2>&1; then
-              echo \"✅ Status: Running (PID: \$PID)\"
-              echo \"📊 Process Info:\"
-              ps -p \$PID -o pid,ppid,cmd,etime,pcpu,pmem
-              
-              if netstat -tlnp 2>/dev/null | grep -q \":\$PID.*:8080\"; then
-                  echo \"🌐 Port 8080: Listening\"
+          PID=$(cat "$PID_FILE")
+          if ps -p $PID > /dev/null 2>&1; then
+              echo "✅ Status: Running (PID: $PID)"
+              echo "📊 Process Info:"
+              ps -p $PID -o pid,ppid,cmd,etime,pcpu,pmem
+
+              if netstat -tlnp 2>/dev/null | grep -q ":$PID.*:8080"; then
+                  echo "🌐 Port 8080: Listening"
               else
-                  echo \"⚠️  Port 8080: Not listening\"
+                  echo "⚠️  Port 8080: Not listening"
               fi
-              
-              echo \"🏥 Health Check:\"
+
+              echo "🏥 Health Check:"
               if curl -f -s http://localhost:8080/actuator/health > /dev/null 2>&1; then
-                  echo \"✅ Health: OK\"
+                  echo "✅ Health: OK"
               else
-                  echo \"❌ Health: FAILED\"
+                  echo "❌ Health: FAILED"
               fi
-              
-              echo \"\"
-              echo \"📋 Recent Logs (last 10 lines):\"
-              echo \"--------------------------------\"
-              tail -10 \"\$LOG_FILE\" 2>/dev/null || echo \"No logs available\"
+
+              echo ""
+              echo "📋 Recent Logs (last 10 lines):"
+              echo "--------------------------------"
+              tail -10 "$LOG_FILE" 2>/dev/null || echo "No logs available"
           else
-              echo \"❌ Status: Not running (stale PID file)\"
-              rm -f \"\$PID_FILE\"
+              echo "❌ Status: Not running (stale PID file)"
+              rm -f "$PID_FILE"
               exit 1
           fi
           EOF"
 
-          # Make scripts executable
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "chmod +x /home/ec2-user/app/scripts/*.sh"
           echo "✅ Scripts created and made executable"
 
       - name: Copy JAR to EC2
         run: |
-          # Find the JAR file
           JAR_FILE=$(find ./artifacts -name "*.jar" -type f | head -1)
           if [ -z "$JAR_FILE" ]; then
             echo "❌ No JAR file found in artifacts directory"
             ls -la ./artifacts/
             exit 1
           fi
-
           echo "📦 Found JAR file: $JAR_FILE"
-
-          # Copy JAR to EC2 using scp command
           scp -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} "$JAR_FILE" ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/
-
           if [ $? -eq 0 ]; then
             echo "✅ JAR file copied successfully"
           else
@@ -361,7 +395,7 @@ jobs:
             exit 1
           fi
 
-      - name: Start application
+      - name: Start application and health check
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -369,24 +403,13 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           port: ${{ secrets.EC2_PORT }}
           script: |
-            # Change to app directory
             cd /home/ec2-user/app
-
-            # Make scripts executable
             chmod +x scripts/*.sh
-
-            # List current JAR files
             echo "📦 Current JAR files:"
             ls -la *.jar
-
-            # Restart the application (this will stop any existing processes first)
             echo "🔄 Restarting application..."
             ./scripts/restart.sh
-
-            # Wait a moment for the application to start
             sleep 15
-
-            # Check if application is running
             echo "🔍 Checking application status..."
             if [ -f app.pid ]; then
               PID=$(cat app.pid)
@@ -402,29 +425,20 @@ jobs:
               echo "❌ No PID file found"
               exit 1
             fi
-
-            # Health check - try both endpoints
             echo "🏥 Performing health check..."
             for i in {1..5}; do
               echo "Attempt $i/5..."
-              
-              # Try actuator health first
               if curl -f -s http://localhost:8080/actuator/health > /dev/null 2>&1; then
                 echo "✅ Actuator health check passed!"
                 break
               fi
-              
-              # Try custom health endpoint
               if curl -f -s http://localhost:8080/health > /dev/null 2>&1; then
                 echo "✅ Custom health check passed!"
                 break
               fi
-              
               echo "⏳ Waiting for application to start... (attempt $i/5)"
               sleep 10
             done
-
-            # Final verification
             echo "🔍 Final verification..."
             echo "Custom health endpoint response:"
             curl -s http://localhost:8080/health || echo "Failed to reach /health"
@@ -432,5 +446,4 @@ jobs:
             echo "Actuator health endpoint response:"
             curl -s http://localhost:8080/actuator/health || echo "Failed to reach /actuator/health"
             echo ""
-
             echo "✅ Deployment completed successfully!"
