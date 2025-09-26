@@ -20,19 +20,82 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 @RestController
 @RequestMapping("/api/refunds")
 @CrossOrigin(origins = "*")
+@Tag(name = "Reembolsos", description = "Endpoints para gestión de reembolsos, incluyendo creación, consulta y actualización de estado")
 public class RefundController {
 
     @Autowired private RefundService refundService;
     @Autowired private JwtUtil jwtUtil;
     @Autowired private UserRepository userRepository;
 
-    // USUARIO crea el pedido de refund (queda en PENDING)
+    @Operation(
+        summary = "Crear solicitud de reembolso",
+        description = "Crea una nueva solicitud de reembolso. Solo usuarios autenticados pueden crear reembolsos."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "201",
+            description = "Reembolso creado exitosamente",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = RefundResponse.class),
+                examples = @ExampleObject(
+                    name = "Reembolso creado",
+                    value = "{\"id\": 1, \"amount\": 100.00, \"reason\": \"Producto defectuoso\", \"status\": \"PENDING\"}"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "Datos de entrada inválidos",
+            content = @Content(
+                mediaType = "application/json",
+                examples = @ExampleObject(
+                    name = "Error de validación",
+                    value = "{\"message\": \"El monto debe ser mayor a 0\"}"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "404",
+            description = "Pago no encontrado",
+            content = @Content(
+                mediaType = "application/json",
+                examples = @ExampleObject(
+                    name = "Pago no encontrado",
+                    value = "{\"message\": \"Pago no encontrado\"}"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "500",
+            description = "Error interno del servidor",
+            content = @Content(
+                mediaType = "application/json",
+                examples = @ExampleObject(
+                    name = "Error interno",
+                    value = "{\"message\": \"Error interno\"}"
+                )
+            )
+        )
+    })
+    @SecurityRequirement(name = "bearerAuth")
     @PostMapping("/create")
     public ResponseEntity<?> createRefund(
             @Valid @RequestBody CreateRefundRequest request,
+            @Parameter(description = "Token JWT de autenticación", required = true)
             @RequestHeader("Authorization") String authHeader) {
         try {
             String email = jwtUtil.getSubject(authHeader.replace("Bearer ", ""));

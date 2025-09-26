@@ -32,6 +32,9 @@
 		<sonar.organization>backend-devapps</sonar.organization>
 		<sonar.projectKey>backend-devapps_modulo-pagos-y-facturacion</sonar.projectKey>
 		<sonar.host.url>https://sonarcloud.io</sonar.host.url>
+                <jacoco.version>0.8.12</jacoco.version>
+		<coverage.minimum>75.0</coverage.minimum>
+        <jacoco.skip>false</jacoco.skip>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -183,6 +186,55 @@
 					</excludes>
 				</configuration>
 			</plugin>
+            <!-- JaCoCo Plugin for Code Coverage -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco.version}</version>
+                <configuration>
+                    <!-- Skip JaCoCo if Java version is not supported -->
+                    <skip>${jacoco.skip}</skip>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>check</id>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>INSTRUCTION</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>${coverage.minimum}%</minimum>
+                                        </limit>
+                                        <limit>
+                                            <counter>BRANCH</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>${coverage.minimum}%</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
 		</plugins>
 	</build>
 

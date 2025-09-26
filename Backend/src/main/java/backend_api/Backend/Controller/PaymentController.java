@@ -35,10 +35,20 @@ import java.util.Optional;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
 @RequestMapping("/api/payments")
 @CrossOrigin(origins = "*")
+@Tag(name = "Pagos", description = "Endpoints para gestión de pagos, incluyendo creación, consulta, confirmación y selección de métodos de pago")
 public class PaymentController {
 
     @Autowired

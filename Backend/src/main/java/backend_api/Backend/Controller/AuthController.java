@@ -17,9 +17,20 @@ import jakarta.validation.Valid;
 import java.math.BigDecimal;
 import java.util.Random;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 @RestController
 @RequestMapping("/api/auth")
 @CrossOrigin(origins = "*")
+@Tag(name = "Autenticación", description = "Endpoints para registro, login y gestión de perfiles de usuario")
 public class AuthController {
 
     @Autowired
@@ -31,9 +42,76 @@ public class AuthController {
     @Autowired
     private JwtUtil jwtUtil;
 
-    //Crear nueva cuenta
+    @Operation(
+        summary = "Registrar nuevo usuario",
+        description = "Crea una nueva cuenta de usuario en el sistema. Los usuarios tipo USER reciben un saldo inicial aleatorio entre $10,000 y $50,000."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "201",
+            description = "Usuario registrado exitosamente",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = AuthResponse.class),
+                examples = @ExampleObject(
+                    name = "Respuesta exitosa",
+                    value = """
+                    {
+                        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                        "userId": 1,
+                        "email": "usuario@example.com",
+                        "name": "Juan Pérez",
+                        "role": "USER"
+                    }
+                    """
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "409",
+            description = "El email ya está registrado",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = String.class),
+                examples = @ExampleObject(
+                    name = "Email duplicado",
+                    value = "Conflict"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "Datos de entrada inválidos",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = String.class),
+                examples = @ExampleObject(
+                    name = "Validación fallida",
+                    value = "Bad Request"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "500",
+            description = "Error interno del servidor",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = String.class),
+                examples = @ExampleObject(
+                    name = "Error interno",
+                    value = "Internal Server Error"
+                )
+            )
+        )
+    })
     @PostMapping("/register")
-    public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
+    public ResponseEntity<AuthResponse> register(
+        @Parameter(
+            description = "Datos del nuevo usuario",
+            required = true,
+            schema = @Schema(implementation = RegisterRequest.class)
+        )
+        @Valid @RequestBody RegisterRequest request) {
         try {
             if (userRepository.existsByEmail(request.getEmail())) {
                 return new ResponseEntity<>(HttpStatus.CONFLICT); 
@@ -76,9 +154,76 @@ public class AuthController {
         }
     }
 
-    //  Iniciar sesión
+    @Operation(
+        summary = "Iniciar sesión",
+        description = "Autentica un usuario existente y retorna un token JWT para acceder a endpoints protegidos."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "Login exitoso",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = AuthResponse.class),
+                examples = @ExampleObject(
+                    name = "Login exitoso",
+                    value = """
+                    {
+                        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                        "userId": 1,
+                        "email": "usuario@example.com",
+                        "name": "Juan Pérez",
+                        "role": "USER"
+                    }
+                    """
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "401",
+            description = "Credenciales inválidas",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = String.class),
+                examples = @ExampleObject(
+                    name = "Credenciales inválidas",
+                    value = "Unauthorized"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "Datos de entrada inválidos",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = String.class),
+                examples = @ExampleObject(
+                    name = "Validación fallida",
+                    value = "Bad Request"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "500",
+            description = "Error interno del servidor",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = String.class),
+                examples = @ExampleObject(
+                    name = "Error interno",
+                    value = "Internal Server Error"
+                )
+            )
+        )
+    })
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
+    public ResponseEntity<AuthResponse> login(
+        @Parameter(
+            description = "Credenciales de login",
+            required = true,
+            schema = @Schema(implementation = LoginRequest.class)
+        )
+        @Valid @RequestBody LoginRequest request) {
         try {
             User user = userRepository.findByEmail(request.getEmail())
                     .orElse(null);
@@ -108,9 +253,66 @@ public class AuthController {
         }
     }
 
-    // Obtener perfil del usuario autenticado
+    @Operation(
+        summary = "Obtener perfil del usuario",
+        description = "Retorna la información del perfil del usuario autenticado. Requiere token JWT válido."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "Perfil obtenido exitosamente",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = User.class),
+                examples = @ExampleObject(
+                    name = "Perfil del usuario",
+                    value = """
+                    {
+                        "id": 1,
+                        "email": "usuario@example.com",
+                        "name": "Juan Pérez",
+                        "phone": "123456789",
+                        "role": "USER",
+                        "saldo_disponible": 25000.00
+                    }
+                    """
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "401",
+            description = "Token inválido o expirado",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = String.class),
+                examples = @ExampleObject(
+                    name = "Token inválido",
+                    value = "Unauthorized"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "404",
+            description = "Usuario no encontrado",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = String.class),
+                examples = @ExampleObject(
+                    name = "Usuario no encontrado",
+                    value = "Not Found"
+                )
+            )
+        )
+    })
+    @SecurityRequirement(name = "bearerAuth")
     @GetMapping("/profile")
-    public ResponseEntity<User> getProfile(@RequestHeader("Authorization") String authHeader) {
+    public ResponseEntity<User> getProfile(
+        @Parameter(
+            description = "Token JWT en formato 'Bearer {token}'",
+            required = true,
+            example = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        )
+        @RequestHeader("Authorization") String authHeader) {
         try {
             String token = authHeader.replace("Bearer ", "");
             String email = jwtUtil.getSubject(token);

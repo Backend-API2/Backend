@@ -29,6 +29,7 @@ public class PaymentApprovalScheduler {
     /**
      * Ejecuta cada 30 segundos para revisar pagos pendientes de aprobación
      * que ya han pasado el tiempo de espera simulado
+     * Disabled during tests to prevent stack overflow
      */
     @Scheduled(fixedDelay = 30000) 
     public void processAutomaticApprovals() {

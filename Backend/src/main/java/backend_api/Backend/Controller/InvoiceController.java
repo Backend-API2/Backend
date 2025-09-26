@@ -21,11 +21,22 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 @RestController
 @RequestMapping("/api/invoices")
 @RequiredArgsConstructor
 @Slf4j
 @CrossOrigin(origins = "*")
+@Tag(name = "Facturas", description = "Endpoints para gestión de facturas, incluyendo creación, consulta, actualización y generación de PDFs")
 public class InvoiceController {
     
     private final InvoiceService invoiceService;
@@ -33,17 +44,132 @@ public class InvoiceController {
     private final UserRepository userRepository;
     
     
+    @Operation(
+        summary = "Crear nueva factura",
+        description = "Crea una nueva factura en el sistema. Solo usuarios con rol MERCHANT pueden crear facturas."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "201",
+            description = "Factura creada exitosamente",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = InvoiceResponse.class),
+                examples = @ExampleObject(
+                    name = "Factura creada",
+                    value = """
+                    {
+                        "id": 1,
+                        "invoiceNumber": "INV-001",
+                        "amount": 100.00,
+                        "status": "PENDING",
+                        "createdAt": "2024-01-15T10:30:00",
+                        "dueDate": "2024-02-15T10:30:00"
+                    }
+                    """
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "403",
+            description = "Acceso denegado - Se requiere rol MERCHANT",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = String.class),
+                examples = @ExampleObject(
+                    name = "Acceso denegado",
+                    value = "Forbidden"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "Datos de entrada inválidos",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = String.class),
+                examples = @ExampleObject(
+                    name = "Validación fallida",
+                    value = "Bad Request"
+                )
+            )
+        )
+    })
+    @SecurityRequirement(name = "bearerAuth")
     @PostMapping
     @PreAuthorize("hasRole('MERCHANT')")
-    public ResponseEntity<InvoiceResponse> createInvoice(@Valid @RequestBody CreateInvoiceRequest request) {
+    public ResponseEntity<InvoiceResponse> createInvoice(
+        @Parameter(
+            description = "Datos de la nueva factura",
+            required = true,
+            schema = @Schema(implementation = CreateInvoiceRequest.class)
+        )
+        @Valid @RequestBody CreateInvoiceRequest request) {
         log.info("Creando nueva factura para el pago: {}", request.getPaymentId());
         InvoiceResponse response = invoiceService.createInvoice(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
-    // que es fetching? = 
+    @Operation(
+        summary = "Obtener factura por ID",
+        description = "Retorna los detalles de una factura específica por su ID. Accesible para usuarios MERCHANT y USER."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "Factura encontrada",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = InvoiceResponse.class),
+                examples = @ExampleObject(
+                    name = "Factura encontrada",
+                    value = """
+                    {
+                        "id": 1,
+                        "invoiceNumber": "INV-001",
+                        "amount": 100.00,
+                        "status": "PENDING",
+                        "createdAt": "2024-01-15T10:30:00",
+                        "dueDate": "2024-02-15T10:30:00"
+                    }
+                    """
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "404",
+            description = "Factura no encontrada",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = String.class),
+                examples = @ExampleObject(
+                    name = "Factura no encontrada",
+                    value = "Not Found"
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "403",
+            description = "Acceso denegado",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = String.class),
+                examples = @ExampleObject(
+                    name = "Acceso denegado",
+                    value = "Forbidden"
+                )
+            )
+        )
+    })
+    @SecurityRequirement(name = "bearerAuth")
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('MERCHANT') or hasRole('USER')")
-    public ResponseEntity<InvoiceResponse> getInvoiceById(@PathVariable Long id) {
+    public ResponseEntity<InvoiceResponse> getInvoiceById(
+        @Parameter(
+            description = "ID de la factura",
+            required = true,
+            example = "1"
+        )
+        @PathVariable Long id) {
         log.info("Obteniendo factura con ID: {}", id);
         InvoiceResponse response = invoiceService.getInvoiceById(id);
         return ResponseEntity.ok(response);
