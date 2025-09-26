@@ -73,6 +73,11 @@ public class PaymentController {
     private BalanceService balanceService;
 
     //  CREAR NUEVO PAGO 
+    @Operation(
+        summary = "Crear nuevo pago",
+        description = "Crea un nuevo pago en el sistema. Requiere autenticación JWT válida.",
+        security = @SecurityRequirement(name = "bearerAuth")
+    )
     @PostMapping
     public ResponseEntity<PaymentResponse> createPayment(
             @Valid @RequestBody CreatePaymentRequest request,

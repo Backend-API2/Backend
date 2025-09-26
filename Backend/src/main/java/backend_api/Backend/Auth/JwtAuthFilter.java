@@ -62,10 +62,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
                         } catch (Exception e) {
                             logger.warn("Error procesando el token JWT para el usuario: {}, error: {}", email, e.getMessage());
+                            // Clear any partial authentication
+                            SecurityContextHolder.clearContext();
                         }
                     }
                 } else {
-                    logger.debug("Token JWT inválido");
+                    logger.debug("Token JWT inválido o expirado");
+                    // Clear any existing authentication
+                    SecurityContextHolder.clearContext();
                 }
             }
         } catch (Exception e) {

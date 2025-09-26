@@ -15,6 +15,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Random;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -137,6 +138,7 @@ public class AuthController {
             
             User savedUser = userRepository.save(user);
             
+            // Generate token with appropriate role
             String token = jwtUtil.generateToken(savedUser.getEmail());
             
             AuthResponse response = new AuthResponse(
@@ -236,6 +238,7 @@ public class AuthController {
                 return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
             }
             
+            // Generate token with appropriate role
             String token = jwtUtil.generateToken(user.getEmail());
             
             AuthResponse response = new AuthResponse(
