@@ -148,6 +148,20 @@
 				<artifactId>org.jacoco.report</artifactId>
 				<version>${jacoco.version}</version>
 			</dependency>
+			<!-- Force Spring Boot to use our JaCoCo version -->
+			<dependency>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-starter-parent</artifactId>
+				<version>3.5.4</version>
+				<type>pom</type>
+				<scope>import</scope>
+				<exclusions>
+					<exclusion>
+						<groupId>org.jacoco</groupId>
+						<artifactId>*</artifactId>
+					</exclusion>
+				</exclusions>
+			</dependency>
 		</dependencies>
 	</dependencyManagement>
 
@@ -220,6 +234,13 @@
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
                 <version>${jacoco.version}</version>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.jacoco</groupId>
+                        <artifactId>org.jacoco.agent</artifactId>
+                        <version>${jacoco.version}</version>
+                    </dependency>
+                </dependencies>
                 <configuration>
                     <rules>
                         <rule>
@@ -271,7 +292,17 @@
                     <systemPropertyVariables>
                         <jacoco.version>${jacoco.version}</jacoco.version>
                     </systemPropertyVariables>
+                    <excludes>
+                        <exclude>**/*$*</exclude>
+                    </excludes>
                 </configuration>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.jacoco</groupId>
+                        <artifactId>org.jacoco.agent</artifactId>
+                        <version>${jacoco.version}</version>
+                    </dependency>
+                </dependencies>
             </plugin>
 		</plugins>
 	</build>
