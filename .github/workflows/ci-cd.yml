@@ -169,7 +169,7 @@ jobs:
           restore-keys: ${{ runner.os }}-m2
 
       - name: Generate coverage for Sonar
-        run: mvn -B org.jacoco:jacoco-maven-plugin:0.8.11:prepare-agent test org.jacoco:jacoco-maven-plugin:0.8.11:report
+        run: mvn -B clean test jacoco:report
 
       - name: SonarCloud Scan
         env:
