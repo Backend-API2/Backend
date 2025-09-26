@@ -710,4 +710,507 @@ class PaymentServiceImplTest {
         });
         assertEquals("Cannot update payment method. Payment status must be PENDING_PAYMENT", exception.getMessage());
     }
+
+    @Test
+    void testConfirmPayment_AlreadyApproved() {
+        // Given
+        Long paymentId = 1L;
+        String paymentMethodType = "credit_card";
+        String paymentMethodId = "1";
+        boolean captureImmediately = true;
+        testPayment.setStatus(PaymentStatus.APPROVED);
+        when(paymentRepository.findById(paymentId)).thenReturn(Optional.of(testPayment));
+
+        // When & Then
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            paymentService.confirmPayment(paymentId, paymentMethodType, paymentMethodId, captureImmediately);
+        });
+        assertEquals("Payment is not in pending_payment status", exception.getMessage());
+    }
+
+    @Test
+    void testConfirmPayment_AlreadyCancelled() {
+        // Given
+        Long paymentId = 1L;
+        String paymentMethodType = "credit_card";
+        String paymentMethodId = "1";
+        boolean captureImmediately = true;
+        testPayment.setStatus(PaymentStatus.CANCELLED);
+        when(paymentRepository.findById(paymentId)).thenReturn(Optional.of(testPayment));
+
+        // When & Then
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            paymentService.confirmPayment(paymentId, paymentMethodType, paymentMethodId, captureImmediately);
+        });
+        assertEquals("Payment is not in pending_payment status", exception.getMessage());
+    }
+
+    @Test
+    void testConfirmPayment_AlreadyExpired() {
+        // Given
+        Long paymentId = 1L;
+        String paymentMethodType = "credit_card";
+        String paymentMethodId = "1";
+        boolean captureImmediately = true;
+        testPayment.setStatus(PaymentStatus.EXPIRED);
+        when(paymentRepository.findById(paymentId)).thenReturn(Optional.of(testPayment));
+
+        // When & Then
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            paymentService.confirmPayment(paymentId, paymentMethodType, paymentMethodId, captureImmediately);
+        });
+        assertEquals("Payment is not in pending_payment status", exception.getMessage());
+    }
+
+    @Test
+    void testConfirmPayment_AlreadyFailed() {
+        // Given
+        Long paymentId = 1L;
+        String paymentMethodType = "credit_card";
+        String paymentMethodId = "1";
+        boolean captureImmediately = true;
+        testPayment.setStatus(PaymentStatus.REJECTED);
+        when(paymentRepository.findById(paymentId)).thenReturn(Optional.of(testPayment));
+
+        // When & Then
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            paymentService.confirmPayment(paymentId, paymentMethodType, paymentMethodId, captureImmediately);
+        });
+        assertEquals("Payment is not in pending_payment status", exception.getMessage());
+    }
+
+    @Test
+    void testCancelPayment_AlreadyApproved() {
+        // Given
+        Long paymentId = 1L;
+        String reason = "User cancelled";
+        testPayment.setStatus(PaymentStatus.APPROVED);
+        when(paymentRepository.findById(paymentId)).thenReturn(Optional.of(testPayment));
+        when(paymentRepository.save(testPayment)).thenReturn(testPayment);
+
+        // When
+        Payment result = paymentService.cancelPayment(paymentId, reason);
+
+        // Then
+        assertNotNull(result);
+        verify(paymentRepository).save(testPayment);
+    }
+
+    @Test
+    void testCancelPayment_AlreadyCancelled() {
+        // Given
+        Long paymentId = 1L;
+        String reason = "User cancelled";
+        testPayment.setStatus(PaymentStatus.CANCELLED);
+        when(paymentRepository.findById(paymentId)).thenReturn(Optional.of(testPayment));
+        when(paymentRepository.save(testPayment)).thenReturn(testPayment);
+
+        // When
+        Payment result = paymentService.cancelPayment(paymentId, reason);
+
+        // Then
+        assertNotNull(result);
+        verify(paymentRepository).save(testPayment);
+    }
+
+    @Test
+    void testCancelPayment_AlreadyExpired() {
+        // Given
+        Long paymentId = 1L;
+        String reason = "User cancelled";
+        testPayment.setStatus(PaymentStatus.EXPIRED);
+        when(paymentRepository.findById(paymentId)).thenReturn(Optional.of(testPayment));
+        when(paymentRepository.save(testPayment)).thenReturn(testPayment);
+
+        // When
+        Payment result = paymentService.cancelPayment(paymentId, reason);
+
+        // Then
+        assertNotNull(result);
+        verify(paymentRepository).save(testPayment);
+    }
+
+    @Test
+    void testExpirePayment_AlreadyApproved() {
+        // Given
+        Long paymentId = 1L;
+        testPayment.setStatus(PaymentStatus.APPROVED);
+        when(paymentRepository.findById(paymentId)).thenReturn(Optional.of(testPayment));
+        when(paymentRepository.save(testPayment)).thenReturn(testPayment);
+
+        // When
+        Payment result = paymentService.expirePayment(paymentId);
+
+        // Then
+        assertNotNull(result);
+        verify(paymentRepository).save(testPayment);
+    }
+
+    @Test
+    void testExpirePayment_AlreadyCancelled() {
+        // Given
+        Long paymentId = 1L;
+        testPayment.setStatus(PaymentStatus.CANCELLED);
+        when(paymentRepository.findById(paymentId)).thenReturn(Optional.of(testPayment));
+        when(paymentRepository.save(testPayment)).thenReturn(testPayment);
+
+        // When
+        Payment result = paymentService.expirePayment(paymentId);
+
+        // Then
+        assertNotNull(result);
+        verify(paymentRepository).save(testPayment);
+    }
+
+    @Test
+    void testExpirePayment_AlreadyExpired() {
+        // Given
+        Long paymentId = 1L;
+        testPayment.setStatus(PaymentStatus.EXPIRED);
+        when(paymentRepository.findById(paymentId)).thenReturn(Optional.of(testPayment));
+        when(paymentRepository.save(testPayment)).thenReturn(testPayment);
+
+        // When
+        Payment result = paymentService.expirePayment(paymentId);
+
+        // Then
+        assertNotNull(result);
+        verify(paymentRepository).save(testPayment);
+    }
+
+    @Test
+    void testUpdatePaymentStatus_NotApproved() {
+        // Given
+        Long paymentId = 1L;
+        PaymentStatus newStatus = PaymentStatus.CANCELLED;
+        when(paymentRepository.findById(paymentId)).thenReturn(Optional.of(testPayment));
+        when(paymentRepository.save(any(Payment.class))).thenReturn(testPayment);
+
+        // When
+        Payment result = paymentService.updatePaymentStatus(paymentId, newStatus);
+
+        // Then
+        assertNotNull(result);
+        assertEquals(newStatus, result.getStatus());
+        assertNull(result.getCaptured_at()); // Should not set captured_at for non-approved status
+        verify(paymentRepository).findById(paymentId);
+        verify(paymentRepository).save(any(Payment.class));
+    }
+
+    @Test
+    void testGetPaymentsByGatewayTxnId_NotFound() {
+        // Given
+        String gatewayTxnId = "nonexistent_txn";
+        when(paymentRepository.findByGatewayTxnId(gatewayTxnId)).thenReturn(Optional.empty());
+
+        // When
+        Optional<Payment> result = paymentService.getPaymentsByGatewayTxnId(gatewayTxnId);
+
+        // Then
+        assertFalse(result.isPresent());
+        verify(paymentRepository).findByGatewayTxnId(gatewayTxnId);
+    }
+
+    @Test
+    void testGetPaymentsByAmountGreaterThan_EmptyResult() {
+        // Given
+        BigDecimal minAmount = BigDecimal.valueOf(1000.00);
+        when(paymentRepository.findByAmountTotalGreaterThanEqual(minAmount)).thenReturn(Arrays.asList());
+
+        // When
+        List<Payment> result = paymentService.getPaymentsByAmountGreaterThan(minAmount);
+
+        // Then
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+        verify(paymentRepository).findByAmountTotalGreaterThanEqual(minAmount);
+    }
+
+    @Test
+    void testGetPaymentsByDateRange_EmptyResult() {
+        // Given
+        LocalDate startDate = LocalDate.now().minusDays(30);
+        LocalDate endDate = LocalDate.now().minusDays(20);
+        when(paymentRepository.findByCreatedAtBetween(startDate, endDate)).thenReturn(Arrays.asList());
+
+        // When
+        List<Payment> result = paymentService.getPaymentsByDateRange(startDate, endDate);
+
+        // Then
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+        verify(paymentRepository).findByCreatedAtBetween(startDate, endDate);
+    }
+
+    @Test
+    void testGetPaymentsByUserAndStatus_EmptyResult() {
+        // Given
+        Long userId = 999L;
+        PaymentStatus status = PaymentStatus.APPROVED;
+        when(paymentRepository.findByUserIdAndStatus(userId, status)).thenReturn(Arrays.asList());
+
+        // When
+        List<Payment> result = paymentService.getPaymentsByUserAndStatus(userId, status);
+
+        // Then
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+        verify(paymentRepository).findByUserIdAndStatus(userId, status);
+    }
+
+    @Test
+    void testGetPaymentsByProviderAndStatus_EmptyResult() {
+        // Given
+        Long providerId = 999L;
+        PaymentStatus status = PaymentStatus.APPROVED;
+        when(paymentRepository.findByProviderIdAndStatus(providerId, status)).thenReturn(Arrays.asList());
+
+        // When
+        List<Payment> result = paymentService.getPaymentsByProviderAndStatus(providerId, status);
+
+        // Then
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+        verify(paymentRepository).findByProviderIdAndStatus(providerId, status);
+    }
+
+    @Test
+    void testGetPaymentsByCurrency_EmptyResult() {
+        // Given
+        String currency = "EUR";
+        when(paymentRepository.findByCurrency(currency)).thenReturn(Arrays.asList());
+
+        // When
+        List<Payment> result = paymentService.getPaymentsByCurrency(currency);
+
+        // Then
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+        verify(paymentRepository).findByCurrency(currency);
+    }
+
+    @Test
+    void testGetPaymentsByMethod_EmptyResult() {
+        // Given
+        when(paymentRepository.findByMethod(testPaymentMethod)).thenReturn(Arrays.asList());
+
+        // When
+        List<Payment> result = paymentService.getPaymentsByMethod(testPaymentMethod);
+
+        // Then
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+        verify(paymentRepository).findByMethod(testPaymentMethod);
+    }
+
+    @Test
+    void testGetPaymentsBySolicitudId_EmptyResult() {
+        // Given
+        Long solicitudId = 999L;
+        when(paymentRepository.findBySolicitudId(solicitudId)).thenReturn(Arrays.asList());
+
+        // When
+        List<Payment> result = paymentService.getPaymentsBySolicitudId(solicitudId);
+
+        // Then
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+        verify(paymentRepository).findBySolicitudId(solicitudId);
+    }
+
+    @Test
+    void testGetPaymentsByCotizacionId_EmptyResult() {
+        // Given
+        Long cotizacionId = 999L;
+        when(paymentRepository.findByCotizacionId(cotizacionId)).thenReturn(Arrays.asList());
+
+        // When
+        List<Payment> result = paymentService.getPaymentsByCotizacionId(cotizacionId);
+
+        // Then
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+        verify(paymentRepository).findByCotizacionId(cotizacionId);
+    }
+
+    @Test
+    void testGetAllPayments_EmptyResult() {
+        // Given
+        when(paymentRepository.findAll()).thenReturn(Arrays.asList());
+
+        // When
+        List<Payment> result = paymentService.getAllPayments();
+
+        // Then
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+        verify(paymentRepository).findAll();
+    }
+
+    @Test
+    void testGetPaymentsByUserId_EmptyResult() {
+        // Given
+        Long userId = 999L;
+        when(paymentRepository.findByUserId(userId)).thenReturn(Arrays.asList());
+
+        // When
+        List<Payment> result = paymentService.getPaymentsByUserId(userId);
+
+        // Then
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+        verify(paymentRepository).findByUserId(userId);
+    }
+
+    @Test
+    void testGetPaymentsByProviderId_EmptyResult() {
+        // Given
+        Long providerId = 999L;
+        when(paymentRepository.findByProviderId(providerId)).thenReturn(Arrays.asList());
+
+        // When
+        List<Payment> result = paymentService.getPaymentsByProviderId(providerId);
+
+        // Then
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+        verify(paymentRepository).findByProviderId(providerId);
+    }
+
+    @Test
+    void testGetPaymentsByStatus_EmptyResult() {
+        // Given
+        PaymentStatus status = PaymentStatus.REJECTED;
+        when(paymentRepository.findByStatus(status)).thenReturn(Arrays.asList());
+
+        // When
+        List<Payment> result = paymentService.getPaymentsByStatus(status);
+
+        // Then
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+        verify(paymentRepository).findByStatus(status);
+    }
+
+    @Test
+    void testExistsById_NotFound() {
+        // Given
+        Long paymentId = 999L;
+        when(paymentRepository.existsById(paymentId)).thenReturn(false);
+
+        // When
+        boolean result = paymentService.existsById(paymentId);
+
+        // Then
+        assertFalse(result);
+        verify(paymentRepository).existsById(paymentId);
+    }
+
+    @Test
+    void testGetTotalAmountByUserId_ZeroAmount() {
+        // Given
+        Long userId = 999L;
+        BigDecimal totalAmount = BigDecimal.ZERO;
+        when(paymentRepository.getTotalAmountByUserId(userId)).thenReturn(totalAmount);
+
+        // When
+        BigDecimal result = paymentService.getTotalAmountByUserId(userId);
+
+        // Then
+        assertNotNull(result);
+        assertEquals(BigDecimal.ZERO, result);
+        verify(paymentRepository).getTotalAmountByUserId(userId);
+    }
+
+    @Test
+    void testGetTotalAmountByProviderId_ZeroAmount() {
+        // Given
+        Long providerId = 999L;
+        BigDecimal totalAmount = BigDecimal.ZERO;
+        when(paymentRepository.getTotalAmountByProviderId(providerId)).thenReturn(totalAmount);
+
+        // When
+        BigDecimal result = paymentService.getTotalAmountByProviderId(providerId);
+
+        // Then
+        assertNotNull(result);
+        assertEquals(BigDecimal.ZERO, result);
+        verify(paymentRepository).getTotalAmountByProviderId(providerId);
+    }
+
+    @Test
+    void testFindByUserNameContaining_EmptyResult() {
+        // Given
+        String userName = "nonexistent";
+        when(paymentRepository.findByUserNameContaining(userName)).thenReturn(Arrays.asList());
+
+        // When
+        List<Payment> result = paymentService.findByUserNameContaining(userName);
+
+        // Then
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+        verify(paymentRepository).findByUserNameContaining(userName);
+    }
+
+    @Test
+    void testFindByUserNameContaining_WithPageable_EmptyResult() {
+        // Given
+        String userName = "nonexistent";
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Payment> emptyPage = new PageImpl<>(Arrays.asList());
+        when(paymentRepository.findByUserNameContaining(userName, pageable)).thenReturn(emptyPage);
+
+        // When
+        Page<Payment> result = paymentService.findByUserNameContaining(userName, pageable);
+
+        // Then
+        assertNotNull(result);
+        assertTrue(result.getContent().isEmpty());
+        verify(paymentRepository).findByUserNameContaining(userName, pageable);
+    }
+
+    @Test
+    void testProcessPaymentWithRetry_NotFound() {
+        // Given
+        Long paymentId = 999L;
+        int maxAttempts = 3;
+        when(paymentRepository.findById(paymentId)).thenReturn(Optional.empty());
+
+        // When & Then
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            paymentService.processPaymentWithRetry(paymentId, maxAttempts);
+        });
+        assertEquals("Payment not found with id: 999", exception.getMessage());
+    }
+
+    @Test
+    void testProcessPaymentWithRetry_Expired() {
+        // Given
+        Long paymentId = 1L;
+        int maxAttempts = 3;
+        testPayment.setExpired_at(LocalDateTime.now().minusHours(1));
+        when(paymentRepository.findById(paymentId)).thenReturn(Optional.of(testPayment));
+
+        // When & Then
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            paymentService.processPaymentWithRetry(paymentId, maxAttempts);
+        });
+        assertEquals("Payment has expired", exception.getMessage());
+    }
+
+    @Test
+    void testProcessPaymentWithRetry_WrongStatus() {
+        // Given
+        Long paymentId = 1L;
+        int maxAttempts = 3;
+        testPayment.setStatus(PaymentStatus.APPROVED);
+        when(paymentRepository.findById(paymentId)).thenReturn(Optional.of(testPayment));
+
+        // When & Then
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            paymentService.processPaymentWithRetry(paymentId, maxAttempts);
+        });
+        assertEquals("Payment is not in pending_payment status", exception.getMessage());
+    }
 }

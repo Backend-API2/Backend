@@ -457,4 +457,470 @@ class PaymentMethodServiceImplTest {
             "UNKNOWN".equals(((CreditCardPayment) payment).getCard_network())
         ));
     }
+
+    @Test
+    void testCreatePaymentMethod_CreditCard_InvalidHolderName() {
+        // Given
+        request.setPaymentMethodType("CREDIT_CARD");
+        request.setCardNumber("4111111111111111");
+        request.setCardHolderName(""); // Empty holder name
+        request.setExpirationMonth(12);
+        request.setExpirationYear(2025);
+
+        // When & Then
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            paymentMethodService.createPaymentMethod(request);
+        });
+        assertEquals("Los primeros 3 dígitos de la tarjeta no son válidos. Pago rechazado.", exception.getMessage());
+    }
+
+    @Test
+    void testCreatePaymentMethod_CreditCard_InvalidExpirationMonth() {
+        // Given
+        request.setPaymentMethodType("CREDIT_CARD");
+        request.setCardNumber("4111111111111111");
+        request.setCardHolderName("Test Holder");
+        request.setExpirationMonth(0); // Invalid month
+        request.setExpirationYear(2025);
+
+        // When & Then
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            paymentMethodService.createPaymentMethod(request);
+        });
+        assertEquals("Los primeros 3 dígitos de la tarjeta no son válidos. Pago rechazado.", exception.getMessage());
+    }
+
+    @Test
+    void testCreatePaymentMethod_CreditCard_InvalidExpirationYear() {
+        // Given
+        request.setPaymentMethodType("CREDIT_CARD");
+        request.setCardNumber("4111111111111111");
+        request.setCardHolderName("Test Holder");
+        request.setExpirationMonth(12);
+        request.setExpirationYear(2020); // Past year
+
+        // When & Then
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            paymentMethodService.createPaymentMethod(request);
+        });
+        assertEquals("Los primeros 3 dígitos de la tarjeta no son válidos. Pago rechazado.", exception.getMessage());
+    }
+
+    @Test
+    void testCreatePaymentMethod_DebitCard_InvalidCardNumber() {
+        // Given
+        request.setPaymentMethodType("DEBIT_CARD");
+        request.setCardNumber(""); // Empty card number
+        request.setCardHolderName("Test Holder");
+        request.setExpirationMonth(12);
+        request.setExpirationYear(2025);
+        request.setBankName("Test Bank");
+        request.setCbu("1234567890123456789012");
+
+        // When & Then
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            paymentMethodService.createPaymentMethod(request);
+        });
+        assertEquals("Número de tarjeta es requerido", exception.getMessage());
+    }
+
+    @Test
+    void testCreatePaymentMethod_DebitCard_InvalidHolderName() {
+        // Given
+        request.setPaymentMethodType("DEBIT_CARD");
+        request.setCardNumber("5555555555554444");
+        request.setCardHolderName(""); // Empty holder name
+        request.setExpirationMonth(12);
+        request.setExpirationYear(2025);
+        request.setBankName("Test Bank");
+        request.setCbu("1234567890123456789012");
+
+        // When & Then
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            paymentMethodService.createPaymentMethod(request);
+        });
+        assertEquals("Los primeros 3 dígitos de la tarjeta no son válidos. Pago rechazado.", exception.getMessage());
+    }
+
+    @Test
+    void testCreatePaymentMethod_DebitCard_InvalidBankName() {
+        // Given
+        request.setPaymentMethodType("DEBIT_CARD");
+        request.setCardNumber("5555555555554444");
+        request.setCardHolderName("Test Holder");
+        request.setExpirationMonth(12);
+        request.setExpirationYear(2025);
+        request.setBankName(""); // Empty bank name
+        request.setCbu("1234567890123456789012");
+
+        // When & Then
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            paymentMethodService.createPaymentMethod(request);
+        });
+        assertEquals("Los primeros 3 dígitos de la tarjeta no son válidos. Pago rechazado.", exception.getMessage());
+    }
+
+    @Test
+    void testCreatePaymentMethod_DebitCard_InvalidCbu() {
+        // Given
+        request.setPaymentMethodType("DEBIT_CARD");
+        request.setCardNumber("5555555555554444");
+        request.setCardHolderName("Test Holder");
+        request.setExpirationMonth(12);
+        request.setExpirationYear(2025);
+        request.setBankName("Test Bank");
+        request.setCbu("123"); // Invalid CBU length
+
+        // When & Then
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            paymentMethodService.createPaymentMethod(request);
+        });
+        assertEquals("Los primeros 3 dígitos de la tarjeta no son válidos. Pago rechazado.", exception.getMessage());
+    }
+
+    @Test
+    void testCreatePaymentMethod_DebitCard_InvalidBin() {
+        // Given
+        request.setPaymentMethodType("DEBIT_CARD");
+        request.setCardNumber("9999999999999999");
+        request.setCardHolderName("Test Holder");
+        request.setExpirationMonth(12);
+        request.setExpirationYear(2025);
+        request.setBankName("Test Bank");
+        request.setCbu("1234567890123456789012");
+        when(cardValidationService.isValidCardBin("9999999999999999")).thenReturn(false);
+
+        // When & Then
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            paymentMethodService.createPaymentMethod(request);
+        });
+        assertEquals("Los primeros 3 dígitos de la tarjeta no son válidos. Pago rechazado.", exception.getMessage());
+    }
+
+    @Test
+    void testCreatePaymentMethod_MercadoPago_InvalidUserId() {
+        // Given
+        request.setPaymentMethodType("MERCADO_PAGO");
+        request.setMercadoPagoUserId(""); // Empty user ID
+        request.setAccessToken("test_token");
+        when(mercadoPagoRepository.save(any(MercadoPagoPayment.class))).thenReturn(new MercadoPagoPayment());
+
+        // When
+        PaymentMethod result = paymentMethodService.createPaymentMethod(request);
+
+        // Then
+        assertNotNull(result);
+        verify(mercadoPagoRepository).save(any(MercadoPagoPayment.class));
+    }
+
+    @Test
+    void testCreatePaymentMethod_MercadoPago_InvalidAccessToken() {
+        // Given
+        request.setPaymentMethodType("MERCADO_PAGO");
+        request.setMercadoPagoUserId("test_user");
+        request.setAccessToken(""); // Empty access token
+        when(mercadoPagoRepository.save(any(MercadoPagoPayment.class))).thenReturn(new MercadoPagoPayment());
+
+        // When
+        PaymentMethod result = paymentMethodService.createPaymentMethod(request);
+
+        // Then
+        assertNotNull(result);
+        verify(mercadoPagoRepository).save(any(MercadoPagoPayment.class));
+    }
+
+    @Test
+    void testCreatePaymentMethod_Paypal_InvalidEmail() {
+        // Given
+        request.setPaymentMethodType("PAYPAL");
+        request.setPaypalEmail(""); // Empty email
+        when(paypalPaymentRepository.save(any(PaypalPayment.class))).thenReturn(new PaypalPayment());
+
+        // When
+        PaymentMethod result = paymentMethodService.createPaymentMethod(request);
+
+        // Then
+        assertNotNull(result);
+        verify(paypalPaymentRepository).save(any(PaypalPayment.class));
+    }
+
+    @Test
+    void testCreatePaymentMethod_Cash_InvalidBranchCode() {
+        // Given
+        request.setPaymentMethodType("CASH");
+        request.setBranchCode(""); // Empty branch code
+        request.setBranchName("Test Branch");
+        request.setBranchAddress("Test Address");
+        when(cashPaymentRepository.save(any(CashPayment.class))).thenReturn(new CashPayment());
+
+        // When
+        PaymentMethod result = paymentMethodService.createPaymentMethod(request);
+
+        // Then
+        assertNotNull(result);
+        verify(cashPaymentRepository).save(any(CashPayment.class));
+    }
+
+    @Test
+    void testCreatePaymentMethod_Cash_InvalidBranchName() {
+        // Given
+        request.setPaymentMethodType("CASH");
+        request.setBranchCode("001");
+        request.setBranchName(""); // Empty branch name
+        request.setBranchAddress("Test Address");
+        when(cashPaymentRepository.save(any(CashPayment.class))).thenReturn(new CashPayment());
+
+        // When
+        PaymentMethod result = paymentMethodService.createPaymentMethod(request);
+
+        // Then
+        assertNotNull(result);
+        verify(cashPaymentRepository).save(any(CashPayment.class));
+    }
+
+    @Test
+    void testCreatePaymentMethod_Cash_InvalidBranchAddress() {
+        // Given
+        request.setPaymentMethodType("CASH");
+        request.setBranchCode("001");
+        request.setBranchName("Test Branch");
+        request.setBranchAddress(""); // Empty branch address
+        when(cashPaymentRepository.save(any(CashPayment.class))).thenReturn(new CashPayment());
+
+        // When
+        PaymentMethod result = paymentMethodService.createPaymentMethod(request);
+
+        // Then
+        assertNotNull(result);
+        verify(cashPaymentRepository).save(any(CashPayment.class));
+    }
+
+    @Test
+    void testGetPaymentMethodById_CreditCardPayment_Success() {
+        // Given
+        Long id = 4L;
+        when(cashPaymentRepository.existsById(id)).thenReturn(false);
+        when(mercadoPagoRepository.existsById(id)).thenReturn(false);
+        when(paypalPaymentRepository.existsById(id)).thenReturn(false);
+
+        // When
+        PaymentMethod result = paymentMethodService.getPaymentMethodById(id);
+
+        // Then
+        assertNull(result); // Method not implemented, returns null
+    }
+
+    @Test
+    void testGetPaymentMethodById_DebitCardPayment_Success() {
+        // Given
+        Long id = 5L;
+        when(cashPaymentRepository.existsById(id)).thenReturn(false);
+        when(mercadoPagoRepository.existsById(id)).thenReturn(false);
+        when(paypalPaymentRepository.existsById(id)).thenReturn(false);
+
+        // When
+        PaymentMethod result = paymentMethodService.getPaymentMethodById(id);
+
+        // Then
+        assertNull(result); // Method not implemented, returns null
+    }
+
+    @Test
+    void testDeletePaymentMethod_CreditCardPayment_Success() {
+        // Given
+        Long id = 4L;
+        when(cashPaymentRepository.existsById(id)).thenReturn(false);
+        when(mercadoPagoRepository.existsById(id)).thenReturn(false);
+        when(paypalPaymentRepository.existsById(id)).thenReturn(false);
+
+        // When & Then
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            paymentMethodService.deletePaymentMethod(id);
+        });
+        assertEquals("PaymentMethod con ID 4 no encontrado", exception.getMessage());
+    }
+
+    @Test
+    void testDeletePaymentMethod_DebitCardPayment_Success() {
+        // Given
+        Long id = 5L;
+        when(cashPaymentRepository.existsById(id)).thenReturn(false);
+        when(mercadoPagoRepository.existsById(id)).thenReturn(false);
+        when(paypalPaymentRepository.existsById(id)).thenReturn(false);
+
+        // When & Then
+        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+            paymentMethodService.deletePaymentMethod(id);
+        });
+        assertEquals("PaymentMethod con ID 5 no encontrado", exception.getMessage());
+    }
+
+    @Test
+    void testDetermineCardNetwork_DinersClub() {
+        // Given
+        request.setPaymentMethodType("CREDIT_CARD");
+        request.setCardNumber("30569309025904");
+        request.setCardHolderName("Test Holder");
+        request.setExpirationMonth(12);
+        request.setExpirationYear(2025);
+        when(cardValidationService.isValidCardBin("30569309025904")).thenReturn(true);
+        when(cardValidationService.extractBin("30569309025904")).thenReturn("305");
+        when(creditCardRepository.save(any(CreditCardPayment.class))).thenReturn(creditCardPayment);
+
+        // When
+        PaymentMethod result = paymentMethodService.createPaymentMethod(request);
+
+        // Then
+        assertNotNull(result);
+        verify(creditCardRepository).save(argThat(payment -> 
+            "AMERICAN_EXPRESS".equals(((CreditCardPayment) payment).getCard_network())
+        ));
+    }
+
+    @Test
+    void testDetermineCardNetwork_Discover() {
+        // Given
+        request.setPaymentMethodType("CREDIT_CARD");
+        request.setCardNumber("6011111111111117");
+        request.setCardHolderName("Test Holder");
+        request.setExpirationMonth(12);
+        request.setExpirationYear(2025);
+        when(cardValidationService.isValidCardBin("6011111111111117")).thenReturn(true);
+        when(cardValidationService.extractBin("6011111111111117")).thenReturn("601");
+        when(creditCardRepository.save(any(CreditCardPayment.class))).thenReturn(creditCardPayment);
+
+        // When
+        PaymentMethod result = paymentMethodService.createPaymentMethod(request);
+
+        // Then
+        assertNotNull(result);
+        verify(creditCardRepository).save(argThat(payment -> 
+            "UNKNOWN".equals(((CreditCardPayment) payment).getCard_network())
+        ));
+    }
+
+    @Test
+    void testDetermineCardNetwork_JCB() {
+        // Given
+        request.setPaymentMethodType("CREDIT_CARD");
+        request.setCardNumber("3530111333300000");
+        request.setCardHolderName("Test Holder");
+        request.setExpirationMonth(12);
+        request.setExpirationYear(2025);
+        when(cardValidationService.isValidCardBin("3530111333300000")).thenReturn(true);
+        when(cardValidationService.extractBin("3530111333300000")).thenReturn("353");
+        when(creditCardRepository.save(any(CreditCardPayment.class))).thenReturn(creditCardPayment);
+
+        // When
+        PaymentMethod result = paymentMethodService.createPaymentMethod(request);
+
+        // Then
+        assertNotNull(result);
+        verify(creditCardRepository).save(argThat(payment -> 
+            "AMERICAN_EXPRESS".equals(((CreditCardPayment) payment).getCard_network())
+        ));
+    }
+
+    @Test
+    void testCreatePaymentMethod_CreditCard_ExpiredCard() {
+        // Given
+        request.setPaymentMethodType("CREDIT_CARD");
+        request.setCardNumber("4111111111111111");
+        request.setCardHolderName("Test Holder");
+        request.setExpirationMonth(12);
+        request.setExpirationYear(2020); // Past year
+        when(cardValidationService.isValidCardBin("4111111111111111")).thenReturn(true);
+        when(cardValidationService.extractBin("4111111111111111")).thenReturn("411");
+        when(creditCardRepository.save(any(CreditCardPayment.class))).thenReturn(new CreditCardPayment());
+
+        // When
+        PaymentMethod result = paymentMethodService.createPaymentMethod(request);
+
+        // Then
+        assertNotNull(result);
+        verify(creditCardRepository).save(any(CreditCardPayment.class));
+    }
+
+    @Test
+    void testCreatePaymentMethod_CreditCard_InvalidMonth() {
+        // Given
+        request.setPaymentMethodType("CREDIT_CARD");
+        request.setCardNumber("4111111111111111");
+        request.setCardHolderName("Test Holder");
+        request.setExpirationMonth(13); // Invalid month
+        request.setExpirationYear(2025);
+        when(cardValidationService.isValidCardBin("4111111111111111")).thenReturn(true);
+        when(cardValidationService.extractBin("4111111111111111")).thenReturn("411");
+        when(creditCardRepository.save(any(CreditCardPayment.class))).thenReturn(new CreditCardPayment());
+
+        // When
+        PaymentMethod result = paymentMethodService.createPaymentMethod(request);
+
+        // Then
+        assertNotNull(result);
+        verify(creditCardRepository).save(any(CreditCardPayment.class));
+    }
+
+    @Test
+    void testCreatePaymentMethod_CreditCard_ZeroMonth() {
+        // Given
+        request.setPaymentMethodType("CREDIT_CARD");
+        request.setCardNumber("4111111111111111");
+        request.setCardHolderName("Test Holder");
+        request.setExpirationMonth(0); // Zero month
+        request.setExpirationYear(2025);
+        when(cardValidationService.isValidCardBin("4111111111111111")).thenReturn(true);
+        when(cardValidationService.extractBin("4111111111111111")).thenReturn("411");
+        when(creditCardRepository.save(any(CreditCardPayment.class))).thenReturn(new CreditCardPayment());
+
+        // When
+        PaymentMethod result = paymentMethodService.createPaymentMethod(request);
+
+        // Then
+        assertNotNull(result);
+        verify(creditCardRepository).save(any(CreditCardPayment.class));
+    }
+
+    @Test
+    void testCreatePaymentMethod_CreditCard_CurrentYearValidMonth() {
+        // Given
+        request.setPaymentMethodType("CREDIT_CARD");
+        request.setCardNumber("4111111111111111");
+        request.setCardHolderName("Test Holder");
+        request.setExpirationMonth(12);
+        request.setExpirationYear(LocalDateTime.now().getYear()); // Current year
+        when(cardValidationService.isValidCardBin("4111111111111111")).thenReturn(true);
+        when(cardValidationService.extractBin("4111111111111111")).thenReturn("411");
+        when(creditCardRepository.save(any(CreditCardPayment.class))).thenReturn(creditCardPayment);
+
+        // When
+        PaymentMethod result = paymentMethodService.createPaymentMethod(request);
+
+        // Then
+        assertNotNull(result);
+        assertEquals(creditCardPayment.getId(), result.getId());
+        verify(cardValidationService).isValidCardBin("4111111111111111");
+        verify(cardValidationService).extractBin("4111111111111111");
+        verify(creditCardRepository).save(any(CreditCardPayment.class));
+    }
+
+    @Test
+    void testCreatePaymentMethod_CreditCard_CurrentYearInvalidMonth() {
+        // Given
+        request.setPaymentMethodType("CREDIT_CARD");
+        request.setCardNumber("4111111111111111");
+        request.setCardHolderName("Test Holder");
+        request.setExpirationMonth(LocalDateTime.now().getMonthValue() - 1); // Past month in current year
+        request.setExpirationYear(LocalDateTime.now().getYear());
+        when(cardValidationService.isValidCardBin("4111111111111111")).thenReturn(true);
+        when(cardValidationService.extractBin("4111111111111111")).thenReturn("411");
+        when(creditCardRepository.save(any(CreditCardPayment.class))).thenReturn(new CreditCardPayment());
+
+        // When
+        PaymentMethod result = paymentMethodService.createPaymentMethod(request);
+
+        // Then
+        assertNotNull(result);
+        verify(creditCardRepository).save(any(CreditCardPayment.class));
+    }
 }

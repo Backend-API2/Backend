@@ -443,4 +443,181 @@ class AuthControllerTest {
         verify(jwtUtil).getSubject("");
         verify(userRepository, never()).findByEmail(anyString());
     }
+
+    @Test
+    void testLogin_WrongPassword() {
+        // Given
+        LoginRequest request = new LoginRequest();
+        request.setEmail("test@example.com");
+        request.setPassword("wrongpassword");
+
+        User user = new User();
+        user.setId(1L);
+        user.setEmail("test@example.com");
+        user.setPassword("encodedPassword");
+        user.setName("Test User");
+        user.setRole(UserRole.USER);
+
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("wrongpassword", "encodedPassword")).thenReturn(false);
+
+        // When
+        ResponseEntity<AuthResponse> response = authController.login(request);
+
+        // Then
+        assertEquals(401, response.getStatusCode().value());
+        assertNull(response.getBody());
+
+        verify(userRepository).findByEmail("test@example.com");
+        verify(passwordEncoder).matches("wrongpassword", "encodedPassword");
+        verify(jwtUtil, never()).generateToken(anyString());
+    }
+
+    @Test
+    void testRegister_InvalidRole() {
+        // Given
+        RegisterRequest request = new RegisterRequest();
+        request.setEmail("test@example.com");
+        request.setPassword("password123");
+        request.setName("Test User");
+        request.setPhone("123456789");
+        request.setRole("INVALID_ROLE");
+
+        User savedUser = new User();
+        savedUser.setId(1L);
+        savedUser.setEmail("test@example.com");
+        savedUser.setName("Test User");
+        savedUser.setRole(UserRole.USER); // Should default to USER
+        savedUser.setSaldo_disponible(BigDecimal.valueOf(25000.00));
+
+        when(userRepository.existsByEmail("test@example.com")).thenReturn(false);
+        when(passwordEncoder.encode("password123")).thenReturn("encodedPassword");
+        when(userRepository.save(any(User.class))).thenReturn(savedUser);
+        when(jwtUtil.generateToken("test@example.com")).thenReturn("jwt-token");
+
+        // When
+        ResponseEntity<AuthResponse> response = authController.register(request);
+
+        // Then
+        assertEquals(201, response.getStatusCode().value());
+        assertNotNull(response.getBody());
+        assertEquals("USER", response.getBody().getRole()); // Should default to USER
+
+        verify(userRepository).existsByEmail("test@example.com");
+        verify(passwordEncoder).encode("password123");
+        verify(userRepository).save(any(User.class));
+        verify(jwtUtil).generateToken("test@example.com");
+    }
+
+    @Test
+    void testRegister_AdminRole() {
+        // Given
+        RegisterRequest request = new RegisterRequest();
+        request.setEmail("admin@example.com");
+        request.setPassword("password123");
+        request.setName("Admin User");
+        request.setPhone("123456789");
+        request.setRole("MERCHANT");
+
+        User savedUser = new User();
+        savedUser.setId(1L);
+        savedUser.setEmail("admin@example.com");
+        savedUser.setName("Admin User");
+        savedUser.setRole(UserRole.MERCHANT);
+        savedUser.setSaldo_disponible(null); // Admin should not have saldo
+
+        when(userRepository.existsByEmail("admin@example.com")).thenReturn(false);
+        when(passwordEncoder.encode("password123")).thenReturn("encodedPassword");
+        when(userRepository.save(any(User.class))).thenReturn(savedUser);
+        when(jwtUtil.generateToken("admin@example.com")).thenReturn("jwt-token");
+
+        // When
+        ResponseEntity<AuthResponse> response = authController.register(request);
+
+        // Then
+        assertEquals(201, response.getStatusCode().value());
+        assertNotNull(response.getBody());
+        assertEquals("MERCHANT", response.getBody().getRole());
+
+        verify(userRepository).existsByEmail("admin@example.com");
+        verify(passwordEncoder).encode("password123");
+        verify(userRepository).save(any(User.class));
+        verify(jwtUtil).generateToken("admin@example.com");
+    }
+
+    @Test
+    void testRegister_MerchantRole() {
+        // Given
+        RegisterRequest request = new RegisterRequest();
+        request.setEmail("merchant@example.com");
+        request.setPassword("password123");
+        request.setName("Merchant User");
+        request.setPhone("123456789");
+        request.setRole("MERCHANT");
+
+        User savedUser = new User();
+        savedUser.setId(1L);
+        savedUser.setEmail("merchant@example.com");
+        savedUser.setName("Merchant User");
+        savedUser.setRole(UserRole.MERCHANT);
+        savedUser.setSaldo_disponible(null); // Merchant should not have saldo
+
+        when(userRepository.existsByEmail("merchant@example.com")).thenReturn(false);
+        when(passwordEncoder.encode("password123")).thenReturn("encodedPassword");
+        when(userRepository.save(any(User.class))).thenReturn(savedUser);
+        when(jwtUtil.generateToken("merchant@example.com")).thenReturn("jwt-token");
+
+        // When
+        ResponseEntity<AuthResponse> response = authController.register(request);
+
+        // Then
+        assertEquals(201, response.getStatusCode().value());
+        assertNotNull(response.getBody());
+        assertEquals("MERCHANT", response.getBody().getRole());
+
+        verify(userRepository).existsByEmail("merchant@example.com");
+        verify(passwordEncoder).encode("password123");
+        verify(userRepository).save(any(User.class));
+        verify(jwtUtil).generateToken("merchant@example.com");
+    }
+
+    @Test
+    void testGetProfile_ValidTokenButUserNotFound() {
+        // Given
+        String token = "valid-jwt-token";
+        String authHeader = "Bearer " + token;
+        String email = "nonexistent@example.com";
+
+        when(jwtUtil.getSubject(token)).thenReturn(email);
+        when(userRepository.findByEmail(email)).thenReturn(Optional.empty());
+
+        // When
+        ResponseEntity<User> response = authController.getProfile(authHeader);
+
+        // Then
+        assertEquals(404, response.getStatusCode().value());
+        assertNull(response.getBody());
+
+        verify(jwtUtil).getSubject(token);
+        verify(userRepository).findByEmail(email);
+    }
+
+    @Test
+    void testGetProfile_ExceptionThrown() {
+        // Given
+        String token = "valid-jwt-token";
+        String authHeader = "Bearer " + token;
+
+        when(jwtUtil.getSubject(token)).thenThrow(new RuntimeException("JWT error"));
+
+        // When
+        ResponseEntity<User> response = authController.getProfile(authHeader);
+
+        // Then
+        assertEquals(401, response.getStatusCode().value());
+        assertNull(response.getBody());
+
+        verify(jwtUtil).getSubject(token);
+        verify(userRepository, never()).findByEmail(anyString());
+    }
 }

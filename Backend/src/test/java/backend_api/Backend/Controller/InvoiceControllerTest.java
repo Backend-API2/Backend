@@ -3,6 +3,7 @@ package backend_api.Backend.Controller;
 import backend_api.Backend.Auth.JwtUtil;
 import backend_api.Backend.DTO.invoice.*;
 import backend_api.Backend.Entity.invoice.InvoiceStatus;
+import backend_api.Backend.Entity.invoice.InvoiceEventType;
 import backend_api.Backend.Entity.user.User;
 import backend_api.Backend.Entity.user.UserRole;
 import backend_api.Backend.Repository.UserRepository;
@@ -338,5 +339,526 @@ class InvoiceControllerTest {
 
         verify(jwtUtil).getSubject(token);
         verify(userRepository, never()).findByEmail(anyString());
+    }
+
+    @Test
+    void testGetMyInvoices_UserNotFound() {
+        // Given
+        String token = "valid-jwt-token";
+        String authHeader = "Bearer " + token;
+        int page = 0;
+        int size = 10;
+
+        when(jwtUtil.getSubject(token)).thenReturn("nonexistent@example.com");
+        when(userRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
+
+        // When
+        ResponseEntity<Page<InvoiceResponse>> response = invoiceController.getMyInvoices(page, size, authHeader);
+
+        // Then
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
+        assertNull(response.getBody());
+
+        verify(jwtUtil).getSubject(token);
+        verify(userRepository).findByEmail("nonexistent@example.com");
+    }
+
+    @Test
+    void testGetMyInvoices_ExceptionThrown() {
+        // Given
+        String token = "valid-jwt-token";
+        String authHeader = "Bearer " + token;
+        int page = 0;
+        int size = 10;
+
+        when(jwtUtil.getSubject(token)).thenThrow(new RuntimeException("JWT error"));
+
+        // When
+        ResponseEntity<Page<InvoiceResponse>> response = invoiceController.getMyInvoices(page, size, authHeader);
+
+        // Then
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
+        assertNull(response.getBody());
+
+        verify(jwtUtil).getSubject(token);
+        verify(userRepository, never()).findByEmail(anyString());
+    }
+
+    @Test
+    void testGetMySummary_Success() {
+        // Given
+        String token = "valid-jwt-token";
+        String authHeader = "Bearer " + token;
+
+        User user = new User();
+        user.setId(1L);
+        user.setEmail("test@example.com");
+        user.setRole(UserRole.USER);
+
+        InvoiceSummaryResponse expectedSummary = InvoiceSummaryResponse.builder()
+                .totalInvoices(5L)
+                .totalAmount(BigDecimal.valueOf(1000.00))
+                .paidInvoices(3L)
+                .pendingInvoices(2L)
+                .build();
+
+        when(jwtUtil.getSubject(token)).thenReturn("test@example.com");
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
+        when(invoiceService.getInvoiceSummaryByUser(1L)).thenReturn(expectedSummary);
+
+        // When
+        ResponseEntity<InvoiceSummaryResponse> response = invoiceController.getMySummary(authHeader);
+
+        // Then
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(5L, response.getBody().getTotalInvoices());
+        assertEquals(BigDecimal.valueOf(1000.00), response.getBody().getTotalAmount());
+
+        verify(jwtUtil).getSubject(token);
+        verify(userRepository).findByEmail("test@example.com");
+        verify(invoiceService).getInvoiceSummaryByUser(1L);
+    }
+
+    @Test
+    void testGetMySummary_InvalidToken() {
+        // Given
+        String token = "invalid-jwt-token";
+        String authHeader = "Bearer " + token;
+
+        when(jwtUtil.getSubject(token)).thenReturn(null);
+
+        // When
+        ResponseEntity<InvoiceSummaryResponse> response = invoiceController.getMySummary(authHeader);
+
+        // Then
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
+        assertNull(response.getBody());
+
+        verify(jwtUtil).getSubject(token);
+        verify(userRepository, never()).findByEmail(anyString());
+    }
+
+    @Test
+    void testGetMySummary_UserNotFound() {
+        // Given
+        String token = "valid-jwt-token";
+        String authHeader = "Bearer " + token;
+
+        when(jwtUtil.getSubject(token)).thenReturn("nonexistent@example.com");
+        when(userRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
+
+        // When
+        ResponseEntity<InvoiceSummaryResponse> response = invoiceController.getMySummary(authHeader);
+
+        // Then
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
+        assertNull(response.getBody());
+
+        verify(jwtUtil).getSubject(token);
+        verify(userRepository).findByEmail("nonexistent@example.com");
+    }
+
+    @Test
+    void testGetMySummary_ExceptionThrown() {
+        // Given
+        String token = "valid-jwt-token";
+        String authHeader = "Bearer " + token;
+
+        when(jwtUtil.getSubject(token)).thenThrow(new RuntimeException("JWT error"));
+
+        // When
+        ResponseEntity<InvoiceSummaryResponse> response = invoiceController.getMySummary(authHeader);
+
+        // Then
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
+        assertNull(response.getBody());
+
+        verify(jwtUtil).getSubject(token);
+        verify(userRepository, never()).findByEmail(anyString());
+    }
+
+    @Test
+    void testUpdateInvoice_Success() {
+        // Given
+        Long invoiceId = 1L;
+        UpdateInvoiceRequest request = new UpdateInvoiceRequest();
+        // UpdateInvoiceRequest doesn't have setAmount/setDescription methods
+        // Using available fields instead
+
+        InvoiceResponse expectedResponse = InvoiceResponse.builder()
+                .id(invoiceId)
+                .invoiceNumber("INV-001")
+                .totalAmount(BigDecimal.valueOf(200.00))
+                .status(InvoiceStatus.PENDING)
+                .build();
+
+        when(invoiceService.updateInvoice(invoiceId, request)).thenReturn(expectedResponse);
+
+        // When
+        ResponseEntity<InvoiceResponse> response = invoiceController.updateInvoice(invoiceId, request);
+
+        // Then
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(invoiceId, response.getBody().getId());
+        assertEquals(BigDecimal.valueOf(200.00), response.getBody().getTotalAmount());
+
+        verify(invoiceService).updateInvoice(invoiceId, request);
+    }
+
+    @Test
+    void testUpdateInvoiceStatus_Success() {
+        // Given
+        Long invoiceId = 1L;
+        UpdateInvoiceStatusRequest request = new UpdateInvoiceStatusRequest();
+        request.setStatus("PAID");
+
+        InvoiceResponse expectedResponse = InvoiceResponse.builder()
+                .id(invoiceId)
+                .invoiceNumber("INV-001")
+                .status(InvoiceStatus.PAID)
+                .build();
+
+        when(invoiceService.updateInvoiceStatus(invoiceId, request)).thenReturn(expectedResponse);
+
+        // When
+        ResponseEntity<InvoiceResponse> response = invoiceController.updateInvoiceStatus(invoiceId, request);
+
+        // Then
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(invoiceId, response.getBody().getId());
+        assertEquals(InvoiceStatus.PAID, response.getBody().getStatus());
+
+        verify(invoiceService).updateInvoiceStatus(invoiceId, request);
+    }
+
+    @Test
+    void testSendInvoice_Success() {
+        // Given
+        Long invoiceId = 1L;
+
+        InvoiceResponse expectedResponse = InvoiceResponse.builder()
+                .id(invoiceId)
+                .invoiceNumber("INV-001")
+                .status(InvoiceStatus.SENT)
+                .build();
+
+        when(invoiceService.markAsSent(invoiceId)).thenReturn(expectedResponse);
+
+        // When
+        ResponseEntity<InvoiceResponse> response = invoiceController.sendInvoice(invoiceId);
+
+        // Then
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(invoiceId, response.getBody().getId());
+        assertEquals(InvoiceStatus.SENT, response.getBody().getStatus());
+
+        verify(invoiceService).markAsSent(invoiceId);
+    }
+
+    @Test
+    void testMarkInvoiceAsPaid_Success() {
+        // Given
+        Long invoiceId = 1L;
+
+        InvoiceResponse expectedResponse = InvoiceResponse.builder()
+                .id(invoiceId)
+                .invoiceNumber("INV-001")
+                .status(InvoiceStatus.PAID)
+                .build();
+
+        when(invoiceService.markAsPaid(invoiceId)).thenReturn(expectedResponse);
+
+        // When
+        ResponseEntity<InvoiceResponse> response = invoiceController.markInvoiceAsPaid(invoiceId);
+
+        // Then
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(invoiceId, response.getBody().getId());
+        assertEquals(InvoiceStatus.PAID, response.getBody().getStatus());
+
+        verify(invoiceService).markAsPaid(invoiceId);
+    }
+
+    @Test
+    void testCancelInvoice_Success() {
+        // Given
+        Long invoiceId = 1L;
+
+        InvoiceResponse expectedResponse = InvoiceResponse.builder()
+                .id(invoiceId)
+                .invoiceNumber("INV-001")
+                .status(InvoiceStatus.CANCELED)
+                .build();
+
+        when(invoiceService.cancelInvoice(invoiceId)).thenReturn(expectedResponse);
+
+        // When
+        ResponseEntity<InvoiceResponse> response = invoiceController.cancelInvoice(invoiceId);
+
+        // Then
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(invoiceId, response.getBody().getId());
+        assertEquals(InvoiceStatus.CANCELED, response.getBody().getStatus());
+
+        verify(invoiceService).cancelInvoice(invoiceId);
+    }
+
+    @Test
+    void testSearchInvoices_Success() {
+        // Given
+        InvoiceSearchRequest request = new InvoiceSearchRequest();
+        request.setStatus(InvoiceStatus.PENDING);
+        request.setMinAmount(BigDecimal.valueOf(100.00));
+
+        InvoiceResponse invoice = InvoiceResponse.builder()
+                .id(1L)
+                .invoiceNumber("INV-001")
+                .status(InvoiceStatus.PENDING)
+                .build();
+
+        Page<InvoiceResponse> expectedPage = new PageImpl<>(
+            Arrays.asList(invoice),
+            PageRequest.of(0, 10),
+            1L
+        );
+
+        when(invoiceService.searchInvoices(request)).thenReturn(expectedPage);
+
+        // When
+        ResponseEntity<Page<InvoiceResponse>> response = invoiceController.searchInvoices(request);
+
+        // Then
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(1, response.getBody().getContent().size());
+        assertEquals(InvoiceStatus.PENDING, response.getBody().getContent().get(0).getStatus());
+
+        verify(invoiceService).searchInvoices(request);
+    }
+
+    @Test
+    void testGetInvoicesByProviderId_Success() {
+        // Given
+        Long providerId = 1L;
+        int page = 0;
+        int size = 10;
+
+        InvoiceResponse invoice = InvoiceResponse.builder()
+                .id(1L)
+                .invoiceNumber("INV-001")
+                .providerId(providerId)
+                .build();
+
+        Page<InvoiceResponse> expectedPage = new PageImpl<>(
+            Arrays.asList(invoice),
+            PageRequest.of(page, size),
+            1L
+        );
+
+        when(invoiceService.getInvoicesByProviderId(providerId, page, size)).thenReturn(expectedPage);
+
+        // When
+        ResponseEntity<Page<InvoiceResponse>> response = invoiceController.getInvoicesByProviderId(providerId, page, size);
+
+        // Then
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(1, response.getBody().getContent().size());
+        assertEquals(providerId, response.getBody().getContent().get(0).getProviderId());
+
+        verify(invoiceService).getInvoicesByProviderId(providerId, page, size);
+    }
+
+    @Test
+    void testRegeneratePdf_Success() {
+        // Given
+        Long invoiceId = 1L;
+        String expectedPdfUrl = "http://localhost:8080/api/invoices/1/pdf/download";
+
+        when(invoiceService.regeneratePdf(invoiceId)).thenReturn(expectedPdfUrl);
+
+        // When
+        ResponseEntity<Map<String, String>> response = invoiceController.regeneratePdf(invoiceId);
+
+        // Then
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(expectedPdfUrl, response.getBody().get("pdfUrl"));
+        assertEquals("PDF regenerado exitosamente", response.getBody().get("message"));
+
+        verify(invoiceService).regeneratePdf(invoiceId);
+    }
+
+    @Test
+    void testDownloadPdf_Success() {
+        // Given
+        Long invoiceId = 1L;
+        byte[] pdfContent = "PDF content".getBytes();
+
+        when(invoiceService.downloadPdf(invoiceId)).thenReturn(pdfContent);
+
+        // When
+        ResponseEntity<byte[]> response = invoiceController.downloadPdf(invoiceId);
+
+        // Then
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(pdfContent, response.getBody());
+        assertEquals("application/pdf", response.getHeaders().getContentType().toString());
+
+        verify(invoiceService).downloadPdf(invoiceId);
+    }
+
+    @Test
+    void testGetInvoiceTimeline_Success() {
+        // Given
+        Long invoiceId = 1L;
+
+        InvoiceEventResponse event1 = InvoiceEventResponse.builder()
+                .id(1L)
+                .eventType(InvoiceEventType.INVOICE_CREATED)
+                .description("Invoice created")
+                .build();
+
+        InvoiceEventResponse event2 = InvoiceEventResponse.builder()
+                .id(2L)
+                .eventType(InvoiceEventType.INVOICE_SENT)
+                .description("Invoice sent")
+                .build();
+
+        List<InvoiceEventResponse> expectedEvents = Arrays.asList(event1, event2);
+
+        when(invoiceService.getInvoiceTimeline(invoiceId)).thenReturn(expectedEvents);
+
+        // When
+        ResponseEntity<List<InvoiceEventResponse>> response = invoiceController.getInvoiceTimeline(invoiceId);
+
+        // Then
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(2, response.getBody().size());
+        assertEquals(InvoiceEventType.INVOICE_CREATED, response.getBody().get(0).getEventType());
+        assertEquals(InvoiceEventType.INVOICE_SENT, response.getBody().get(1).getEventType());
+
+        verify(invoiceService).getInvoiceTimeline(invoiceId);
+    }
+
+    @Test
+    void testGetInvoiceSummary_Success() {
+        // Given
+        Long providerId = 1L;
+
+        InvoiceSummaryResponse expectedSummary = InvoiceSummaryResponse.builder()
+                .totalInvoices(10L)
+                .totalAmount(BigDecimal.valueOf(5000.00))
+                .paidInvoices(7L)
+                .pendingInvoices(3L)
+                .build();
+
+        when(invoiceService.getInvoiceSummary(providerId)).thenReturn(expectedSummary);
+
+        // When
+        ResponseEntity<InvoiceSummaryResponse> response = invoiceController.getInvoiceSummary(providerId);
+
+        // Then
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(10L, response.getBody().getTotalInvoices());
+        assertEquals(BigDecimal.valueOf(5000.00), response.getBody().getTotalAmount());
+
+        verify(invoiceService).getInvoiceSummary(providerId);
+    }
+
+    @Test
+    void testGetInvoiceSummaryByUser_Success() {
+        // Given
+        Long userId = 1L;
+
+        InvoiceSummaryResponse expectedSummary = InvoiceSummaryResponse.builder()
+                .totalInvoices(5L)
+                .totalAmount(BigDecimal.valueOf(2500.00))
+                .paidInvoices(3L)
+                .pendingInvoices(2L)
+                .build();
+
+        when(invoiceService.getInvoiceSummaryByUser(userId)).thenReturn(expectedSummary);
+
+        // When
+        ResponseEntity<InvoiceSummaryResponse> response = invoiceController.getInvoiceSummaryByUser(userId);
+
+        // Then
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(5L, response.getBody().getTotalInvoices());
+        assertEquals(BigDecimal.valueOf(2500.00), response.getBody().getTotalAmount());
+
+        verify(invoiceService).getInvoiceSummaryByUser(userId);
+    }
+
+    @Test
+    void testGetInvoicesDueSoon_Success() {
+        // Given
+        int days = 7;
+
+        InvoiceResponse invoice1 = InvoiceResponse.builder()
+                .id(1L)
+                .invoiceNumber("INV-001")
+                .status(InvoiceStatus.PENDING)
+                .build();
+
+        InvoiceResponse invoice2 = InvoiceResponse.builder()
+                .id(2L)
+                .invoiceNumber("INV-002")
+                .status(InvoiceStatus.PENDING)
+                .build();
+
+        List<InvoiceResponse> expectedInvoices = Arrays.asList(invoice1, invoice2);
+
+        when(invoiceService.getInvoicesDueSoon(days)).thenReturn(expectedInvoices);
+
+        // When
+        ResponseEntity<List<InvoiceResponse>> response = invoiceController.getInvoicesDueSoon(days);
+
+        // Then
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(2, response.getBody().size());
+        assertEquals("INV-001", response.getBody().get(0).getInvoiceNumber());
+        assertEquals("INV-002", response.getBody().get(1).getInvoiceNumber());
+
+        verify(invoiceService).getInvoicesDueSoon(days);
+    }
+
+    @Test
+    void testCreateInvoiceFromPayment_Success() {
+        // Given
+        Long paymentId = 1L;
+
+        InvoiceResponse expectedResponse = InvoiceResponse.builder()
+                .id(1L)
+                .invoiceNumber("INV-001")
+                .paymentId(paymentId)
+                .status(InvoiceStatus.PENDING)
+                .build();
+
+        when(invoiceService.createInvoiceFromPayment(paymentId)).thenReturn(expectedResponse);
+
+        // When
+        ResponseEntity<InvoiceResponse> response = invoiceController.createInvoiceFromPayment(paymentId);
+
+        // Then
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(1L, response.getBody().getId());
+        assertEquals(paymentId, response.getBody().getPaymentId());
+        assertEquals("INV-001", response.getBody().getInvoiceNumber());
+
+        verify(invoiceService).createInvoiceFromPayment(paymentId);
     }
 }

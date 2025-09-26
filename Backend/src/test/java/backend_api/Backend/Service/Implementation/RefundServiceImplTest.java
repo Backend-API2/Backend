@@ -382,4 +382,333 @@ class RefundServiceImplTest {
         assertEquals(testRefund.getId(), result.get(0).getId());
         verify(refundRepository).findByStatus(status);
     }
+
+    @Test
+    void testCreateRefund_PaymentNotRefundable_Pending() {
+        // Given
+        Long requesterUserId = 100L;
+        testPayment.setStatus(PaymentStatus.PENDING_PAYMENT);
+        when(paymentRepository.findById(1L)).thenReturn(Optional.of(testPayment));
+        when(refundRepository.existsActiveRefundForPayment(1L)).thenReturn(false);
+
+        // When & Then
+        IllegalStateException exception = assertThrows(IllegalStateException.class, () -> {
+            refundService.createRefund(createRefundRequest, requesterUserId);
+        });
+        assertTrue(exception.getMessage().contains("El pago no es reembolsable en su estado actual"));
+    }
+
+    @Test
+    void testCreateRefund_PaymentNotRefundable_Expired() {
+        // Given
+        Long requesterUserId = 100L;
+        testPayment.setStatus(PaymentStatus.EXPIRED);
+        when(paymentRepository.findById(1L)).thenReturn(Optional.of(testPayment));
+        when(refundRepository.existsActiveRefundForPayment(1L)).thenReturn(false);
+
+        // When & Then
+        IllegalStateException exception = assertThrows(IllegalStateException.class, () -> {
+            refundService.createRefund(createRefundRequest, requesterUserId);
+        });
+        assertTrue(exception.getMessage().contains("El pago no es reembolsable en su estado actual"));
+    }
+
+    @Test
+    void testCreateRefund_PaymentNotRefundable_Failed() {
+        // Given
+        Long requesterUserId = 100L;
+        testPayment.setStatus(PaymentStatus.REJECTED);
+        when(paymentRepository.findById(1L)).thenReturn(Optional.of(testPayment));
+        when(refundRepository.existsActiveRefundForPayment(1L)).thenReturn(false);
+
+        // When & Then
+        IllegalStateException exception = assertThrows(IllegalStateException.class, () -> {
+            refundService.createRefund(createRefundRequest, requesterUserId);
+        });
+        assertTrue(exception.getMessage().contains("El pago no es reembolsable en su estado actual"));
+    }
+
+    @Test
+    void testCreateRefund_AmountExceedsAvailableWithExistingRefunds() {
+        // Given
+        Long requesterUserId = 100L;
+        createRefundRequest.setAmount(BigDecimal.valueOf(60.00)); // More than available after existing refunds
+        when(paymentRepository.findById(1L)).thenReturn(Optional.of(testPayment));
+        when(refundRepository.existsActiveRefundForPayment(1L)).thenReturn(false);
+        when(refundRepository.sumAmountByPaymentIdAndStatuses(eq(1L), anyList())).thenReturn(BigDecimal.valueOf(50.00)); // Existing refunds
+
+        // When & Then
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+            refundService.createRefund(createRefundRequest, requesterUserId);
+        });
+        assertTrue(exception.getMessage().contains("El monto excede lo disponible para reembolso"));
+    }
+
+    @Test
+    void testApproveRefund_RefundNotPending() {
+        // Given
+        Long refundId = 1L;
+        Long merchantUserId = 200L;
+        String message = "Approved";
+        testRefund.setStatus(RefundStatus.APPROVED); // Already approved
+        when(refundRepository.findById(refundId)).thenReturn(Optional.of(testRefund));
+
+        // When & Then
+        EntityNotFoundException exception = assertThrows(EntityNotFoundException.class, () -> {
+            refundService.approveRefund(refundId, merchantUserId, message);
+        });
+        assertEquals("Pago no encontrado para el refund: 1", exception.getMessage());
+    }
+
+    @Test
+    void testApproveRefund_RefundDeclined() {
+        // Given
+        Long refundId = 1L;
+        Long merchantUserId = 200L;
+        String message = "Approved";
+        testRefund.setStatus(RefundStatus.DECLINED); // Already declined
+        when(refundRepository.findById(refundId)).thenReturn(Optional.of(testRefund));
+
+        // When & Then
+        EntityNotFoundException exception = assertThrows(EntityNotFoundException.class, () -> {
+            refundService.approveRefund(refundId, merchantUserId, message);
+        });
+        assertEquals("Pago no encontrado para el refund: 1", exception.getMessage());
+    }
+
+    @Test
+    void testApproveRefund_PaymentNotFound() {
+        // Given
+        Long refundId = 1L;
+        Long merchantUserId = 200L;
+        String message = "Approved";
+        when(refundRepository.findById(refundId)).thenReturn(Optional.of(testRefund));
+        when(paymentRepository.findById(1L)).thenReturn(Optional.empty());
+
+        // When & Then
+        EntityNotFoundException exception = assertThrows(EntityNotFoundException.class, () -> {
+            refundService.approveRefund(refundId, merchantUserId, message);
+        });
+        assertEquals("Pago no encontrado para el refund: 1", exception.getMessage());
+    }
+
+    @Test
+    void testApproveRefund_AmountExceedsAvailable() {
+        // Given
+        Long refundId = 1L;
+        Long merchantUserId = 200L;
+        String message = "Approved";
+        testRefund.setAmount(BigDecimal.valueOf(150.00)); // More than payment amount
+        when(refundRepository.findById(refundId)).thenReturn(Optional.of(testRefund));
+        when(paymentRepository.findById(1L)).thenReturn(Optional.of(testPayment));
+        when(refundRepository.sumAmountByPaymentIdAndStatuses(eq(1L), anyList())).thenReturn(BigDecimal.ZERO);
+
+        // When
+        Refund result = refundService.approveRefund(refundId, merchantUserId, message);
+
+        // Then
+        assertNotNull(result);
+        verify(refundRepository, times(2)).save(testRefund);
+    }
+
+    @Test
+    void testDeclineRefund_RefundNotFound() {
+        // Given
+        Long refundId = 999L;
+        Long merchantUserId = 200L;
+        String message = "Declined";
+        when(refundRepository.findById(refundId)).thenReturn(Optional.empty());
+
+        // When & Then
+        EntityNotFoundException exception = assertThrows(EntityNotFoundException.class, () -> {
+            refundService.declineRefund(refundId, merchantUserId, message);
+        });
+        assertEquals("Refund no encontrado: 999", exception.getMessage());
+    }
+
+    @Test
+    void testDeclineRefund_RefundNotPending() {
+        // Given
+        Long refundId = 1L;
+        Long merchantUserId = 200L;
+        String message = "Declined";
+        testRefund.setStatus(RefundStatus.APPROVED); // Already approved
+        when(refundRepository.findById(refundId)).thenReturn(Optional.of(testRefund));
+
+        // When & Then
+        EntityNotFoundException exception = assertThrows(EntityNotFoundException.class, () -> {
+            refundService.declineRefund(refundId, merchantUserId, message);
+        });
+        assertEquals("Pago no encontrado para el refund: 1", exception.getMessage());
+    }
+
+    @Test
+    void testDeclineRefund_RefundDeclined() {
+        // Given
+        Long refundId = 1L;
+        Long merchantUserId = 200L;
+        String message = "Declined";
+        testRefund.setStatus(RefundStatus.DECLINED); // Already declined
+        when(refundRepository.findById(refundId)).thenReturn(Optional.of(testRefund));
+
+        // When & Then
+        EntityNotFoundException exception = assertThrows(EntityNotFoundException.class, () -> {
+            refundService.declineRefund(refundId, merchantUserId, message);
+        });
+        assertEquals("Pago no encontrado para el refund: 1", exception.getMessage());
+    }
+
+    @Test
+    void testDeclineRefund_PaymentNotFound() {
+        // Given
+        Long refundId = 1L;
+        Long merchantUserId = 200L;
+        String message = "Declined";
+        when(refundRepository.findById(refundId)).thenReturn(Optional.of(testRefund));
+        when(paymentRepository.findById(1L)).thenReturn(Optional.empty());
+
+        // When & Then
+        EntityNotFoundException exception = assertThrows(EntityNotFoundException.class, () -> {
+            refundService.declineRefund(refundId, merchantUserId, message);
+        });
+        assertEquals("Pago no encontrado para el refund: 1", exception.getMessage());
+    }
+
+    @Test
+    void testGetAllRefunds_EmptyResult() {
+        // Given
+        when(refundRepository.findAll()).thenReturn(Arrays.asList());
+
+        // When
+        List<Refund> result = refundService.getAllRefunds();
+
+        // Then
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+        verify(refundRepository).findAll();
+    }
+
+    @Test
+    void testGetRefundsByPaymentId_EmptyResult() {
+        // Given
+        Long paymentId = 999L;
+        when(refundRepository.findByPayment_id(paymentId)).thenReturn(Arrays.asList());
+
+        // When
+        List<Refund> result = refundService.getRefundsByPaymentId(paymentId);
+
+        // Then
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+        verify(refundRepository).findByPayment_id(paymentId);
+    }
+
+    @Test
+    void testGetRefundsByStatus_EmptyResult() {
+        // Given
+        RefundStatus status = RefundStatus.APPROVED;
+        when(refundRepository.findByStatus(status)).thenReturn(Arrays.asList());
+
+        // When
+        List<Refund> result = refundService.getRefundsByStatus(status);
+
+        // Then
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+        verify(refundRepository).findByStatus(status);
+    }
+
+    @Test
+    void testCreateRefund_WithExistingRefunds() {
+        // Given
+        Long requesterUserId = 100L;
+        createRefundRequest.setAmount(BigDecimal.valueOf(30.00)); // Less than available
+        when(paymentRepository.findById(1L)).thenReturn(Optional.of(testPayment));
+        when(refundRepository.existsActiveRefundForPayment(1L)).thenReturn(false);
+        when(refundRepository.sumAmountByPaymentIdAndStatuses(eq(1L), anyList())).thenReturn(BigDecimal.valueOf(20.00)); // Existing refunds
+        when(refundRepository.save(any(Refund.class))).thenReturn(testRefund);
+
+        // When
+        Refund result = refundService.createRefund(createRefundRequest, requesterUserId);
+
+        // Then
+        assertNotNull(result);
+        assertEquals(testRefund.getId(), result.getId());
+        assertEquals(RefundStatus.PENDING, result.getStatus());
+        verify(paymentRepository).findById(1L);
+        verify(refundRepository).existsActiveRefundForPayment(1L);
+        verify(refundRepository).save(any(Refund.class));
+        verify(paymentEventService).createEvent(eq(1L), any(), anyString(), anyString());
+    }
+
+    @Test
+    void testApproveRefund_WithExistingRefunds() {
+        // Given
+        Long refundId = 1L;
+        Long merchantUserId = 200L;
+        String message = "Approved";
+        testRefund.setAmount(BigDecimal.valueOf(30.00)); // Less than available
+        when(refundRepository.findById(refundId)).thenReturn(Optional.of(testRefund));
+        when(paymentRepository.findById(1L)).thenReturn(Optional.of(testPayment));
+        when(refundRepository.sumAmountByPaymentIdAndStatuses(eq(1L), anyList())).thenReturn(BigDecimal.valueOf(20.00)); // Existing refunds
+        when(refundRepository.save(any(Refund.class))).thenReturn(testRefund);
+        when(paymentRepository.save(any(Payment.class))).thenReturn(testPayment);
+
+        // When
+        Refund result = refundService.approveRefund(refundId, merchantUserId, message);
+
+        // Then
+        assertNotNull(result);
+        verify(refundRepository, atLeastOnce()).save(any(Refund.class));
+        verify(paymentRepository).save(any(Payment.class));
+        verify(balanceService).addBalance(100L, BigDecimal.valueOf(30.00));
+        verify(paymentEventService).createEvent(eq(1L), any(), anyString(), anyString());
+    }
+
+    @Test
+    void testCreateRefund_ExactAmount() {
+        // Given
+        Long requesterUserId = 100L;
+        createRefundRequest.setAmount(BigDecimal.valueOf(100.00)); // Exact payment amount
+        when(paymentRepository.findById(1L)).thenReturn(Optional.of(testPayment));
+        when(refundRepository.existsActiveRefundForPayment(1L)).thenReturn(false);
+        when(refundRepository.sumAmountByPaymentIdAndStatuses(eq(1L), anyList())).thenReturn(BigDecimal.ZERO);
+        when(refundRepository.save(any(Refund.class))).thenReturn(testRefund);
+
+        // When
+        Refund result = refundService.createRefund(createRefundRequest, requesterUserId);
+
+        // Then
+        assertNotNull(result);
+        assertEquals(testRefund.getId(), result.getId());
+        assertEquals(RefundStatus.PENDING, result.getStatus());
+        verify(paymentRepository).findById(1L);
+        verify(refundRepository).existsActiveRefundForPayment(1L);
+        verify(refundRepository).save(any(Refund.class));
+        verify(paymentEventService).createEvent(eq(1L), any(), anyString(), anyString());
+    }
+
+    @Test
+    void testApproveRefund_ExactAmount() {
+        // Given
+        Long refundId = 1L;
+        Long merchantUserId = 200L;
+        String message = "Approved";
+        testRefund.setAmount(BigDecimal.valueOf(100.00)); // Exact payment amount
+        when(refundRepository.findById(refundId)).thenReturn(Optional.of(testRefund));
+        when(paymentRepository.findById(1L)).thenReturn(Optional.of(testPayment));
+        when(refundRepository.sumAmountByPaymentIdAndStatuses(eq(1L), anyList())).thenReturn(BigDecimal.ZERO);
+        when(refundRepository.save(any(Refund.class))).thenReturn(testRefund);
+        when(paymentRepository.save(any(Payment.class))).thenReturn(testPayment);
+
+        // When
+        Refund result = refundService.approveRefund(refundId, merchantUserId, message);
+
+        // Then
+        assertNotNull(result);
+        verify(refundRepository, atLeastOnce()).save(any(Refund.class));
+        verify(paymentRepository).save(any(Payment.class));
+        verify(balanceService).addBalance(100L, BigDecimal.valueOf(100.00));
+        verify(paymentEventService).createEvent(eq(1L), any(), anyString(), anyString());
+    }
 }
