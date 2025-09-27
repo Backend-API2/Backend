@@ -26,6 +26,7 @@ public class OpenApiConfig {
     @Bean
     public OpenAPI customOpenAPI() {
         return new OpenAPI()
+                .openapi("3.0.3")
                 .info(new Info()
                         .title("Backend API - Sistema de Pagos y Facturación")
                         .description("API REST para el sistema de pagos y facturación. " +
