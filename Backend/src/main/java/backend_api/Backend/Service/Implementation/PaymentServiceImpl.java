@@ -8,6 +8,8 @@ import backend_api.Backend.Repository.PaymentRepository;
 import backend_api.Backend.Service.Interface.PaymentService;
 import backend_api.Backend.Service.Interface.PaymentEventService;
 import backend_api.Backend.Service.Interface.PaymentAttemptService;
+import backend_api.Backend.messaging.publisher.PaymentStatusPublisher;
+import backend_api.Backend.messaging.dto.PaymentStatusUpdateMessage;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -32,6 +34,9 @@ public class PaymentServiceImpl implements PaymentService{
     
     @Autowired
     private PaymentAttemptService paymentAttemptService;
+
+    @Autowired
+    private PaymentStatusPublisher paymentStatusPublisher;
 
     @Override
     public Payment createPayment(Payment payment) {
@@ -119,13 +124,19 @@ public class PaymentServiceImpl implements PaymentService{
         Optional<Payment> exisitngPayment = paymentRepository.findById(id);
         if (exisitngPayment.isPresent()){
             Payment paymentToUpdate = exisitngPayment.get();
+            PaymentStatus oldStatus = paymentToUpdate.getStatus();
             paymentToUpdate.setStatus(status);
             paymentToUpdate.setUpdated_at(LocalDateTime.now());
 
             if ( status == PaymentStatus.APPROVED) {
                 paymentToUpdate.setCaptured_at(LocalDateTime.now());
             }
-            return paymentRepository.save(paymentToUpdate);
+
+            Payment savedPayment = paymentRepository.save(paymentToUpdate);
+
+            publishPaymentStatusUpdate(savedPayment, oldStatus, status);
+
+            return savedPayment;
         }
         throw new RuntimeException("Pago no fue encontrado con id: " + id);
     }
@@ -288,6 +299,45 @@ public class PaymentServiceImpl implements PaymentService{
     
     private boolean simulateGatewayCall() {
         return Math.random() > 0.2;
+    }
+
+    private void publishPaymentStatusUpdate(Payment payment, PaymentStatus oldStatus, PaymentStatus newStatus) {
+        try {
+            PaymentStatusUpdateMessage message = new PaymentStatusUpdateMessage();
+            message.setPaymentId(payment.getId());
+            message.setOldStatus(oldStatus);
+            message.setNewStatus(newStatus);
+            message.setUpdatedAt(payment.getUpdated_at());
+            message.setAmountTotal(payment.getAmount_total());
+            message.setCurrency(payment.getCurrency());
+            message.setGatewayTxnId(payment.getGateway_txn_id());
+            message.setCapturedAt(payment.getCaptured_at());
+
+            if (payment.getMetadata() != null && payment.getMetadata().containsKey("matchingId")) {
+                message.setMatchingId((Long) payment.getMetadata().get("matchingId"));
+            }
+
+            String reason = determineStatusChangeReason(oldStatus, newStatus);
+            message.setReason(reason);
+
+            paymentStatusPublisher.publishPaymentStatusUpdate(message);
+        } catch (Exception e) {
+            throw new RuntimeException("Error al publicar actualización de estado", e);
+        }
+    }
+
+    private String determineStatusChangeReason(PaymentStatus oldStatus, PaymentStatus newStatus) {
+        if (newStatus == PaymentStatus.APPROVED) {
+            return "Payment approved successfully";
+        } else if (newStatus == PaymentStatus.REJECTED) {
+            return "Payment rejected";
+        } else if (newStatus == PaymentStatus.CANCELLED) {
+            return "Payment cancelled";
+        } else if (newStatus == PaymentStatus.EXPIRED) {
+            return "Payment expired";
+        } else {
+            return "Payment status updated from " + oldStatus + " to " + newStatus;
+        }
     }
     
     @Override
