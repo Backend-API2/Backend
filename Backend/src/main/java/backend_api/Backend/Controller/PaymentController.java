@@ -11,6 +11,9 @@ import backend_api.Backend.DTO.payment.PaymentResponse;
 import backend_api.Backend.DTO.payment.PagedPaymentResponse;
 import backend_api.Backend.Auth.JwtUtil;
 import backend_api.Backend.Repository.UserRepository;
+import backend_api.Backend.Service.Common.AuthenticationService;
+import backend_api.Backend.Service.Common.EntityValidationService;
+import backend_api.Backend.Service.Common.ResponseMapperService;
 import backend_api.Backend.Entity.user.User;
 import backend_api.Backend.DTO.payment.CreatePaymentRequest;
 import backend_api.Backend.DTO.payment.PaymentSearchRequest;
@@ -34,6 +37,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
+import jakarta.persistence.EntityNotFoundException;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -72,6 +76,15 @@ public class PaymentController {
     @Autowired
     private BalanceService balanceService;
 
+    @Autowired
+    private AuthenticationService authenticationService;
+
+    @Autowired
+    private EntityValidationService entityValidationService;
+
+    @Autowired
+    private ResponseMapperService responseMapperService;
+
     //  CREAR NUEVO PAGO 
     @Operation(
         summary = "Crear nuevo pago",
@@ -83,19 +96,7 @@ public class PaymentController {
             @Valid @RequestBody CreatePaymentRequest request,
             @RequestHeader("Authorization") String authHeader) {
         try {
-            String token = authHeader.replace("Bearer ", "");
-            String email = jwtUtil.getSubject(token);
-            
-            if (email == null) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-            }
-            
-            Optional<User> userOpt = userRepository.findByEmail(email);
-            if (!userOpt.isPresent()) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-            }
-            
-            User user = userOpt.get();
+            User user = authenticationService.getUserFromToken(authHeader);
             
             BigDecimal total = request.getAmount_subtotal()
                                 .add(request.getTaxes())
@@ -149,9 +150,11 @@ public class PaymentController {
             );
             
             PaymentResponse response = PaymentResponse.fromEntity(savedPayment);
-            
+
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
-            
+
+        } catch (SecurityException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
@@ -177,21 +180,20 @@ public class PaymentController {
             @PathVariable Long paymentId,
             @Valid @RequestBody SelectPaymentMethodRequest request) {
         try {
-            Payment payment = paymentService.getPaymentById(paymentId)
-                    .orElseThrow(() -> new RuntimeException("Pago no encontrado"));
-            
+            Payment payment = entityValidationService.getPaymentOrThrow(paymentId);
+
             if (payment.getStatus() != PaymentStatus.PENDING_PAYMENT) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
             }
-            
+
             PaymentMethod paymentMethod = paymentMethodService.createPaymentMethod(request);
-            
+
             Payment updatedPayment = paymentService.updatePaymentMethod(paymentId, paymentMethod);
-            
+
             return ResponseEntity.ok(PaymentResponse.fromEntity(updatedPayment));
-            
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().build();
+
+        } catch (EntityNotFoundException e) {
+            return ResponseEntity.notFound().build();
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
@@ -201,8 +203,7 @@ public class PaymentController {
     @PutMapping("/{paymentId}/confirm")
     public ResponseEntity<PaymentResponse> confirmPayment(@PathVariable Long paymentId) {
         try {
-            Payment payment = paymentService.getPaymentById(paymentId)
-                    .orElseThrow(() -> new RuntimeException("Pago no encontrado"));
+            Payment payment = entityValidationService.getPaymentOrThrow(paymentId);
             
             if (payment.getStatus() != PaymentStatus.PENDING_PAYMENT) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
@@ -230,8 +231,7 @@ public class PaymentController {
                     "system"
                 );
             } else {
-                User user = userRepository.findById(payment.getUser_id())
-                        .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+                User user = entityValidationService.getUserOrThrow(payment.getUser_id());
                 
                 if (user.getRole().name().equals("USER")) {
                     try {
@@ -268,13 +268,13 @@ public class PaymentController {
             
             return ResponseEntity.ok(PaymentResponse.fromEntity(updatedPayment));
             
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().build();
+        } catch (EntityNotFoundException e) {
+            return ResponseEntity.notFound().build();
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
-    
+
     @PostMapping("/{paymentId}/cancel")
     public ResponseEntity<PaymentResponse> cancelPayment(
             @PathVariable Long paymentId,
@@ -314,19 +314,9 @@ public class PaymentController {
             @PathVariable Long paymentId,
             @RequestHeader("Authorization") String authHeader) {
         try {
-            String token = authHeader.replace("Bearer ", "");
-            String email = jwtUtil.getSubject(token);
-            
-            if (email == null) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-            }
-            
-            User user = userRepository.findByEmail(email)
-                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
-            
-            Payment payment = paymentService.getPaymentById(paymentId)
-                    .orElseThrow(() -> new RuntimeException("Pago no encontrado"));
-            
+            User user = authenticationService.getUserFromToken(authHeader);
+            Payment payment = entityValidationService.getPaymentOrThrow(paymentId);
+
             if (!payment.getUser_id().equals(user.getId())) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
             }
@@ -362,7 +352,11 @@ public class PaymentController {
             );
             
             return ResponseEntity.ok(PaymentResponse.fromEntity(updatedPayment));
-            
+
+        } catch (SecurityException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (EntityNotFoundException e) {
+            return ResponseEntity.notFound().build();
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
@@ -373,37 +367,18 @@ public class PaymentController {
             @PathVariable Long paymentId,
             @RequestHeader("Authorization") String authHeader) {
         try {
-            String token = authHeader.replace("Bearer ", "");
-            String email = jwtUtil.getSubject(token);
+            User currentUser = authenticationService.getUserFromToken(authHeader);
+            Payment payment = entityValidationService.getPaymentOrThrow(paymentId);
+
+            entityValidationService.validatePaymentOwnership(paymentId, currentUser.getId(), currentUser.getRole().name());
             
-            if (email == null) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-            }
-            
-            User currentUser = userRepository.findByEmail(email)
-                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
-            
-            Payment payment = paymentService.getPaymentById(paymentId)
-                    .orElseThrow(() -> new RuntimeException("Pago no encontrado"));
-            
-            boolean hasAccess = false;
-            if (currentUser.getRole().name().equals("MERCHANT")) {
-                hasAccess = payment.getProvider_id().equals(currentUser.getId());
-            } else {
-                hasAccess = payment.getUser_id().equals(currentUser.getId());
-            }
-            
-            if (!hasAccess) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-            }
-            
-            PaymentResponse response = PaymentResponse.fromEntityWithNames(
-                payment, 
-                userRepository, 
-                currentUser.getRole().name()
-            );
-            
+            PaymentResponse response = responseMapperService.mapPaymentToResponse(payment, currentUser.getRole().name());
+
             return ResponseEntity.ok(response);
+        } catch (SecurityException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (EntityNotFoundException e) {
+            return ResponseEntity.notFound().build();
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
@@ -417,60 +392,22 @@ public class PaymentController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         try {
-            String token = authHeader.replace("Bearer ", "");
-            String email = jwtUtil.getSubject(token);
-            
-            if (email == null) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-            }
-            
-            User user = userRepository.findByEmail(email)
-                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
-            
-            System.out.println("DEBUG - User ID: " + user.getId() + ", Role: " + user.getRole().name());
-            
+            User user = authenticationService.getUserFromToken(authHeader);
+
             List<Payment> payments;
-            
+
             if (user.getRole().name().equals("MERCHANT")) {
-                System.out.println("DEBUG - Buscando pagos por provider_id: " + user.getId());
                 payments = paymentService.getPaymentsByProviderId(user.getId());
             } else {
-                System.out.println("DEBUG - Buscando pagos por user_id: " + user.getId());
                 payments = paymentService.getPaymentsByUserId(user.getId());
             }
             
-            System.out.println("DEBUG - Pagos encontrados: " + payments.size());
-            
-            List<PaymentResponse> responses;
-            try {
-                responses = payments.stream()
-                        .map(payment -> {
-                            try {
-                                System.out.println("DEBUG - Mapeando payment ID: " + payment.getId());
-                                return PaymentResponse.fromEntityWithNames(
-                                    payment, 
-                                    userRepository, 
-                                    user.getRole().name()
-                                );
-                            } catch (Exception e) {
-                                System.out.println("ERROR al mapear payment ID: " + payment.getId() + " - " + e.getMessage());
-                                e.printStackTrace();
-                                throw new RuntimeException("Error al mapear payment", e);
-                            }
-                        })
-                        .toList();
-            } catch (Exception e) {
-                System.out.println("ERROR en el stream mapping: " + e.getMessage());
-                e.printStackTrace();
-                throw e;
-            }
-            
-            System.out.println("DEBUG - Responses creadas: " + responses.size());
-            
+            List<PaymentResponse> responses = responseMapperService.mapPaymentsToResponses(payments, user.getRole().name());
+
             return ResponseEntity.ok(responses);
+        } catch (SecurityException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         } catch (Exception e) {
-            System.out.println("ERROR GENERAL en getMyPayments: " + e.getMessage());
-            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
@@ -481,33 +418,21 @@ public class PaymentController {
             @RequestHeader("Authorization") String authHeader,
             @PathVariable PaymentStatus status) {
         try {
-            String token = authHeader.replace("Bearer ", "");
-            String email = jwtUtil.getSubject(token);
-            
-            if (email == null) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-            }
-            
-            User user = userRepository.findByEmail(email)
-                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
-            
+            User user = authenticationService.getUserFromToken(authHeader);
+
             List<Payment> payments;
-            
+
             if (user.getRole().name().equals("MERCHANT")) {
                 payments = paymentService.getPaymentsByProviderAndStatus(user.getId(), status);
             } else {
                 payments = paymentService.getPaymentsByUserAndStatus(user.getId(), status);
             }
-            
-            List<PaymentResponse> responses = payments.stream()
-                    .map(payment -> PaymentResponse.fromEntityWithNames(
-                        payment, 
-                        userRepository, 
-                        user.getRole().name()
-                    ))
-                    .toList();
-            
+
+            List<PaymentResponse> responses = responseMapperService.mapPaymentsToResponses(payments, user.getRole().name());
+
             return ResponseEntity.ok(responses);
+        } catch (SecurityException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
@@ -518,25 +443,19 @@ public class PaymentController {
     public ResponseEntity<BigDecimal> getMyTotalAmount(
             @RequestHeader("Authorization") String authHeader) {
         try {
-            String token = authHeader.replace("Bearer ", "");
-            String email = jwtUtil.getSubject(token);
-            
-            if (email == null) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-            }
-            
-            User user = userRepository.findByEmail(email)
-                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
-            
+            User user = authenticationService.getUserFromToken(authHeader);
+
             BigDecimal total;
-            
+
             if (user.getRole().name().equals("MERCHANT")) {
                 total = paymentService.getTotalAmountByProviderId(user.getId());
             } else {
                 total = paymentService.getTotalAmountByUserId(user.getId());
             }
-            
+
             return ResponseEntity.ok(total);
+        } catch (SecurityException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
@@ -547,25 +466,19 @@ public class PaymentController {
     public ResponseEntity<BigDecimal> getMyBalance(
             @RequestHeader("Authorization") String authHeader) {
         try {
-            String token = authHeader.replace("Bearer ", "");
-            String email = jwtUtil.getSubject(token);
-            
-            if (email == null) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-            }
-            
-            User user = userRepository.findByEmail(email)
-                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
-            
+            User user = authenticationService.getUserFromToken(authHeader);
+
             // Solo usuarios tienen saldo, merchants no
             if (user.getRole().name().equals("MERCHANT")) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                         .header("Error-Message", "Los merchants no tienen saldo disponible")
                         .build();
             }
-            
+
             BigDecimal balance = balanceService.getCurrentBalance(user.getId());
             return ResponseEntity.ok(balance);
+        } catch (SecurityException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
@@ -580,15 +493,7 @@ public class PaymentController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         try {
-            String token = authHeader.replace("Bearer ", "");
-            String email = jwtUtil.getSubject(token);
-            
-            if (email == null) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-            }
-            
-            User user = userRepository.findByEmail(email)
-                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+            User user = authenticationService.getUserFromToken(authHeader);
             
             List<Payment> userPayments;
             
@@ -636,13 +541,7 @@ public class PaymentController {
             List<Payment> pageContent = start < filteredPayments.size() ? 
                 filteredPayments.subList(start, end) : new ArrayList<>();
             
-            List<PaymentResponse> responses = pageContent.stream()
-                .map(payment -> PaymentResponse.fromEntityWithNames(
-                    payment, 
-                    userRepository, 
-                    user.getRole().name()
-                ))
-                .collect(Collectors.toList());
+            List<PaymentResponse> responses = responseMapperService.mapPaymentsToResponses(pageContent, user.getRole().name());
             
             PagedPaymentResponse pagedResponse = new PagedPaymentResponse();
             pagedResponse.setContent(responses);
@@ -655,8 +554,9 @@ public class PaymentController {
             pagedResponse.setNumberOfElements(responses.size());
             
             return ResponseEntity.ok(pagedResponse);
+        } catch (SecurityException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         } catch (Exception e) {
-            e.printStackTrace(); 
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
