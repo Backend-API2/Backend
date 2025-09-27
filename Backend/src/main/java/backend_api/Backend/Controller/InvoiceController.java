@@ -5,6 +5,8 @@ import backend_api.Backend.Entity.invoice.InvoiceStatus;
 import backend_api.Backend.Service.Interface.InvoiceService;
 import backend_api.Backend.Auth.JwtUtil;
 import backend_api.Backend.Repository.UserRepository;
+import backend_api.Backend.Service.Common.AuthenticationService;
+import backend_api.Backend.Service.Common.EntityValidationService;
 import backend_api.Backend.Entity.user.User;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +44,8 @@ public class InvoiceController {
     private final InvoiceService invoiceService;
     private final JwtUtil jwtUtil;
     private final UserRepository userRepository;
+    private final AuthenticationService authenticationService;
+    private final EntityValidationService entityValidationService;
     
     
     @Operation(
@@ -384,18 +388,12 @@ public class InvoiceController {
             @RequestParam(defaultValue = "10") int size,
             @RequestHeader("Authorization") String authHeader) {
         try {
-            String token = authHeader.replace("Bearer ", "");
-            String email = jwtUtil.getSubject(token);
-            
-            if (email == null) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-            }
-            
-            User user = userRepository.findByEmail(email)
-                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
-            
+            User user = authenticationService.getUserFromToken(authHeader);
+
             Page<InvoiceResponse> response = invoiceService.getInvoicesByUserId(user.getId(), page, size);
             return ResponseEntity.ok(response);
+        } catch (SecurityException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         } catch (Exception e) {
             log.error("Error obteniendo facturas del usuario", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -407,18 +405,12 @@ public class InvoiceController {
     public ResponseEntity<InvoiceSummaryResponse> getMySummary(
             @RequestHeader("Authorization") String authHeader) {
         try {
-            String token = authHeader.replace("Bearer ", "");
-            String email = jwtUtil.getSubject(token);
-            
-            if (email == null) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-            }
-            
-            User user = userRepository.findByEmail(email)
-                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
-            
+            User user = authenticationService.getUserFromToken(authHeader);
+
             InvoiceSummaryResponse response = invoiceService.getInvoiceSummaryByUser(user.getId());
             return ResponseEntity.ok(response);
+        } catch (SecurityException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         } catch (Exception e) {
             log.error("Error obteniendo resumen de facturas del usuario", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
