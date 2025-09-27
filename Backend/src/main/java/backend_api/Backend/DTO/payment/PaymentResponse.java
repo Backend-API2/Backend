@@ -18,6 +18,7 @@ public class PaymentResponse {
     private Long user_id;
     private Long provider_id; 
     private Long solicitud_id;
+    private Long refund_id;
   //  private Long cotizacion_id; // Se integra con el módulo Cotizaciono
   //  private Long cotizacion_id; // Se integra con el módulo Cotizacion
     
