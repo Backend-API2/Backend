@@ -21,7 +21,7 @@ public class InvoiceCalculationService {
         BigDecimal taxAmount = BigDecimal.ZERO;
         BigDecimal discountAmount = BigDecimal.ZERO;
 
-        for (CreateInvoiceRequest.CreateInvoiceRequest line : lines) {
+        for (CreateInvoiceRequest.CreateInvoiceLineRequest line : lines) {
             BigDecimal lineSubtotal = line.getUnitPrice().multiply(BigDecimal.valueOf(line.getQuantity()));
             subtotal = subtotal.add(lineSubtotal);
 
