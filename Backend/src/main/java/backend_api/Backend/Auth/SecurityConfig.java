@@ -134,19 +134,6 @@ public class SecurityConfig {
                         // ✅ NUEVOS ENDPOINTS SEGUROS DE FACTURAS CON TOKEN
                         .requestMatchers(HttpMethod.GET, "/api/invoices/my-invoices").hasAnyRole("USER", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/invoices/my-summary").hasAnyRole("USER", "ADMIN")
-                        
-                        // Refund endpoints - restringidos (cuando se implementen)
-                        .requestMatchers(HttpMethod.POST, "/api/refunds/create").hasAnyRole("ADMIN", "USER")
-                        .requestMatchers(HttpMethod.GET, "/api/refunds/{id}").hasAnyRole("ADMIN", "USER")
-                        .requestMatchers(HttpMethod.GET, "/api/refunds/all").hasAnyRole("ADMIN", "USER")
-                        
-                         // Endpoints adicionales de Refund
-                        .requestMatchers(HttpMethod.PATCH, "/api/refunds/{id}/status").hasAnyRole("ADMIN", "USER")
-                        .requestMatchers(HttpMethod.GET, "/api/refunds/payment/{paymentId}").hasAnyRole("ADMIN", "USER")
-                        .requestMatchers(HttpMethod.GET, "/api/refunds/status/{status}").hasAnyRole("ADMIN", "USER")
-
-                    
-
                 
                         
                         .anyRequest().authenticated()

@@ -28,7 +28,6 @@ public enum InvoiceEventType {
     FINAL_NOTICE_SENT,
     
     CREDIT_NOTE_ISSUED,
-    REFUND_PROCESSED,
     
     SYSTEM_ERROR,
     MANUAL_ADJUSTMENT

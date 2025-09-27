@@ -5,10 +5,10 @@ import backend_api.Backend.Entity.invoice.*;
 import backend_api.Backend.Entity.payment.Payment;
 import backend_api.Backend.Repository.InvoiceLineRepository;
 import backend_api.Backend.Repository.InvoiceRepository;
-import backend_api.Backend.Repository.PaymentRepository;
 import backend_api.Backend.Service.Interface.InvoiceEventService;
 import backend_api.Backend.Service.Interface.InvoiceService;
-import jakarta.persistence.EntityNotFoundException;
+import backend_api.Backend.Service.Common.InvoiceCalculationService;
+import backend_api.Backend.Service.Common.EntityValidationService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,7 +23,6 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -34,15 +33,15 @@ public class InvoiceServiceImpl implements InvoiceService {
     
     private final InvoiceRepository invoiceRepository;
     private final InvoiceLineRepository invoiceLineRepository;
-    private final PaymentRepository paymentRepository;
     private final InvoiceEventService invoiceEventService;
+    private final InvoiceCalculationService invoiceCalculationService;
+    private final EntityValidationService entityValidationService;
     
     @Override
     public InvoiceResponse createInvoice(CreateInvoiceRequest request) {
         log.info("Creando nueva factura para el pago: {}", request.getPaymentId());
         
-        Payment payment = paymentRepository.findById(request.getPaymentId())
-                .orElseThrow(() -> new EntityNotFoundException("Pago no encontrado: " + request.getPaymentId()));
+        Payment payment = entityValidationService.getPaymentOrThrow(request.getPaymentId());
         
         Invoice invoice = new Invoice();
         invoice.setPaymentId(request.getPaymentId());
@@ -58,7 +57,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         
         invoice.setInvoiceNumber(generateInvoiceNumber(request.getProviderId()));
         
-        calculateInvoiceTotals(invoice, request.getLines());
+        invoiceCalculationService.calculateInvoiceTotals(invoice, request.getLines());
         
         Invoice savedInvoice = invoiceRepository.save(invoice);
         
@@ -81,28 +80,25 @@ public class InvoiceServiceImpl implements InvoiceService {
     
     @Override
     public InvoiceResponse getInvoiceById(Long id) {
-        Invoice invoice = invoiceRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Factura no encontrada: " + id));
-        
+        Invoice invoice = entityValidationService.getInvoiceOrThrow(id);
+
         List<InvoiceLine> lines = invoiceLineRepository.findByInvoiceIdOrderByLineNumber(id);
-        
+
         return convertToResponse(invoice, lines);
     }
     
     @Override
     public InvoiceResponse getInvoiceByNumber(String invoiceNumber) {
-        Invoice invoice = invoiceRepository.findByInvoiceNumber(invoiceNumber)
-                .orElseThrow(() -> new EntityNotFoundException("Factura no encontrada: " + invoiceNumber));
-        
+        Invoice invoice = entityValidationService.getInvoiceByNumberOrThrow(invoiceNumber);
+
         List<InvoiceLine> lines = invoiceLineRepository.findByInvoiceIdOrderByLineNumber(invoice.getId());
-        
+
         return convertToResponse(invoice, lines);
     }
     
     @Override
     public InvoiceResponse updateInvoice(Long id, UpdateInvoiceRequest request) {
-        Invoice invoice = invoiceRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Factura no encontrada: " + id));
+        Invoice invoice = entityValidationService.getInvoiceOrThrow(id);
         
         if (!canModifyInvoice(id)) {
             throw new IllegalStateException("La factura no puede ser modificada en su estado actual");
@@ -120,7 +116,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         List<InvoiceLine> lines;
         if (request.getLines() != null && !request.getLines().isEmpty()) {
             lines = updateInvoiceLines(id, request.getLines());
-            recalculateInvoiceTotals(updatedInvoice);
+            invoiceCalculationService.recalculateInvoiceTotals(updatedInvoice);
             updatedInvoice = invoiceRepository.save(updatedInvoice);
         } else {
             lines = invoiceLineRepository.findByInvoiceIdOrderByLineNumber(id);
@@ -139,8 +135,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     
     @Override
     public void deleteInvoice(Long id) {
-        Invoice invoice = invoiceRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Factura no encontrada: " + id));
+        Invoice invoice = entityValidationService.getInvoiceOrThrow(id);
         
         if (!canModifyInvoice(id)) {
             throw new IllegalStateException("La factura no puede ser eliminada en su estado actual");
@@ -160,8 +155,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     
     @Override
     public InvoiceResponse updateInvoiceStatus(Long id, UpdateInvoiceStatusRequest request) {
-        Invoice invoice = invoiceRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Factura no encontrada: " + id));
+        Invoice invoice = entityValidationService.getInvoiceOrThrow(id);
         
         InvoiceStatus newStatus = InvoiceStatus.valueOf(request.getStatus().toUpperCase());
         InvoiceStatus oldStatus = invoice.getStatus();
@@ -250,28 +244,6 @@ public class InvoiceServiceImpl implements InvoiceService {
         }
     }
     
-    private void calculateInvoiceTotals(Invoice invoice, List<CreateInvoiceRequest.CreateInvoiceLineRequest> lines) {
-        BigDecimal subtotal = BigDecimal.ZERO;
-        BigDecimal taxAmount = BigDecimal.ZERO;
-        BigDecimal discountAmount = BigDecimal.ZERO;
-        
-        for (CreateInvoiceRequest.CreateInvoiceLineRequest line : lines) {
-            BigDecimal lineSubtotal = line.getUnitPrice().multiply(BigDecimal.valueOf(line.getQuantity()));
-            subtotal = subtotal.add(lineSubtotal);
-            
-            if (line.getTaxAmount() != null) {
-                taxAmount = taxAmount.add(line.getTaxAmount());
-            }
-            if (line.getDiscountAmount() != null) {
-                discountAmount = discountAmount.add(line.getDiscountAmount());
-            }
-        }
-        
-        invoice.setSubtotalAmount(subtotal);
-        invoice.setTaxAmount(taxAmount);
-        invoice.setDiscountAmount(discountAmount);
-        invoice.setTotalAmount(subtotal.add(taxAmount).subtract(discountAmount));
-    }
     
     private InvoiceLine createInvoiceLineFromRequest(Long invoiceId, CreateInvoiceRequest.CreateInvoiceLineRequest request) {
         InvoiceLine line = new InvoiceLine();
@@ -341,24 +313,6 @@ public class InvoiceServiceImpl implements InvoiceService {
         return line;
     }
     
-    private void recalculateInvoiceTotals(Invoice invoice) {
-        List<InvoiceLine> lines = invoiceLineRepository.findByInvoiceId(invoice.getId());
-        
-        BigDecimal subtotal = BigDecimal.ZERO;
-        BigDecimal taxAmount = BigDecimal.ZERO;
-        BigDecimal discountAmount = BigDecimal.ZERO;
-        
-        for (InvoiceLine line : lines) {
-            if (line.getSubtotal() != null) subtotal = subtotal.add(line.getSubtotal());
-            if (line.getTaxAmount() != null) taxAmount = taxAmount.add(line.getTaxAmount());
-            if (line.getDiscountAmount() != null) discountAmount = discountAmount.add(line.getDiscountAmount());
-        }
-        
-        invoice.setSubtotalAmount(subtotal);
-        invoice.setTaxAmount(taxAmount);
-        invoice.setDiscountAmount(discountAmount);
-        invoice.setTotalAmount(subtotal.add(taxAmount).subtract(discountAmount));
-    }
     
     private InvoiceResponse convertToResponse(Invoice invoice, List<InvoiceLine> lines) {
         List<InvoiceResponse.InvoiceLineResponse> lineResponses = lines.stream()
@@ -488,8 +442,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     
     @Override
     public String generatePdf(Long id) {
-        Invoice invoice = invoiceRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Factura no encontrada: " + id));
+        Invoice invoice = entityValidationService.getInvoiceOrThrow(id);
         
         String pdfUrl = String.format("/api/invoices/%d/pdf", id);
         invoice.setPdfUrl(pdfUrl);
@@ -507,8 +460,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     
     @Override
     public String regeneratePdf(Long id) {
-        Invoice invoice = invoiceRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Factura no encontrada: " + id));
+        Invoice invoice = entityValidationService.getInvoiceOrThrow(id);
         
         String pdfUrl = String.format("/api/invoices/%d/pdf?v=%d", id, System.currentTimeMillis());
         invoice.setPdfUrl(pdfUrl);
@@ -526,8 +478,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     
     @Override
     public byte[] downloadPdf(Long id) {
-        invoiceRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Factura no encontrada: " + id));
+        entityValidationService.getInvoiceOrThrow(id);
         
         String content = "PDF content for invoice " + id;
         return content.getBytes();
@@ -638,8 +589,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     
     @Override
     public InvoiceResponse createInvoiceFromPayment(Long paymentId) {
-        Payment payment = paymentRepository.findById(paymentId)
-                .orElseThrow(() -> new EntityNotFoundException("Pago no encontrado: " + paymentId));
+        Payment payment = entityValidationService.getPaymentOrThrow(paymentId);
         
         List<Invoice> existingInvoices = invoiceRepository.findByPaymentId(paymentId);
         if (!existingInvoices.isEmpty()) {
