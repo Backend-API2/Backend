@@ -1,6 +1,7 @@
 package backend_api.Backend.Entity;
 
 import backend_api.Backend.Entity.invoice.Invoice;
+import backend_api.Backend.Entity.invoice.InvoiceLine;
 import backend_api.Backend.Entity.invoice.InvoiceStatus;
 import backend_api.Backend.Entity.invoice.InvoiceType;
 import org.junit.jupiter.api.BeforeEach;
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -485,4 +487,5 @@ class InvoiceTest {
         assertNotNull(invoice.getPaidAt());
         assertEquals("Payment received", invoice.getNotes());
     }
+
 }
