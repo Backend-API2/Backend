@@ -5,12 +5,10 @@ import backend_api.Backend.Entity.invoice.*;
 import backend_api.Backend.Entity.payment.Payment;
 import backend_api.Backend.Repository.InvoiceLineRepository;
 import backend_api.Backend.Repository.InvoiceRepository;
-import backend_api.Backend.Repository.PaymentRepository;
 import backend_api.Backend.Service.Interface.InvoiceEventService;
 import backend_api.Backend.Service.Interface.InvoiceService;
 import backend_api.Backend.Service.Common.InvoiceCalculationService;
 import backend_api.Backend.Service.Common.EntityValidationService;
-import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,7 +23,6 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -36,7 +33,6 @@ public class InvoiceServiceImpl implements InvoiceService {
     
     private final InvoiceRepository invoiceRepository;
     private final InvoiceLineRepository invoiceLineRepository;
-    private final PaymentRepository paymentRepository;
     private final InvoiceEventService invoiceEventService;
     private final InvoiceCalculationService invoiceCalculationService;
     private final EntityValidationService entityValidationService;

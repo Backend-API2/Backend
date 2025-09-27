@@ -9,15 +9,12 @@ import backend_api.Backend.Service.Interface.PaymentMethodService;
 import backend_api.Backend.Service.Interface.BalanceService;
 import backend_api.Backend.DTO.payment.PaymentResponse;
 import backend_api.Backend.DTO.payment.PagedPaymentResponse;
-import backend_api.Backend.Auth.JwtUtil;
-import backend_api.Backend.Repository.UserRepository;
 import backend_api.Backend.Service.Common.AuthenticationService;
 import backend_api.Backend.Service.Common.EntityValidationService;
 import backend_api.Backend.Service.Common.ResponseMapperService;
 import backend_api.Backend.Entity.user.User;
 import backend_api.Backend.DTO.payment.CreatePaymentRequest;
 import backend_api.Backend.DTO.payment.PaymentSearchRequest;
-import backend_api.Backend.DTO.payment.ConfirmPaymentRequest;
 import backend_api.Backend.DTO.payment.SelectPaymentMethodRequest;
 import backend_api.Backend.Entity.payment.PaymentEvent;
 import backend_api.Backend.Entity.payment.PaymentEventType;
@@ -34,9 +31,7 @@ import jakarta.validation.Valid;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 import java.util.ArrayList;
-import java.util.stream.Collectors;
 import jakarta.persistence.EntityNotFoundException;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -58,11 +53,6 @@ public class PaymentController {
     @Autowired
     private PaymentService paymentService;
 
-    @Autowired 
-    private JwtUtil jwtUtil;
-    
-    @Autowired
-    private UserRepository userRepository;
     
     @Autowired
     private PaymentEventService paymentEventService;

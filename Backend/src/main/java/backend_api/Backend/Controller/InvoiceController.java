@@ -3,8 +3,6 @@ package backend_api.Backend.Controller;
 import backend_api.Backend.DTO.invoice.*;
 import backend_api.Backend.Entity.invoice.InvoiceStatus;
 import backend_api.Backend.Service.Interface.InvoiceService;
-import backend_api.Backend.Auth.JwtUtil;
-import backend_api.Backend.Repository.UserRepository;
 import backend_api.Backend.Service.Common.AuthenticationService;
 import backend_api.Backend.Service.Common.EntityValidationService;
 import backend_api.Backend.Entity.user.User;
@@ -42,8 +40,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public class InvoiceController {
     
     private final InvoiceService invoiceService;
-    private final JwtUtil jwtUtil;
-    private final UserRepository userRepository;
     private final AuthenticationService authenticationService;
     private final EntityValidationService entityValidationService;
     
