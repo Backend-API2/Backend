@@ -16,13 +16,13 @@ import java.util.List;
 public class InvoiceCalculationService {
     private final InvoiceLineRepository invoiceLineRepository;
 
-    public void calculateInvoiceTotals(Invoice invoice , List<CreateInvoiceRequest.CreateInvoiceRequest> lines) {
+    public void calculateInvoiceTotals(Invoice invoice , List<CreateInvoiceRequest.CreateInvoiceLineRequest> lines) {
         BigDecimal subtotal = BigDecimal.ZERO;
         BigDecimal taxAmount = BigDecimal.ZERO;
         BigDecimal discountAmount = BigDecimal.ZERO;
 
         for (CreateInvoiceRequest.CreateInvoiceRequest line : lines) {
-            BigDecimal lineSubtotal = line.getUnit_price().multiply(BigDecimal.valueOf(line.getQuantity()));
+            BigDecimal lineSubtotal = line.getUnitPrice().multiply(BigDecimal.valueOf(line.getQuantity()));
             subtotal = subtotal.add(lineSubtotal);
 
             if (line.getTaxAmount() != null) {
@@ -49,7 +49,7 @@ public class InvoiceCalculationService {
             }
 
             if (line.getTaxAmount() != null) {
-                taxes = taxes.add(line.getTaxAmount());
+                taxAmount = taxAmount.add(line.getTaxAmount());
             }
             if (line.getDiscountAmount() != null) {
                 discountAmount = discountAmount.add(line.getDiscountAmount());
@@ -65,8 +65,5 @@ public class InvoiceCalculationService {
         invoice.setDiscountAmount(discountAmount);
         invoice.setTotalAmount(subtotal.add(taxAmount).subtract(discountAmount));
     }
-
-
-
         
 }

@@ -74,7 +74,7 @@ public class EntityValidationService {
 
     public void validateInvoiceOwnership(Long invoiceId, Long userId) {
         Invoice invoice = getInvoiceOrThrow(invoiceId);
-        if (!invoice.getUserID().equals(userId) && !invoice.getProviederId().equals(userId)) {
+        if (!invoice.getUserID().equals(userId) && !invoice.getProviderId().equals(userId)) {
             throw new SecurityException("No tiene permiso para acceder a esta factura");
         }
     }
