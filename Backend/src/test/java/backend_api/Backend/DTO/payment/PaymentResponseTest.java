@@ -45,7 +45,6 @@ class PaymentResponseTest {
         testPayment.setUser_id(1L);
         testPayment.setProvider_id(2L);
         testPayment.setSolicitud_id(10L);
-        testPayment.setRefund_id(20L);
         testPayment.setAmount_subtotal(BigDecimal.valueOf(100.00));
         testPayment.setTaxes(BigDecimal.valueOf(10.00));
         testPayment.setFees(BigDecimal.valueOf(5.00));
@@ -89,7 +88,6 @@ class PaymentResponseTest {
         assertEquals(testPayment.getUser_id(), response.getUser_id());
         assertEquals(testPayment.getProvider_id(), response.getProvider_id());
         assertEquals(testPayment.getSolicitud_id(), response.getSolicitud_id());
-        assertEquals(testPayment.getRefund_id(), response.getRefund_id());
         assertEquals(testPayment.getAmount_subtotal(), response.getAmount_subtotal());
         assertEquals(testPayment.getTaxes(), response.getTaxes());
         assertEquals(testPayment.getFees(), response.getFees());
@@ -122,7 +120,6 @@ class PaymentResponseTest {
         assertEquals(1L, response.getUser_id());
         assertEquals(2L, response.getProvider_id());
         assertNull(response.getSolicitud_id());
-        assertNull(response.getRefund_id());
         assertNull(response.getAmount_subtotal());
         assertNull(response.getTaxes());
         assertNull(response.getFees());
@@ -151,7 +148,6 @@ class PaymentResponseTest {
         assertNull(response.getUser_id());
         assertNull(response.getProvider_id());
         assertNull(response.getSolicitud_id());
-        assertNull(response.getRefund_id());
         assertNull(response.getAmount_subtotal());
         assertNull(response.getTaxes());
         assertNull(response.getFees());

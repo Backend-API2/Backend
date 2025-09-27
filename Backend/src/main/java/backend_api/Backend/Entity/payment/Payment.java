@@ -16,7 +16,6 @@ public class Payment {
     private Long provider_id;
     private Long solicitud_id;
     private Long cotizacion_id; // Se integra con el módulo Cotizacion
-    private Long refund_id;
     private BigDecimal amount_subtotal; // subtotal sin impuestos
     private BigDecimal taxes; // impuestos
     private BigDecimal fees; // comisiones
