@@ -30,7 +30,7 @@ RUN ./mvnw clean package -DskipTests -B
 # ====================
 # Runtime Stage
 # ====================
-FROM openjdk:17-jre-slim
+FROM openjdk:17-jdk
 
 # Install curl for healthchecks
 RUN apt-get update && \
