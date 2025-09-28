@@ -216,6 +216,51 @@ jobs:
           echo "Creating app directory structure..."
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "mkdir -p /home/ec2-user/app/scripts"
 
+      - name: Stop monitoring services to free ports
+        run: |
+          echo "🛑 Stopping monitoring services to free ports (9090, 9093, 3000)..."
+          ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
+            cd /home/ec2-user/app
+            
+            # Check if monitoring services are running
+            if [ -f docker-compose-monitoring.yml ]; then
+              echo '🔍 Checking for running monitoring services...'
+              if docker-compose -f docker-compose-monitoring.yml ps --services --filter 'status=running' | grep -q .; then
+                echo '🛑 Stopping monitoring services...'
+                docker-compose -f docker-compose-monitoring.yml down --remove-orphans
+                echo '✅ Monitoring services stopped'
+              else
+                echo 'ℹ️  No monitoring services currently running'
+              fi
+            else
+              echo 'ℹ️  No docker-compose-monitoring.yml found, skipping monitoring cleanup'
+            fi
+            
+            # Additional cleanup for monitoring ports
+            echo '🔍 Checking for processes using monitoring ports...'
+            for PORT in 9090 9093 3000; do
+              PORT_PIDS=\$(lsof -ti:\$PORT 2>/dev/null || echo '')
+              if [ ! -z \"\$PORT_PIDS\" ]; then
+                echo \"Found processes using port \$PORT: \$PORT_PIDS\"
+                for PID in \$PORT_PIDS; do
+                  echo \"Killing process \$PID on port \$PORT...\"
+                  kill -TERM \$PID 2>/dev/null || true
+                done
+                sleep 2
+                for PID in \$PORT_PIDS; do
+                  if ps -p \$PID > /dev/null 2>&1; then
+                    echo \"Force killing process \$PID on port \$PORT...\"
+                    kill -KILL \$PID 2>/dev/null || true
+                  fi
+                done
+              else
+                echo \"Port \$PORT is free\"
+              fi
+            done
+            
+            echo '✅ Monitoring ports cleanup completed'
+          "
+
       - name: Stop current application and free port 8080
         run: |
           echo "🛑 Stopping current application if running..."
@@ -511,9 +556,22 @@ jobs:
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
             cd /home/ec2-user/app
             
-            # Stop any existing monitoring services
+            # Stop any existing monitoring services and clean up ports
             echo '🛑 Stopping existing monitoring services...'
             docker-compose -f docker-compose-monitoring.yml down --remove-orphans || true
+            
+            # Additional cleanup for monitoring ports
+            echo '🔍 Cleaning up monitoring ports...'
+            for PORT in 9090 9093 3000; do
+              PORT_PIDS=\$(lsof -ti:\$PORT 2>/dev/null || echo '')
+              if [ ! -z \"\$PORT_PIDS\" ]; then
+                echo \"Cleaning up port \$PORT (PIDs: \$PORT_PIDS)...\"
+                for PID in \$PORT_PIDS; do
+                  kill -KILL \$PID 2>/dev/null || true
+                done
+              fi
+            done
+            sleep 5
             
             # Pull latest images
             echo '📥 Pulling latest monitoring images...'
