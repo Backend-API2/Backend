@@ -458,6 +458,127 @@ jobs:
             exit 1
           fi
 
+      - name: Setup Docker and Docker Compose on EC2
+        run: |
+          echo "🐳 Setting up Docker and Docker Compose..."
+          ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
+            # Check if Docker is installed
+            if ! command -v docker &> /dev/null; then
+              echo 'Installing Docker...'
+              sudo yum update -y
+              sudo yum install -y docker
+              sudo systemctl start docker
+              sudo systemctl enable docker
+              sudo usermod -a -G docker ec2-user
+            fi
+            
+            # Check if Docker Compose is installed
+            if ! command -v docker-compose &> /dev/null; then
+              echo 'Installing Docker Compose...'
+              sudo curl -L 'https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)' -o /usr/local/bin/docker-compose
+              sudo chmod +x /usr/local/bin/docker-compose
+              sudo ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
+            fi
+            
+            # Start Docker service
+            sudo systemctl start docker
+            sudo systemctl enable docker
+            
+            echo 'Docker and Docker Compose setup completed'
+          "
+
+      - name: Upload monitoring configuration files
+        run: |
+          echo "📋 Uploading monitoring configuration files..."
+
+          # Upload prometheus.yml
+          scp -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} prometheus.yml ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/
+
+          # Upload alertmanager.yml
+          scp -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} alertmanager.yml ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/
+
+          # Upload alert_rules.yml
+          scp -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} alert_rules.yml ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/
+
+          # Upload docker-compose-monitoring.yml
+          scp -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} docker-compose-monitoring.yml ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/
+
+          echo "✅ Monitoring configuration files uploaded"
+
+      - name: Start monitoring services
+        run: |
+          echo "🚀 Starting monitoring services (Prometheus, Alertmanager, Grafana)..."
+          ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
+            cd /home/ec2-user/app
+            
+            # Stop any existing monitoring services
+            echo '🛑 Stopping existing monitoring services...'
+            docker-compose -f docker-compose-monitoring.yml down --remove-orphans || true
+            
+            # Pull latest images
+            echo '📥 Pulling latest monitoring images...'
+            docker-compose -f docker-compose-monitoring.yml pull
+            
+            # Start monitoring services in detached mode
+            echo '🚀 Starting monitoring services...'
+            docker-compose -f docker-compose-monitoring.yml up -d
+            
+            # Wait for services to be ready
+            echo '⏳ Waiting for services to be ready...'
+            sleep 30
+            
+            # Check if services are running
+            echo '🔍 Checking service status...'
+            docker-compose -f docker-compose-monitoring.yml ps
+            
+            # Verify Prometheus is accessible
+            echo '🔍 Verifying Prometheus accessibility...'
+            for i in {1..10}; do
+              if curl -f -s http://localhost:9090/-/healthy > /dev/null 2>&1; then
+                echo '✅ Prometheus is healthy and accessible'
+                break
+              fi
+              echo \"Attempt $i/10: Waiting for Prometheus...\"
+              sleep 10
+            done
+            
+            # Verify Alertmanager is accessible
+            echo '🔍 Verifying Alertmanager accessibility...'
+            for i in {1..10}; do
+              if curl -f -s http://localhost:9093/-/healthy > /dev/null 2>&1; then
+                echo '✅ Alertmanager is healthy and accessible'
+                break
+              fi
+              echo \"Attempt $i/10: Waiting for Alertmanager...\"
+              sleep 10
+            done
+            
+            # Verify Grafana is accessible
+            echo '🔍 Verifying Grafana accessibility...'
+            for i in {1..10}; do
+              if curl -f -s http://localhost:3000/api/health > /dev/null 2>&1; then
+                echo '✅ Grafana is healthy and accessible'
+                break
+              fi
+              echo \"Attempt $i/10: Waiting for Grafana...\"
+              sleep 10
+            done
+            
+            echo '✅ Monitoring services started successfully'
+          "
+
+      - name: Show Alertmanager logs
+        run: |
+          echo "📋 Showing Alertmanager logs for verification..."
+          ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
+            cd /home/ec2-user/app
+            echo '=== Alertmanager Container Logs ==='
+            docker-compose -f docker-compose-monitoring.yml logs --tail=50 alertmanager
+            echo ''
+            echo '=== Alertmanager Configuration Status ==='
+            curl -s http://localhost:9093/api/v1/status | jq '.' || echo 'Alertmanager status check failed'
+          "
+
       - name: Start application and health check
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -510,3 +631,49 @@ jobs:
             curl -s http://localhost:8080/actuator/health || echo "Failed to reach /actuator/health"
             echo ""
             echo "✅ Deployment completed successfully!"
+
+      - name: Verify Prometheus can scrape backend
+        run: |
+          echo "🔍 Verifying Prometheus can scrape backend metrics..."
+          ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
+            # Wait a bit more for the backend to fully start
+            sleep 10
+            
+            # Check if backend actuator endpoint is accessible
+            echo '🔍 Checking backend actuator endpoint...'
+            if curl -f -s http://localhost:8080/actuator/prometheus > /dev/null 2>&1; then
+              echo '✅ Backend actuator endpoint is accessible'
+              
+              # Check if Prometheus can reach the target
+              echo '🔍 Checking Prometheus targets...'
+              sleep 30  # Give Prometheus time to scrape
+              
+              # Get targets status from Prometheus
+              TARGETS_RESPONSE=\$(curl -s http://localhost:9090/api/v1/targets)
+              echo \"Prometheus targets response: \$TARGETS_RESPONSE\"
+              
+              # Check if our backend target is UP
+              if echo \"\$TARGETS_RESPONSE\" | grep -q '\"health\":\"up\"'; then
+                echo '✅ Prometheus successfully scraping backend metrics'
+              else
+                echo '⚠️  Backend target may not be UP in Prometheus'
+                echo 'Checking individual target status...'
+                curl -s 'http://localhost:9090/api/v1/targets' | jq '.data.activeTargets[] | select(.labels.job==\"spring-boot-backend\")' || echo 'Could not parse target status'
+              fi
+            else
+              echo '❌ Backend actuator endpoint not accessible'
+              echo 'Backend health check:'
+              curl -s http://localhost:8080/actuator/health || echo 'Health endpoint failed'
+            fi
+          "
+
+      - name: Optional monitoring services shutdown
+        if: ${{ github.event.inputs.shutdown_monitoring == 'true' }}
+        run: |
+          echo "🛑 Shutting down monitoring services (requested)..."
+          ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
+            cd /home/ec2-user/app
+            docker-compose -f docker-compose-monitoring.yml down
+            echo '✅ Monitoring services stopped'
+          "
+        continue-on-error: true

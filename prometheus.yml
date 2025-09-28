@@ -4,14 +4,19 @@ global:
   evaluation_interval: 15s
 
 rule_files:
-  # - "first_rules.yml"
-  # - "second_rules.yml"
+  - 'alert_rules.yml'
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
 
 scrape_configs:
   # Spring Boot Backend application
   - job_name: 'spring-boot-backend'
     static_configs:
-      - targets: ['localhost:8080']
+      - targets: ['host.docker.internal:8080']
     metrics_path: '/actuator/prometheus'
     scrape_interval: 30s
     scrape_timeout: 10s

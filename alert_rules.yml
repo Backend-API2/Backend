@@ -1,0 +1,75 @@
+# Alert Rules para Backend Spring Boot
+groups:
+  - name: backend_alerts
+    rules:
+      # Alerta por uso alto de conexiones HikariCP
+      - alert: HighHikariCPConnectionUsage
+        expr: (hikaricp_connections_active / hikaricp_connections_max) * 100 > 80
+        for: 1m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: 'Alto uso de conexiones HikariCP'
+          description: 'El uso de conexiones HikariCP está en {{ $value }}%, superando el 80% durante más de 1 minuto'
+          runbook_url: 'https://github.com/your-repo/docs/troubleshooting#hikaricp-connections'
+
+      # Alerta por uso alto de CPU del sistema
+      - alert: HighSystemCPUUsage
+        expr: system_cpu_usage * 100 > 90
+        for: 2m
+        labels:
+          severity: critical
+          service: backend
+        annotations:
+          summary: 'Alto uso de CPU del sistema'
+          description: 'El uso de CPU del sistema está en {{ $value }}%, superando el 90% durante más de 2 minutos'
+          runbook_url: 'https://github.com/your-repo/docs/troubleshooting#high-cpu-usage'
+
+      # Alerta por alto porcentaje de errores HTTP 5xx
+      - alert: HighHTTPErrorRate
+        expr: (rate(http_server_requests_seconds_count{status=~"5.."}[5m]) / rate(http_server_requests_seconds_count[5m])) * 100 > 5
+        for: 5m
+        labels:
+          severity: critical
+          service: backend
+        annotations:
+          summary: 'Alto porcentaje de errores HTTP 5xx'
+          description: 'El porcentaje de requests con error 5xx es {{ $value }}%, superando el 5% en los últimos 5 minutos'
+          runbook_url: 'https://github.com/your-repo/docs/troubleshooting#http-errors'
+
+      # Alerta por memoria JVM alta
+      - alert: HighJVMMemoryUsage
+        expr: (jvm_memory_used_bytes / jvm_memory_max_bytes) * 100 > 85
+        for: 2m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: 'Alto uso de memoria JVM'
+          description: 'El uso de memoria JVM está en {{ $value }}%, superando el 85% durante más de 2 minutos'
+          runbook_url: 'https://github.com/your-repo/docs/troubleshooting#jvm-memory'
+
+      # Alerta por tiempo de respuesta HTTP alto
+      - alert: HighHTTPResponseTime
+        expr: histogram_quantile(0.95, rate(http_server_requests_seconds_bucket[5m])) > 2
+        for: 3m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: 'Tiempo de respuesta HTTP alto'
+          description: 'El percentil 95 del tiempo de respuesta HTTP es {{ $value }}s, superando los 2 segundos durante más de 3 minutos'
+          runbook_url: 'https://github.com/your-repo/docs/troubleshooting#slow-responses'
+
+      # Alerta por aplicación caída
+      - alert: ApplicationDown
+        expr: up{job="spring-boot-backend"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          service: backend
+        annotations:
+          summary: 'Aplicación Spring Boot caída'
+          description: 'La aplicación Spring Boot no responde desde hace más de 30 segundos'
+          runbook_url: 'https://github.com/your-repo/docs/troubleshooting#application-down'

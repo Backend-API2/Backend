@@ -2,7 +2,111 @@
 
 ## 📊 Monitoreo y Métricas
 
-Este proyecto incluye una infraestructura mínima de monitoreo usando Spring Boot Actuator y Prometheus para métricas locales.
+Este proyecto incluye una infraestructura completa de monitoreo usando Spring Boot Actuator, Prometheus y Alertmanager para métricas locales y alertas en tiempo real.
+
+### 🚨 Sistema de Alertas con Prometheus y Alertmanager
+
+El proyecto incluye un sistema completo de alertas configurado con Prometheus y Alertmanager para monitorear el estado de la aplicación.
+
+#### Configuración de Alertas
+
+Las alertas están configuradas en el archivo `alert_rules.yml` e incluyen:
+
+- **Alto uso de conexiones HikariCP**: Alerta cuando el uso supera el 80% durante 1 minuto
+- **Alto uso de CPU**: Alerta cuando la CPU supera el 90% durante 2 minutos
+- **Alto porcentaje de errores HTTP**: Alerta cuando hay más del 5% de requests 5xx en 5 minutos
+- **Alto uso de memoria JVM**: Alerta cuando la memoria JVM supera el 85% durante 2 minutos
+- **Tiempo de respuesta alto**: Alerta cuando el percentil 95 supera los 2 segundos
+- **Aplicación caída**: Alerta cuando la aplicación no responde por más de 30 segundos
+
+#### Levantar Prometheus con Alertmanager
+
+```bash
+# Levantar todos los servicios de monitoreo
+docker-compose -f docker-compose-monitoring.yml up -d
+
+# Verificar que todos los servicios estén corriendo
+docker-compose -f docker-compose-monitoring.yml ps
+```
+
+#### Acceder a las Interfaces
+
+- **Prometheus**: http://localhost:9090
+  - Ver métricas en tiempo real
+  - Verificar reglas de alertas en Status → Rules
+  - Ver alertas activas en Alerts
+- **Alertmanager**: http://localhost:9093
+
+  - Ver alertas activas y resueltas
+  - Configurar silencios temporales
+  - Ver historial de alertas
+
+- **Grafana**: http://localhost:3000 (admin/admin)
+  - Crear dashboards personalizados
+  - Visualizar métricas históricas
+
+#### Verificar Alertas
+
+1. **En Prometheus**:
+
+   - Ve a http://localhost:9090/alerts
+   - Verifica que las reglas estén cargadas correctamente
+   - Las alertas aparecerán cuando se cumplan las condiciones
+
+2. **En Alertmanager**:
+
+   - Ve a http://localhost:9093
+   - Las alertas activas aparecerán en la interfaz
+   - Los logs de Alertmanager muestran las notificaciones enviadas
+
+3. **Logs de Alertmanager**:
+
+   ```bash
+   # Ver logs en tiempo real
+   docker logs -f alertmanager
+
+   # Ver logs de Prometheus
+   docker logs -f prometheus
+   ```
+
+#### Configuración de Notificaciones
+
+El archivo `alertmanager.yml` está configurado para desarrollo con notificaciones a consola. Para producción, puedes configurar:
+
+- **Slack**: Descomenta la configuración de `slack_configs`
+- **Email**: Descomenta la configuración de `email_configs`
+- **Webhooks**: Configura URLs de webhook personalizadas
+
+#### Personalizar Alertas
+
+Para agregar nuevas alertas, edita el archivo `alert_rules.yml`:
+
+```yaml
+- alert: MiNuevaAlerta
+  expr: mi_metrica > 100
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: 'Descripción de la alerta'
+    description: 'Detalles específicos: {{ $value }}'
+```
+
+#### Troubleshooting de Alertas
+
+**Problema**: Las alertas no aparecen en Alertmanager
+**Solución**:
+
+1. Verifica que Prometheus esté conectado a Alertmanager en Status → Targets
+2. Revisa los logs de Prometheus para errores de configuración
+3. Verifica que las reglas estén cargadas en Status → Rules
+
+**Problema**: Alertas falsas positivas
+**Solución**:
+
+1. Ajusta los umbrales en `alert_rules.yml`
+2. Modifica el tiempo de evaluación (`for`) para evitar alertas temporales
+3. Usa silencios en Alertmanager para alertas conocidas
 
 ### 🚀 Endpoints de Métricas Disponibles
 
