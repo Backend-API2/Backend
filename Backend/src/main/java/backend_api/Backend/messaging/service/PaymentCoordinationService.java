@@ -70,7 +70,12 @@ public class PaymentCoordinationService {
             metadata.putAll(message.getMetadata());
         }
 
-        payment.setMetadata(metadata);
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            payment.setMetadata(mapper.writeValueAsString(metadata));
+        } catch (Exception e) {
+            payment.setMetadata("{}");
+        }
 
         return payment;
     }

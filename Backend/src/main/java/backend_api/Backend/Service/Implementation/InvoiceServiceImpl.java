@@ -9,6 +9,7 @@ import backend_api.Backend.Service.Interface.InvoiceEventService;
 import backend_api.Backend.Service.Interface.InvoiceService;
 import backend_api.Backend.Service.Common.InvoiceCalculationService;
 import backend_api.Backend.Service.Common.EntityValidationService;
+import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +24,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service

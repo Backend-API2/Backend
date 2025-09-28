@@ -313,8 +313,15 @@ public class PaymentServiceImpl implements PaymentService{
             message.setGatewayTxnId(payment.getGateway_txn_id());
             message.setCapturedAt(payment.getCaptured_at());
 
-            if (payment.getMetadata() != null && payment.getMetadata().containsKey("matchingId")) {
-                message.setMatchingId((Long) payment.getMetadata().get("matchingId"));
+            if (payment.getMetadata() != null && payment.getMetadata().contains("matchingId")) {
+                try {
+                    com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                    java.util.Map<String, Object> metadataMap = mapper.readValue(payment.getMetadata(), java.util.Map.class);
+                    if (metadataMap.containsKey("matchingId")) {
+                        message.setMatchingId(((Number) metadataMap.get("matchingId")).longValue());
+                    }
+                } catch (Exception e) {
+                }
             }
 
             String reason = determineStatusChangeReason(oldStatus, newStatus);
