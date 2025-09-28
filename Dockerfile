@@ -4,7 +4,7 @@
 # ====================
 # Build Stage
 # ====================
-FROM openjdk:17-jdk-slim as builder
+FROM openjdk:17-jdk as builder
 
 # Install Maven
 RUN apt-get update && \
