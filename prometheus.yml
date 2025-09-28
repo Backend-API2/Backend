@@ -16,7 +16,7 @@ scrape_configs:
   # Spring Boot Backend application
   - job_name: 'spring-boot-backend'
     static_configs:
-      - targets: ['host.docker.internal:8080']
+      - targets: ['backend:8080']
     metrics_path: '/actuator/prometheus'
     scrape_interval: 30s
     scrape_timeout: 10s

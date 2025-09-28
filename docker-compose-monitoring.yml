@@ -33,7 +33,6 @@ services:
       - '--config.file=/etc/alertmanager/alertmanager.yml'
       - '--storage.path=/alertmanager'
       - '--web.external-url=http://localhost:9093'
-      - '--web.enable-lifecycle'
 
   grafana:
     image: grafana/grafana:latest
@@ -49,3 +48,8 @@ volumes:
   prometheus_data:
   alertmanager_data:
   grafana_data:
+
+networks:
+  default:
+    external: true
+    name: backend_default
