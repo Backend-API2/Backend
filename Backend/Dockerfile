@@ -14,15 +14,15 @@ RUN apt-get update && \
 WORKDIR /app
 
 # Copy Maven files
-COPY Backend/pom.xml .
-COPY Backend/mvnw .
-COPY Backend/.mvn .mvn
+COPY pom.xml .
+COPY mvnw .
+COPY .mvn .mvn
 
 # Download dependencies (cache layer)
 RUN ./mvnw dependency:go-offline -B
 
 # Copy source code
-COPY Backend/src ./src
+COPY src ./src
 
 # Build the application
 RUN ./mvnw clean package -DskipTests -B

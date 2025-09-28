@@ -272,8 +272,8 @@ jobs:
           # Upload docker-compose.yml
           scp -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} docker-compose.yml ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/
 
-          # Upload Dockerfile
-          scp -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} Dockerfile ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/
+          # Upload Dockerfile (ahora dentro de Backend/)
+          scp -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} Backend/Dockerfile ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/
 
           # Upload monitoring configuration files
           scp -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} prometheus.yml ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/
