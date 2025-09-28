@@ -1,0 +1,22 @@
+# Prometheus configuration for Spring Boot Backend monitoring
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  # Spring Boot Backend application
+  - job_name: 'spring-boot-backend'
+    static_configs:
+      - targets: ['localhost:8080']
+    metrics_path: '/actuator/prometheus'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
