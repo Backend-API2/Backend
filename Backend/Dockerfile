@@ -9,18 +9,18 @@ WORKDIR /app
 COPY pom.xml ./
 
 # Descargar dependencias para cachear
-RUN mvn dependency:go-offline -B
+RUN mvn -q dependency:go-offline -B
 
 # Copiar código fuente
 COPY src ./src
 
 # Compilar JAR
-RUN mvn clean package -DskipTests -B
+RUN mvn -q clean package -DskipTests -B
 
 # ====================
 # Runtime Stage
 # ====================
-FROM openjdk:17-jdk
+FROM eclipse-temurin:17-jdk-slim
 
 WORKDIR /app
 
