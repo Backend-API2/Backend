@@ -20,7 +20,7 @@ RUN mvn -q clean package -DskipTests -B
 # ====================
 # Runtime Stage
 # ====================
-FROM eclipse-temurin:17-jdk-slim
+FROM eclipse-temurin:17-jdk-focal
 
 WORKDIR /app
 
