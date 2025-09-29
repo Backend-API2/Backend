@@ -392,13 +392,15 @@ public class PaymentController {
             } else {
                 payments = paymentService.getPaymentsByUserId(user.getId());
             }
-            
+
             List<PaymentResponse> responses = responseMapperService.mapPaymentsToResponses(payments, user.getRole().name());
 
             return ResponseEntity.ok(responses);
         } catch (SecurityException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         } catch (Exception e) {
+            e.printStackTrace();
+            System.err.println("Error en getMyPayments: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }

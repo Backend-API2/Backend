@@ -9,6 +9,7 @@ import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.Map;
 
 @Data
 public class PaymentResponse {
@@ -68,29 +69,58 @@ public class PaymentResponse {
     
     public static PaymentResponse fromEntityWithNames(Payment payment, UserRepository userRepository, String currentUserRole) {
         PaymentResponse response = fromEntity(payment);
-        
+
         try {
             Optional<User> userOpt = userRepository.findById(payment.getUser_id());
             if (userOpt.isPresent()) {
                 response.setUser_name(userOpt.get().getName());
             }
-            
+
             Optional<User> providerOpt = userRepository.findById(payment.getProvider_id());
             if (providerOpt.isPresent()) {
                 response.setProvider_name(providerOpt.get().getName());
             }
-            
-            
+
             if ("MERCHANT".equals(currentUserRole)) {
-                response.setProvider_name(null); 
+                response.setProvider_name(null);
             } else {
-                response.setUser_name(null); 
+                response.setUser_name(null);
             }
-            
+
         } catch (Exception e) {
             System.err.println("Error obteniendo nombres para payment " + payment.getId() + ": " + e.getMessage());
         }
-        
+
+        return response;
+    }
+
+    // Versión optimizada que usa un Map precargado en lugar de hacer queries individuales
+    public static PaymentResponse fromEntityWithNamesOptimized(Payment payment, Map<Long, User> userMap, String currentUserRole) {
+        PaymentResponse response = fromEntity(payment);
+
+        try {
+            // Buscar en el Map en lugar de hacer query a DB
+            User user = userMap.get(payment.getUser_id());
+            if (user != null) {
+                response.setUser_name(user.getName());
+            }
+
+            User provider = userMap.get(payment.getProvider_id());
+            if (provider != null) {
+                response.setProvider_name(provider.getName());
+            }
+
+            // Filtrar según rol
+            if ("MERCHANT".equals(currentUserRole)) {
+                response.setProvider_name(null);
+            } else {
+                response.setUser_name(null);
+            }
+
+        } catch (Exception e) {
+            System.err.println("Error obteniendo nombres para payment " + payment.getId() + ": " + e.getMessage());
+        }
+
         return response;
     }
 }
