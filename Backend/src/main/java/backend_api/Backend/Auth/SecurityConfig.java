@@ -23,14 +23,16 @@ import java.util.Arrays;
 @EnableWebSecurity
 public class SecurityConfig {
 
-    @Autowired
-    private JwtAuthFilter jwtAuthFilter;
 
     private static final String[] SWAGGER_WHITELIST = {
             "/v3/api-docs/**",
             "/swagger-ui/**",
             "/swagger-ui.html"
     };
+
+    private static final String ROLE_USER = "USER";
+    private static final String ROLE_ADMIN = "ADMIN";
+    private static final String ROLE_MERCHANT = "MERCHANT";
 
 
     @Bean
@@ -68,13 +70,15 @@ public class SecurityConfig {
         http
             .securityMatcher("/actuator/**")
             .csrf(AbstractHttpConfigurer::disable)
-            .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/actuator/health").permitAll()
+                .anyRequest().hasRole("ADMIN"));
 
         return http.build();
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthFilter jwtAuthFilter) throws Exception {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf((csrf) -> csrf.disable())
