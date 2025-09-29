@@ -243,15 +243,15 @@ jobs:
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
             cd /home/ec2-user/app
             
-            # Check if any containers are still running
-            RUNNING_CONTAINERS=\$(docker ps -q)
-            if [ ! -z \"\$RUNNING_CONTAINERS\" ]; then
-              echo \"⚠️  Some containers are still running:\"
-              docker ps
-              echo \"Force stopping all containers...\"
-              docker stop \$RUNNING_CONTAINERS || true
+            # Check if staging containers are still running
+            STAGING_CONTAINERS=\$(docker ps -q --filter "label=com.docker.compose.project=app-staging")
+            if [ ! -z \"\$STAGING_CONTAINERS\" ]; then
+              echo \"⚠️  Some staging containers are still running:\"
+              docker ps --filter "label=com.docker.compose.project=app-staging"
+              echo \"Force stopping only staging containers...\"
+              docker stop \$STAGING_CONTAINERS || true
             else
-              echo \"✅ No containers are running\"
+              echo \"✅ No staging containers are running\"
             fi
             
             # Check if ports are free
