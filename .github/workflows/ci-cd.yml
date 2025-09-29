@@ -226,13 +226,13 @@ jobs:
             echo '🛑 Stopping staging Docker Compose services...'
             docker-compose -p app-staging down --remove-orphans || echo 'No staging services to stop'
             
-            # Clean up any orphaned containers
-            echo '🧹 Cleaning up orphaned containers...'
-            docker container prune -f || true
+            # Clean up only staging orphaned containers
+            echo '🧹 Cleaning up staging orphaned containers...'
+            docker container prune -f --filter "label=com.docker.compose.project=app-staging" || true
             
-            # Clean up any orphaned networks
-            echo '🧹 Cleaning up orphaned networks...'
-            docker network prune -f || true
+            # Clean up only staging networks (be more specific)
+            echo '🧹 Cleaning up unused networks (excluding production)...'
+            docker network prune -f --filter "name=app-staging" || true
             
             echo '✅ Docker cleanup completed'
           "
