@@ -1,26 +1,26 @@
 version: '3.8'
 
-# Red compartida para comunicación entre servicios
+# Red compartida para comunicación entre servicios de PRODUCCIÓN
 networks:
-  backend-network:
+  backend-network-prod:
     driver: bridge
 
-# Volúmenes para persistencia de datos
+# Volúmenes para persistencia de datos de PRODUCCIÓN
 volumes:
-  prometheus_data:
-  alertmanager_data:
-  grafana_data:
+  prometheus_data_prod:
+  alertmanager_data_prod:
+  grafana_data_prod:
 
 services:
   # ====================
-  # Backend Spring Boot
+  # Backend Spring Boot - PRODUCCIÓN
   # ====================
-  backend:
+  backend-prod:
     build:
       context: ./Backend
       dockerfile: Dockerfile
     ports:
-      - '8080:8080'
+      - '8081:8080' # Puerto externo 8081 para producción
     environment:
       - SPRING_PROFILES_ACTIVE=prod
       - DB_URL=${DB_URL:-jdbc:mysql://database-1.chaw6oq8ujma.us-east-2.rds.amazonaws.com:3306/base_api?allowPublicKeyRetrieval=true&useSSL=true&requireSSL=true&serverTimezone=UTC&createDatabaseIfNotExist=true&connectTimeout=60000&socketTimeout=60000&autoReconnect=true&failOverReadOnly=false&maxReconnects=10}
@@ -40,67 +40,67 @@ services:
         max-size: '10m'
         max-file: '3'
     networks:
-      - backend-network
+      - backend-network-prod
     depends_on:
-      - prometheus
+      - prometheus-prod
 
   # ====================
-  # Prometheus
+  # Prometheus - PRODUCCIÓN
   # ====================
-  prometheus:
+  prometheus-prod:
     image: prom/prometheus:latest
     ports:
-      - '9090:9090'
+      - '9091:9090' # Puerto externo 9091 para producción
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
-      - prometheus_data:/prometheus
+      - prometheus_data_prod:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.libraries=/etc/prometheus/ console_libraries'
       - '--web.console.templates=/etc/prometheus/consoles'
       - '--storage.tsdb.retention.time=200h'
       - '--web.enable-lifecycle'
       - '--web.enable-admin-api'
     restart: unless-stopped
     networks:
-      - backend-network
+      - backend-network-prod
     depends_on:
-      - alertmanager
+      - alertmanager-prod
 
   # ====================
-  # Alertmanager
+  # Alertmanager - PRODUCCIÓN
   # ====================
-  alertmanager:
+  alertmanager-prod:
     image: prom/alertmanager:v0.25.0
     ports:
-      - '9093:9093'
+      - '9004:9093' # Puerto externo 9004 para producción
     volumes:
       - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
-      - alertmanager_data:/alertmanager
+      - alertmanager_data_prod:/alertmanager
     command:
       - '--config.file=/etc/alertmanager/alertmanager.yml'
       - '--storage.path=/alertmanager'
-      - '--web.external-url=http://localhost:9093'
+      - '--web.external-url=http://localhost:9004'
     restart: unless-stopped
     networks:
-      - backend-network
+      - backend-network-prod
 
   # ====================
-  # Grafana
+  # Grafana - PRODUCCIÓN
   # ====================
-  grafana:
+  grafana-prod:
     image: grafana/grafana:latest
     ports:
-      - '3000:3000'
+      - '3001:3000' # Puerto externo 3001 para producción
     volumes:
-      - grafana_data:/var/lib/grafana
+      - grafana_data_prod:/var/lib/grafana
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
       - GF_INSTALL_PLUGINS=grafana-piechart-panel
     restart: unless-stopped
     networks:
-      - backend-network
+      - backend-network-prod
     depends_on:
-      - prometheus
+      - prometheus-prod

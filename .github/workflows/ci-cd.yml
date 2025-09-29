@@ -222,17 +222,17 @@ jobs:
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
             cd /home/ec2-user/app
             
-            # Stop all Docker Compose services
-            echo '🛑 Stopping all Docker Compose services...'
-            docker-compose down --remove-orphans || echo 'No services to stop'
+            # Stop only staging Docker Compose services
+            echo '🛑 Stopping staging Docker Compose services...'
+            docker-compose -p app-staging down --remove-orphans || echo 'No staging services to stop'
             
-            # Clean up any orphaned containers
-            echo '🧹 Cleaning up orphaned containers...'
-            docker container prune -f || true
+            # Clean up only staging orphaned containers
+            echo '🧹 Cleaning up staging orphaned containers...'
+            docker container prune -f --filter "label=com.docker.compose.project=app-staging" || true
             
-            # Clean up any orphaned networks
-            echo '🧹 Cleaning up orphaned networks...'
-            docker network prune -f || true
+            # Clean up only staging networks (be more specific)
+            echo '🧹 Cleaning up unused networks (excluding production)...'
+            docker network prune -f --filter "name=app-staging" || true
             
             echo '✅ Docker cleanup completed'
           "
@@ -243,15 +243,15 @@ jobs:
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
             cd /home/ec2-user/app
             
-            # Check if any containers are still running
-            RUNNING_CONTAINERS=\$(docker ps -q)
-            if [ ! -z \"\$RUNNING_CONTAINERS\" ]; then
-              echo \"⚠️  Some containers are still running:\"
-              docker ps
-              echo \"Force stopping all containers...\"
-              docker stop \$RUNNING_CONTAINERS || true
+            # Check if staging containers are still running
+            STAGING_CONTAINERS=\$(docker ps -q --filter "label=com.docker.compose.project=app-staging")
+            if [ ! -z \"\$STAGING_CONTAINERS\" ]; then
+              echo \"⚠️  Some staging containers are still running:\"
+              docker ps --filter "label=com.docker.compose.project=app-staging"
+              echo \"Force stopping only staging containers...\"
+              docker stop \$STAGING_CONTAINERS || true
             else
-              echo \"✅ No containers are running\"
+              echo \"✅ No staging containers are running\"
             fi
             
             # Check if ports are free
@@ -343,13 +343,13 @@ jobs:
             fi
             echo \"Found JAR file: \$JAR_FILE\"
             
-            # Build Docker image
-            echo '🔨 Building Docker image...'
-            docker-compose build --no-cache backend
+            # Build Docker image for staging
+            echo '🔨 Building Docker image for staging...'
+            docker-compose -p app-staging build --no-cache backend
             
-            # Start all services
-            echo '🚀 Starting all services with Docker Compose...'
-            docker-compose up -d
+            # Start staging services
+            echo '🚀 Starting staging services with Docker Compose...'
+            docker-compose -p app-staging up -d
             
             # Wait for services to be ready
             echo '⏳ Waiting for services to be ready...'
@@ -374,7 +374,7 @@ jobs:
             
             # Check Docker Compose service status
             echo '🔍 Checking Docker Compose service status...'
-            docker-compose ps
+            docker-compose -p app-staging ps
             
             # Check backend health
             echo '🏥 Checking backend health...'
@@ -428,10 +428,10 @@ jobs:
       - name: Optional services shutdown
         if: ${{ github.event.inputs.shutdown_services == 'true' }}
         run: |
-          echo "🛑 Shutting down services (requested)..."
+          echo "🛑 Shutting down staging services (requested)..."
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
             cd /home/ec2-user/app
-            docker-compose down
-            echo '✅ All services stopped'
+            docker-compose -p app-staging down
+            echo '✅ Staging services stopped'
           "
         continue-on-error: true
