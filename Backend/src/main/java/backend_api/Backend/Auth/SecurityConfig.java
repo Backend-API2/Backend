@@ -93,6 +93,8 @@ public class SecurityConfig {
                         // Asegurar acceso público a Actuator también en la cadena principal
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/health").permitAll()
+                        // Endpoints de prueba para eventos (solo para desarrollo)
+                        .requestMatchers("/api/test/events/**").permitAll()
                         // Endpoints públicos (sin autenticación)
                         .requestMatchers("/api/payments/webhook/**").permitAll()
                         .requestMatchers("/api/invoices/webhook/**").permitAll()
