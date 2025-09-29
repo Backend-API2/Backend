@@ -1,0 +1,58 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [prod]
+
+jobs:
+  deploy-prod:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'maven'
+
+      - name: Build JAR
+        working-directory: ./Backend
+        run: mvn -B -DskipTests clean package
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+      - name: Deploy to Production
+        run: |
+          # Clean up ports and stop production services
+          ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
+            cd /home/ec2-user/app
+            echo '🧹 Cleaning up production ports...'
+            docker-compose -f docker-compose.prod.yml down --remove-orphans 2>/dev/null || true
+            docker container prune -f || true
+            echo '✅ Ports cleaned!'
+          "
+
+          # Copy files to server
+          JAR_FILE=$(find ./Backend/target -name "*.jar" -type f | head -1)
+          scp -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} "$JAR_FILE" ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/
+          scp -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} docker-compose.prod.yml ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/
+          scp -r -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} Backend ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/
+
+          # Start production
+          echo "🚀 Starting production..."
+          ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
+            cd /home/ec2-user/app
+            docker-compose -f docker-compose.prod.yml build backend-prod
+            docker-compose -f docker-compose.prod.yml up -d
+            echo '✅ Production deployed!'
+            echo 'Backend: http://localhost:8081'
+            echo 'Grafana: http://localhost:3001'"
+          "
