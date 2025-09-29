@@ -24,6 +24,7 @@ import java.util.Arrays;
 public class SecurityConfig {
 
 
+
     private static final String[] SWAGGER_WHITELIST = {
             "/v3/api-docs/**",
             "/swagger-ui/**",
@@ -31,24 +32,13 @@ public class SecurityConfig {
     };
 
     private static final String ROLE_USER = "USER";
-    private static final String ROLE_ADMIN = "ADMIN";
     private static final String ROLE_MERCHANT = "MERCHANT";
+    private static final String ROLE_ADMIN = "ADMIN";
 
 
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
-    }
-
-    @Bean
-    @Order(0)
-    public SecurityFilterChain swaggerSecurityFilterChain(HttpSecurity http) throws Exception {
-        http
-            .securityMatcher("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
-            .csrf(AbstractHttpConfigurer::disable)
-            .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
-
-        return http.build();
     }
 
     @Bean
@@ -64,6 +54,17 @@ public class SecurityConfig {
         return source;
     }
 
+   @Bean
+    @Order(0)
+    public SecurityFilterChain swaggerSecurityFilterChain(HttpSecurity http) throws Exception {
+        http
+            .securityMatcher("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
+            .csrf(AbstractHttpConfigurer::disable)
+            .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+
+        return http.build();
+    }
+
     @Bean
     @Order(1)
     public SecurityFilterChain actuatorSecurityFilterChain(HttpSecurity http) throws Exception {
@@ -72,7 +73,7 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/actuator/health").permitAll()
-                .anyRequest().hasRole("ADMIN"));
+                .anyRequest().hasRole(ROLE_ADMIN));
 
         return http.build();
     }
@@ -98,46 +99,59 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/payments/methods").permitAll()
                         
                         // Payment endpoints - requieren autenticación
-                        .requestMatchers(HttpMethod.POST, "/api/payments").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/payments/all").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/payments/{id}").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/payments/user/{userId}").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/payments/provider/{providerId}").hasAnyRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/payments/status/{status}").hasAnyRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/payments/gateway/{gatewayTxnId}").hasAnyRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/payments/solicitud/{solicitudId}").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/payments/amount/{minAmount}").hasAnyRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/payments/date-range").hasAnyRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/payments/user/{userId}/status/{status}").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/payments/currency/{currency}").hasAnyRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/payments/{id}/exists").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/payments/{id}/timeline").hasAnyRole("USER", "ADMIN")
-                        
+                        .requestMatchers(HttpMethod.POST, "/api/payments").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.GET, "/api/payments/all").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.GET, "/api/payments/{id}").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.GET, "/api/payments/user/{userId}").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.GET, "/api/payments/provider/{providerId}").hasAnyRole(ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.GET, "/api/payments/status/{status}").hasAnyRole(ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.GET, "/api/payments/gateway/{gatewayTxnId}").hasAnyRole(ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.GET, "/api/payments/solicitud/{solicitudId}").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.GET, "/api/payments/amount/{minAmount}").hasAnyRole(ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.GET, "/api/payments/date-range").hasAnyRole(ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.GET, "/api/payments/user/{userId}/status/{status}").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.GET, "/api/payments/currency/{currency}").hasAnyRole(ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.GET, "/api/payments/{id}/exists").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.GET, "/api/payments/{id}/timeline").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
+
                         // Payment intents and confirmation
-                        .requestMatchers(HttpMethod.POST, "/api/payments/{id}/confirm").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers(HttpMethod.POST, "/api/payments/{id}/cancel").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/payments/{id}/attempts").hasAnyRole("ADMIN")
-                        .requestMatchers(HttpMethod.POST, "/api/payments/{id}/retry-balance").hasAnyRole("USER")
+                        .requestMatchers(HttpMethod.POST, "/api/payments/{id}/confirm").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.POST, "/api/payments/{id}/cancel").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.GET, "/api/payments/{id}/attempts").hasAnyRole(ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.POST, "/api/payments/{id}/retry-balance").hasAnyRole(ROLE_USER)
 
                         // Payment filtering and pagination endpoints
-                        .requestMatchers(HttpMethod.POST, "/api/payments/search").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers(HttpMethod.POST, "/api/payments/search/user").hasAnyRole("ADMIN")
-                        .requestMatchers(HttpMethod.POST, "/api/payments/search/amount").hasAnyRole("ADMIN")
-                        
-                        .requestMatchers(HttpMethod.GET, "/api/payments/my-payments").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/payments/my-payments/status/*").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/payments/my-total").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers(HttpMethod.POST, "/api/payments/my-search").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/payments/search").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.POST, "/api/payments/search/user").hasAnyRole(ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.POST, "/api/payments/search/amount").hasAnyRole(ROLE_MERCHANT)
+
+                        .requestMatchers(HttpMethod.GET, "/api/payments/my-payments").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.GET, "/api/payments/my-payments/status/*").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.GET, "/api/payments/my-total").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.POST, "/api/payments/my-search").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
 
                         // Invoice endpoints - según rol (cuando se implementen)
-                        .requestMatchers(HttpMethod.POST, "/api/invoices").hasAnyRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/invoices/{id}").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/api/invoices/{id}").hasAnyRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/invoices").hasAnyRole("ADMIN")
-                        
+                        .requestMatchers(HttpMethod.POST, "/api/invoices").hasAnyRole(ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.GET, "/api/invoices/{id}").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.PUT, "/api/invoices/{id}").hasAnyRole(ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.GET, "/api/invoices").hasAnyRole(ROLE_MERCHANT)
+
                         // ✅ NUEVOS ENDPOINTS SEGUROS DE FACTURAS CON TOKEN
-                        .requestMatchers(HttpMethod.GET, "/api/invoices/my-invoices").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/invoices/my-summary").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/invoices/my-invoices").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.GET, "/api/invoices/my-summary").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
+
+                        // Refund endpoints - restringidos (cuando se implementen)
+                        .requestMatchers(HttpMethod.POST, "/api/refunds/create").hasAnyRole(ROLE_MERCHANT, ROLE_USER)
+                        .requestMatchers(HttpMethod.GET, "/api/refunds/{id}").hasAnyRole(ROLE_MERCHANT, ROLE_USER)
+                        .requestMatchers(HttpMethod.GET, "/api/refunds/all").hasAnyRole(ROLE_MERCHANT, ROLE_USER)
+                        
+                         // Endpoints adicionales de Refund
+                        .requestMatchers(HttpMethod.PATCH, "/api/refunds/{id}/status").hasAnyRole(ROLE_MERCHANT, ROLE_USER)
+                        .requestMatchers(HttpMethod.GET, "/api/refunds/payment/{paymentId}").hasAnyRole(ROLE_MERCHANT, ROLE_USER)
+                        .requestMatchers(HttpMethod.GET, "/api/refunds/status/{status}").hasAnyRole(ROLE_MERCHANT, ROLE_USER)
+
+                    
+
                 
                         
                         .anyRequest().authenticated()
