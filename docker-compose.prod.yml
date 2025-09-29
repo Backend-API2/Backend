@@ -19,7 +19,6 @@ services:
     build:
       context: ./Backend
       dockerfile: Dockerfile
-    container_name: backend-api-prod
     ports:
       - '8081:8080' # Puerto externo 8081 para producción
     environment:
@@ -50,7 +49,6 @@ services:
   # ====================
   prometheus-prod:
     image: prom/prometheus:latest
-    container_name: prometheus-prod
     ports:
       - '9091:9090' # Puerto externo 9091 para producción
     volumes:
@@ -76,7 +74,6 @@ services:
   # ====================
   alertmanager-prod:
     image: prom/alertmanager:v0.25.0
-    container_name: alertmanager-prod
     ports:
       - '9004:9093' # Puerto externo 9004 para producción
     volumes:
@@ -95,7 +92,6 @@ services:
   # ====================
   grafana-prod:
     image: grafana/grafana:latest
-    container_name: grafana-prod
     ports:
       - '3001:3000' # Puerto externo 3001 para producción
     volumes:

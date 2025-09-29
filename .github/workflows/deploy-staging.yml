@@ -1,11 +1,11 @@
-name: Deploy to Production
+name: Deploy to Staging
 
 on:
   push:
-    branches: [prod]
+    branches: [master]
 
 jobs:
-  deploy-prod:
+  deploy-staging:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -29,15 +29,15 @@ jobs:
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
-      - name: Deploy to Production
+      - name: Deploy to Staging
         run: |
-          # Clean up ports and stop production services
+          # Clean up and stop staging services (scoped to app-staging project)
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
             cd /home/ec2-user/app
-            echo '🧹 Cleaning up production ports...'
-            # Remueve contenedores con nombres fijos legacy si existen (una sola vez)
-            docker rm -f alertmanager-prod grafana-prod prometheus-prod backend-api-prod 2>/dev/null || true
-            docker-compose -p app-prod -f docker-compose.prod.yml down --remove-orphans 2>/dev/null || true
+            echo '🧹 Cleaning up staging ports...'
+            # Remove legacy fixed-name containers (one-time cleanup)
+            docker rm -f alertmanager grafana prometheus backend-api 2>/dev/null || true
+            docker-compose -p app-staging -f docker-compose.yml down --remove-orphans 2>/dev/null || true
             docker container prune -f || true
             echo '✅ Ports cleaned!'
           "
@@ -45,16 +45,16 @@ jobs:
           # Copy files to server
           JAR_FILE=$(find ./Backend/target -name "*.jar" -type f | head -1)
           scp -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} "$JAR_FILE" ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/
-          scp -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} docker-compose.prod.yml ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/
+          scp -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} docker-compose.yml ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/
           scp -r -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} Backend ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/
 
-          # Start production
-          echo "🚀 Starting production..."
+          # Start staging
+          echo "🚀 Starting staging..."
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
             cd /home/ec2-user/app
-            docker-compose -p app-prod -f docker-compose.prod.yml build backend-prod
-            docker-compose -p app-prod -f docker-compose.prod.yml up -d
-            echo '✅ Production deployed!'
-            echo 'Backend: http://localhost:8081'
-            echo 'Grafana: http://localhost:3001'
+            docker-compose -p app-staging -f docker-compose.yml build backend
+            docker-compose -p app-staging -f docker-compose.yml up -d
+            echo '✅ Staging deployed!'
+            echo 'Backend: http://localhost:8080'
+            echo 'Grafana: http://localhost:3000'
           "
