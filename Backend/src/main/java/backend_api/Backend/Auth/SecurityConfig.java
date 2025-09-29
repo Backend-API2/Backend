@@ -142,17 +142,6 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/invoices/my-invoices").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
                         .requestMatchers(HttpMethod.GET, "/api/invoices/my-summary").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
 
-                        // Refund endpoints - restringidos (cuando se implementen)
-                        .requestMatchers(HttpMethod.POST, "/api/refunds/create").hasAnyRole(ROLE_MERCHANT, ROLE_USER)
-                        .requestMatchers(HttpMethod.GET, "/api/refunds/{id}").hasAnyRole(ROLE_MERCHANT, ROLE_USER)
-                        .requestMatchers(HttpMethod.GET, "/api/refunds/all").hasAnyRole(ROLE_MERCHANT, ROLE_USER)
-                        
-                         // Endpoints adicionales de Refund
-                        .requestMatchers(HttpMethod.PATCH, "/api/refunds/{id}/status").hasAnyRole(ROLE_MERCHANT, ROLE_USER)
-                        .requestMatchers(HttpMethod.GET, "/api/refunds/payment/{paymentId}").hasAnyRole(ROLE_MERCHANT, ROLE_USER)
-                        .requestMatchers(HttpMethod.GET, "/api/refunds/status/{status}").hasAnyRole(ROLE_MERCHANT, ROLE_USER)
-
-                    
 
                 
                         
