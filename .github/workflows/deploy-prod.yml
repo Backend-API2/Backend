@@ -35,7 +35,7 @@ jobs:
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
             cd /home/ec2-user/app
             echo '🧹 Cleaning up production ports...'
-            docker-compose -f docker-compose.prod.yml down --remove-orphans 2>/dev/null || true
+            docker-compose -p app-prod -f docker-compose.prod.yml down --remove-orphans 2>/dev/null || true
             docker container prune -f || true
             echo '✅ Ports cleaned!'
           "
@@ -50,8 +50,8 @@ jobs:
           echo "🚀 Starting production..."
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
             cd /home/ec2-user/app
-            docker-compose -f docker-compose.prod.yml build backend-prod
-            docker-compose -f docker-compose.prod.yml up -d
+            docker-compose -p app-prod -f docker-compose.prod.yml build backend-prod
+            docker-compose -p app-prod -f docker-compose.prod.yml up -d
             echo '✅ Production deployed!'
             echo 'Backend: http://localhost:8081'
             echo 'Grafana: http://localhost:3001'
