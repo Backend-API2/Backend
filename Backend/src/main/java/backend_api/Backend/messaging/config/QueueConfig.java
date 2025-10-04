@@ -10,13 +10,16 @@ public class QueueConfig {
 
     public static final String PAYMENT_COORDINATION_QUEUE = "payment.coordination.queue";
     public static final String PAYMENT_STATUS_UPDATE_QUEUE = "payment.status.update.queue";
-    public static final String PAYMENT_COMMAND_QUEUE = "payment.command.queue";               // NUEVA
-    public static final String PAYMENT_COORDINATION_CONFIRMED_QUEUE = "payment.coordination.confirmed.queue"; // NUEVA
+    public static final String PAYMENT_COMMAND_QUEUE = "payment.command.queue";               
+    public static final String PAYMENT_COORDINATION_CONFIRMED_QUEUE = "payment.coordination.confirmed.queue"; 
+
+    public static final String CORE_PAYMENT_REQUEST_QUEUE = "core.payment.request.queue";
+    public static final String CORE_USER_PROVIDER_DATA_QUEUE = "core.user.provider.data.queue";
+    public static final String CORE_EVENT_RESPONSE_QUEUE = "core.event.response.queue";
 
     public static final String PAYMENT_EXCHANGE = "payment.exchange";
     public static final String PAYMENT_DLQ = "payment.coordination.dlq";
 
-    // DLX para mensajes que fallen
     public static final String PAYMENT_DLX = "payment.dlx";
 
     @Bean
@@ -93,5 +96,41 @@ public class QueueConfig {
         return BindingBuilder.bind(paymentDeadLetterQueue())
                 .to(paymentDeadLetterExchange())
                 .with("payment.coordination.dlq");
+    }
+
+    @Bean
+    public Queue corePaymentRequestQueue() {
+        return QueueBuilder.durable(CORE_PAYMENT_REQUEST_QUEUE).build();
+    }
+
+    @Bean
+    public Queue coreUserProviderDataQueue() {
+        return QueueBuilder.durable(CORE_USER_PROVIDER_DATA_QUEUE).build();
+    }
+
+    @Bean
+    public Queue coreEventResponseQueue() {
+        return QueueBuilder.durable(CORE_EVENT_RESPONSE_QUEUE).build();
+    }
+
+    @Bean
+    public Binding corePaymentRequestBinding() {
+        return BindingBuilder.bind(corePaymentRequestQueue())
+                .to(paymentExchange())
+                .with("core.payment.request");
+    }
+
+    @Bean
+    public Binding coreUserProviderDataBinding() {
+        return BindingBuilder.bind(coreUserProviderDataQueue())
+                .to(paymentExchange())
+                .with("core.user.provider.data");
+    }
+
+    @Bean
+    public Binding coreEventResponseBinding() {
+        return BindingBuilder.bind(coreEventResponseQueue())
+                .to(paymentExchange())
+                .with("core.event.response");
     }
 }
