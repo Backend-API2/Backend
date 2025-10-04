@@ -143,8 +143,6 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/invoices/my-summary").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
 
 
-                
-                        
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
