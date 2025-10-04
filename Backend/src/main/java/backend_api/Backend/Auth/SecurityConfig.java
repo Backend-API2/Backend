@@ -95,6 +95,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/health").permitAll()
                         // Endpoints de prueba para eventos (solo para desarrollo)
                         .requestMatchers("/api/test/events/**").permitAll()
+                        // CORE HUB Integration endpoints - públicos
+                        .requestMatchers("/api/core/**").permitAll()
+                        .requestMatchers("/api/rabbitmq/**").permitAll()
                         // Endpoints públicos (sin autenticación)
                         .requestMatchers("/api/payments/webhook/**").permitAll()
                         .requestMatchers("/api/invoices/webhook/**").permitAll()

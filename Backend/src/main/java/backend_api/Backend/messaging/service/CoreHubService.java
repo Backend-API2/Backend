@@ -27,15 +27,13 @@ public class CoreHubService {
     @Value("${core.hub.api.key:ch_1a05cee27dfe40b1a17370ff15d52735}")
     private String apiKey;
 
-    @Value("${core.hub.team.name:PAYMENTS}")
+    @Value("${core.hub.team.name:payments}")
     private String teamName;
 
     @Value("${core.hub.webhook.url:}")
     private String webhookUrl;
 
-    /**
-     * Publica un mensaje al CORE HUB
-     */
+
     public void publishMessage(CoreResponseMessage message) {
         String url = coreHubUrl + "/publish";
 
@@ -61,9 +59,7 @@ public class CoreHubService {
         }
     }
 
-    /**
-     * Suscribe a un tópico del CORE HUB
-     */
+   
     public void subscribeToTopic(String targetTeamName, String domain, String action) {
         String url = coreHubUrl + "/subscribe";
 
@@ -96,9 +92,7 @@ public class CoreHubService {
         }
     }
 
-    /**
-     * Envía ACK al CORE confirmando procesamiento
-     */
+
     public void sendAck(String messageId, String subscriptionId) {
         String url = String.format("%s/messages/%s/ack", coreHubUrl, messageId);
 
@@ -127,9 +121,7 @@ public class CoreHubService {
         }
     }
 
-    /**
-     * Verifica conexión con CORE HUB
-     */
+   
     public Map<String, Object> checkConnection() {
         Map<String, Object> result = new HashMap<>();
 

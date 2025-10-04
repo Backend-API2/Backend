@@ -1,10 +1,9 @@
 package backend_api.Backend.messaging.publisher;
 
-import backend_api.Backend.messaging.config.QueueConfig;
 import backend_api.Backend.messaging.dto.CoreResponseMessage;
+import backend_api.Backend.messaging.service.CoreHubService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.amqp.core.AmqpTemplate;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -12,17 +11,13 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class CoreEventPublisher {
 
-    private final AmqpTemplate rabbitTemplate;
+    private final CoreHubService coreHubService;
 
     public void publishToCore(CoreResponseMessage message) {
-        log.info("Enviando mensaje al CORE - MessageId: {}, EventName: {}",
+        log.info("Enviando mensaje al CORE vía HTTP - MessageId: {}, EventName: {}",
             message.getMessageId(),
             message.getDestination().getEventName());
 
-        rabbitTemplate.convertAndSend(
-            QueueConfig.PAYMENT_EXCHANGE,
-            "core.event.response",
-            message
-        );
+        coreHubService.publishMessage(message);
     }
 }
