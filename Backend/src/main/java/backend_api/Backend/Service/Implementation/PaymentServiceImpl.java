@@ -195,9 +195,12 @@ public class PaymentServiceImpl implements PaymentService{
         );
         
         boolean success = simulateGatewayCall();
+
+        PaymentStatus oldStatus = payment.getStatus();
+        PaymentStatus newStatus;
         
         if (success) {
-            payment.setStatus(PaymentStatus.APPROVED);
+            newStatus = PaymentStatus.APPROVED;
             payment.setCaptured_at(LocalDateTime.now());
             payment.setGateway_txn_id("txn_" + UUID.randomUUID().toString().replace("-", ""));
             
@@ -210,7 +213,7 @@ public class PaymentServiceImpl implements PaymentService{
             
             paymentAttemptService.createAttempt(paymentId, PaymentStatus.APPROVED, "success", "approved", "Payment successful", null);
         } else {
-            payment.setStatus(PaymentStatus.REJECTED);
+            newStatus = PaymentStatus.REJECTED;
             
             paymentEventService.createEvent(
                 paymentId,
@@ -222,8 +225,7 @@ public class PaymentServiceImpl implements PaymentService{
             paymentAttemptService.createAttempt(paymentId, PaymentStatus.REJECTED, "declined", "card_declined", "Card was declined", "insufficient_funds");
         }
         
-        payment.setUpdated_at(LocalDateTime.now());
-        return paymentRepository.save(payment);
+        return updatePaymentStatus(paymentId, newStatus);
     }
     
     @Override
@@ -233,20 +235,17 @@ public class PaymentServiceImpl implements PaymentService{
             throw new RuntimeException("Payment not found with id: " + paymentId);
         }
         
-        Payment payment = paymentOpt.get();
-        payment.setStatus(PaymentStatus.CANCELLED);
-        payment.setUpdated_at(LocalDateTime.now());
-        
+    
         paymentEventService.createEvent(
             paymentId,
             PaymentEventType.PAYMENT_CANCELLED,
             String.format("{\"reason\": \"%s\"}", reason),
             "system"
         );
-        
-        return paymentRepository.save(payment);
+
+        return updatePaymentStatus(paymentId, PaymentStatus.CANCELLED);
     }
-    
+
     @Override
     public Payment expirePayment(Long paymentId) {
         Optional<Payment> paymentOpt = paymentRepository.findById(paymentId);
@@ -254,10 +253,7 @@ public class PaymentServiceImpl implements PaymentService{
             throw new RuntimeException("Payment not found with id: " + paymentId);
         }
         
-        Payment payment = paymentOpt.get();
-        payment.setStatus(PaymentStatus.EXPIRED);
-        payment.setUpdated_at(LocalDateTime.now());
-        
+       
         paymentEventService.createEvent(
             paymentId,
             PaymentEventType.PAYMENT_EXPIRED,
@@ -265,7 +261,7 @@ public class PaymentServiceImpl implements PaymentService{
             "system"
         );
         
-        return paymentRepository.save(payment);
+         return updatePaymentStatus(paymentId, PaymentStatus.EXPIRED);
     }
     
     @Override
