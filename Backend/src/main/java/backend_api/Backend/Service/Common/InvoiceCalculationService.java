@@ -1,7 +1,6 @@
  package backend_api.Backend.Service.Common;
 
 import backend_api.Backend.DTO.invoice.CreateInvoiceRequest;
-import backend_api.Backend.DTO.invoice.UpdateInvoiceRequest;
 import backend_api.Backend.Entity.invoice.Invoice;
 import backend_api.Backend.Entity.invoice.InvoiceLine;
 import backend_api.Backend.Repository.InvoiceLineRepository;

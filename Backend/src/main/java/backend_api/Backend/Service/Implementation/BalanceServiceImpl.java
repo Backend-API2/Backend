@@ -1,7 +1,6 @@
 package backend_api.Backend.Service.Implementation;
 
 import backend_api.Backend.Entity.payment.Payment;
-import backend_api.Backend.Entity.payment.PaymentStatus;
 import backend_api.Backend.Entity.user.User;
 import backend_api.Backend.Repository.PaymentRepository;
 import backend_api.Backend.Repository.UserRepository;

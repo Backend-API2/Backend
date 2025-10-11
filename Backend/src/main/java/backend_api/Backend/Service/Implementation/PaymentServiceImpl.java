@@ -196,7 +196,6 @@ public class PaymentServiceImpl implements PaymentService{
         
         boolean success = simulateGatewayCall();
 
-        PaymentStatus oldStatus = payment.getStatus();
         PaymentStatus newStatus;
         
         if (success) {
@@ -312,6 +311,7 @@ public class PaymentServiceImpl implements PaymentService{
             if (payment.getMetadata() != null && payment.getMetadata().contains("matchingId")) {
                 try {
                     com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                    @SuppressWarnings("unchecked")
                     java.util.Map<String, Object> metadataMap = mapper.readValue(payment.getMetadata(), java.util.Map.class);
                     if (metadataMap.containsKey("matchingId")) {
                         message.setMatchingId(((Number) metadataMap.get("matchingId")).longValue());

@@ -2,7 +2,6 @@ package backend_api.Backend.Entity.payment.types;
 
 import backend_api.Backend.Entity.payment.PaymentMethod;
 import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
 import jakarta.persistence.DiscriminatorValue;
 import lombok.Data;
 import lombok.EqualsAndHashCode;

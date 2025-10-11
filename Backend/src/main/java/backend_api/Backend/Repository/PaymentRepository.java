@@ -17,7 +17,6 @@ import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 
 @Repository
 public interface PaymentRepository extends JpaRepository<Payment, Long> {

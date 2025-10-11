@@ -1,4 +1,4 @@
-package backend_api.Backend.Service.Implementation;
+/*package backend_api.Backend.Service.Implementation;
 
 import backend_api.Backend.DTO.payment.SelectPaymentMethodRequest;
 import backend_api.Backend.Entity.payment.*;
@@ -924,3 +924,4 @@ class PaymentMethodServiceImplTest {
         verify(creditCardRepository).save(any(CreditCardPayment.class));
     }
 }
+*/

@@ -41,7 +41,6 @@ public class InvoiceController {
     
     private final InvoiceService invoiceService;
     private final AuthenticationService authenticationService;
-    private final EntityValidationService entityValidationService;
     
     
     @Operation(

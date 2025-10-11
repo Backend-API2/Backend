@@ -18,7 +18,6 @@ import java.util.Map;
 public class CoreHubService {
 
     private final RestTemplate restTemplate;
-    private final ObjectMapper objectMapper;
 
     @Value("${core.hub.api.url:https://nonprodapi.uade-corehub.com}")
     private String coreHubUrl;

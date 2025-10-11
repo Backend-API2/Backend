@@ -22,7 +22,6 @@ public class CoreWebhookController {
 
     private final CoreEventProcessorService coreEventProcessorService;
     private final CoreHubService coreHubService;
-    private final ObjectMapper objectMapper;
 
     /**
      * Endpoint que el CORE HUB llama cuando hay un evento

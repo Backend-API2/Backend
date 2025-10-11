@@ -43,7 +43,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     public InvoiceResponse createInvoice(CreateInvoiceRequest request) {
         log.info("Creando nueva factura para el pago: {}", request.getPaymentId());
         
-        Payment payment = entityValidationService.getPaymentOrThrow(request.getPaymentId());
+        entityValidationService.getPaymentOrThrow(request.getPaymentId());
         
         Invoice invoice = new Invoice();
         invoice.setPaymentId(request.getPaymentId());

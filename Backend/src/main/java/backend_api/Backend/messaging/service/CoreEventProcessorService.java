@@ -51,6 +51,7 @@ public class CoreEventProcessorService {
             .providerId(providerId)
             .build();
 
+        @SuppressWarnings("unchecked")
         Map<String, Object> payloadMap = objectMapper.convertValue(payload, Map.class);
 
         CoreResponseMessage response = CoreResponseMessage.builder()
@@ -84,7 +85,9 @@ public class CoreEventProcessorService {
         Long cotizacionId = extractLong(payload, "cotizacionId");
 
         // Extraer datos de usuario y prestador si vienen en el payload
+        @SuppressWarnings("unchecked")
         Map<String, Object> userData = extractMap(payload, "userData");
+        @SuppressWarnings("unchecked")
         Map<String, Object> providerData = extractMap(payload, "providerData");
 
         log.info("Creando pago - SolicitudId: {}, UserId: {}, ProviderId: {}, Amount: {}",
