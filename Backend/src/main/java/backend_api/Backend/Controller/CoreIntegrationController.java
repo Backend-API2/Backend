@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
@@ -80,7 +81,7 @@ public class CoreIntegrationController {
 
             CoreResponseMessage message = CoreResponseMessage.builder()
                 .messageId(UUID.randomUUID().toString())
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now().toString())
                 .source("payments")
                 .destination(CoreResponseMessage.Destination.builder()
                     .channel(channel)
@@ -123,10 +124,10 @@ public class CoreIntegrationController {
 
             CoreResponseMessage message = CoreResponseMessage.builder()
                 .messageId(UUID.randomUUID().toString())
-                .timestamp(LocalDateTime.now())
+                .timestamp(Instant.now().toString())
                 .source("payments")
                 .destination(CoreResponseMessage.Destination.builder()
-                    .channel("payments.ids.extracted")
+                    .channel("payments.id.extracted")
                     .eventName("extracted")
                     .build())
                 .payload(payload)

@@ -1,6 +1,5 @@
 package backend_api.Backend.messaging.service;
 
-import backend_api.Backend.messaging.dto.CoreEventMessage;
 import backend_api.Backend.messaging.dto.CoreResponseMessage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -62,33 +61,39 @@ public class CoreHubService {
    
     public void subscribeToTopic(String targetTeamName, String domain, String action) {
         String url = coreHubUrl + "/subscribe";
-
+    
         Map<String, String> subscriptionData = new HashMap<>();
         subscriptionData.put("webhookUrl", webhookUrl);
         subscriptionData.put("squadName", teamName);
         subscriptionData.put("topic", String.format("%s.%s.%s", targetTeamName, domain, action));
         subscriptionData.put("eventName", action);
-
+    
         HttpHeaders headers = new HttpHeaders();
         headers.set("X-API-KEY", apiKey);
         headers.setContentType(MediaType.APPLICATION_JSON);
-
+    
         HttpEntity<Map<String, String>> request = new HttpEntity<>(subscriptionData, headers);
-
+    
         try {
+            log.info("Intentando suscribirse al tópico: {}.{}.{}", targetTeamName, domain, action);
+            log.info("URL: {}", url);
+            log.info("Payload: {}", subscriptionData);
+            
             ResponseEntity<String> response = restTemplate.postForEntity(url, request, String.class);
-
+    
             if (response.getStatusCode().is2xxSuccessful()) {
                 log.info("Suscripción exitosa al tópico: {}.{}.{}", targetTeamName, domain, action);
                 log.info("Response: {}", response.getBody());
             } else {
                 log.error("Error en suscripción - Status: {}, Response: {}",
                     response.getStatusCode(), response.getBody());
+                throw new RuntimeException("Error en suscripción al CORE - Status: " + 
+                    response.getStatusCode() + ", Response: " + response.getBody());
             }
-
+    
         } catch (Exception e) {
             log.error("Error suscribiéndose al tópico: {}", e.getMessage(), e);
-            throw new RuntimeException("Error en suscripción al CORE", e);
+            throw new RuntimeException("Error en suscripción al CORE: " + e.getMessage(), e);
         }
     }
 

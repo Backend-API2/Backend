@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
@@ -54,10 +55,10 @@ public class CoreEventProcessorService {
 
         CoreResponseMessage response = CoreResponseMessage.builder()
             .messageId(UUID.randomUUID().toString())
-            .timestamp(LocalDateTime.now())
+            .timestamp(Instant.now().toString())
             .source("payments")
             .destination(CoreResponseMessage.Destination.builder()
-                .channel("payments.ids.extracted")
+                .channel("payments.id.extracted")
                 .eventName("extracted")
                 .build())
             .payload(payloadMap)
@@ -119,7 +120,7 @@ public class CoreEventProcessorService {
         payment.setCreated_at(LocalDateTime.now());
         payment.setUpdated_at(LocalDateTime.now());
 
-        // Construir metadata con toda la información
+        // Construir metadata con información esencial (limitado a 255 caracteres)
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("solicitudId", solicitudId);
         metadata.put("coreMessageId", originalMessageId);
@@ -130,11 +131,12 @@ public class CoreEventProcessorService {
         if (description != null) {
             metadata.put("description", description);
         }
-        if (userData != null) {
-            metadata.put("userData", userData);
+        // Solo guardar nombres de usuario y prestador para ahorrar espacio
+        if (userData != null && userData.containsKey("name")) {
+            metadata.put("userName", userData.get("name"));
         }
-        if (providerData != null) {
-            metadata.put("providerData", providerData);
+        if (providerData != null && providerData.containsKey("name")) {
+            metadata.put("providerName", providerData.get("name"));
         }
 
         try {
@@ -157,7 +159,7 @@ public class CoreEventProcessorService {
 
         CoreResponseMessage confirmation = CoreResponseMessage.builder()
             .messageId(UUID.randomUUID().toString())
-            .timestamp(LocalDateTime.now())
+            .timestamp(Instant.now().toString())
             .source("payments")
             .destination(CoreResponseMessage.Destination.builder()
                 .channel("payments.payment.created")

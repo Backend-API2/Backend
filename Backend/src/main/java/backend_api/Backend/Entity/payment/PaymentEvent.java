@@ -31,6 +31,9 @@ public class PaymentEvent {
     
     @Column(name = "event_source")
     private String eventSource;
+
+    @Column(name = "description")
+    private String description;
     
     @Column(name = "correlation_id")
     private String correlationId;

@@ -2,6 +2,8 @@
 package backend_api.Backend.messaging.dto;
 
 import lombok.*;
+
+import java.time.LocalDateTime;
 import java.util.Map;
 
 @Data
@@ -13,4 +15,6 @@ public class PaymentMethodSelectedMessage extends BaseMessage {
     private Long userId;
     private String methodType;   // CREDIT_CARD, DEBIT_CARD, BANK_TRANSFER, etc.
     private Map<String, Object> methodSnapshot; // últimos 4, network, etc.
+    private LocalDateTime selectedAt;
+    private Long methodId;
 }

@@ -45,6 +45,7 @@ public class CoreWebhookController {
             switch (eventName) {
                 case "CREATE_PAYMENT":
                 case "PAYMENT_REQUEST":
+                case "created":
                     coreEventProcessorService.processPaymentRequestFromCore(message);
                     break;
 
@@ -76,7 +77,8 @@ public class CoreWebhookController {
             return ResponseEntity.status(500).body(Map.of(
                 "status", "error",
                 "messageId", message.getMessageId(),
-                "error", e.getMessage()
+                "error", e.getMessage(),
+                "retryAfter","30"
             ));
         }
     }

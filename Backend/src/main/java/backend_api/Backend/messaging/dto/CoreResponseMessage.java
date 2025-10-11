@@ -16,8 +16,8 @@ import java.util.Map;
 public class CoreResponseMessage {
     private String messageId;
 
-    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
-    private LocalDateTime timestamp;
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", timezone = "UTC")
+    private String timestamp;
 
     private String source;
 

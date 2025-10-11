@@ -29,4 +29,5 @@ public class PaymentCoordinationMessage extends BaseMessage {
     private String description;
     private Long solicitudId;
     private Long cotizacionId;
+    private LocalDateTime createdAt;
 }

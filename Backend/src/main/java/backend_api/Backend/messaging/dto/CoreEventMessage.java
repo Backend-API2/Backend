@@ -15,7 +15,7 @@ import java.util.Map;
 public class CoreEventMessage {
     private String messageId;
 
-    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss[.SSS][XXX]")
     private LocalDateTime timestamp;
 
     private String source;
