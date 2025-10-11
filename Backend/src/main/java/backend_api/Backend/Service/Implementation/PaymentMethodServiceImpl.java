@@ -4,6 +4,7 @@ import backend_api.Backend.Entity.payment.*;
 import backend_api.Backend.Entity.payment.types.*;
 import backend_api.Backend.DTO.payment.SelectPaymentMethodRequest;
 import backend_api.Backend.Repository.*;
+import backend_api.Backend.Repository.PaymentMethodRepository;
 import backend_api.Backend.Service.Interface.PaymentMethodService;
 import backend_api.Backend.Service.Interface.CardValidationService;
 
@@ -19,14 +20,9 @@ public class PaymentMethodServiceImpl implements PaymentMethodService {
     @Autowired
     private MercadoPagoPaymentRepository mercadoPagoRepository;
     
-    @Autowired
-    private PaypalPaymentRepository paypalPaymentRepository;
     
     @Autowired
-    private CreditCardPaymentRepository creditCardRepository;
-    
-    @Autowired
-    private DebitCardPaymentRepository debitCardRepository;
+    private PaymentMethodRepository paymentMethodRepository;
     
     @Autowired
     private CardValidationService cardValidationService;
@@ -40,8 +36,6 @@ public class PaymentMethodServiceImpl implements PaymentMethodService {
                 return createCashMethod(request);
             case MERCADO_PAGO:
                 return createMercadoPagoMethod(request);
-            case PAYPAL:
-                return createPaypalMethod(request);
             case CREDIT_CARD:
                 return createCreditCardMethod(request);
             case DEBIT_CARD:
@@ -74,12 +68,6 @@ public class PaymentMethodServiceImpl implements PaymentMethodService {
         return mercadoPagoRepository.save(mpMethod);
     }
     
-    private PaymentMethod createPaypalMethod(SelectPaymentMethodRequest request) {
-        PaypalPayment paypalMethod = new PaypalPayment();
-        paypalMethod.setPaypalEmail(request.getPaypalEmail());
-        
-        return paypalPaymentRepository.save(paypalMethod);
-    }
     
     private PaymentMethod createCreditCardMethod(SelectPaymentMethodRequest request) {
         if (request.getCardNumber() == null || request.getCardNumber().trim().isEmpty()) {
@@ -105,7 +93,7 @@ public class PaymentMethodServiceImpl implements PaymentMethodService {
         String bin = cardValidationService.extractBin(request.getCardNumber());
         creditCard.setCard_network(determineCardNetwork(bin));
         
-        return creditCardRepository.save(creditCard);
+        return paymentMethodRepository.save(creditCard);
     }
     
     private PaymentMethod createDebitCardMethod(SelectPaymentMethodRequest request) {
@@ -134,7 +122,7 @@ public class PaymentMethodServiceImpl implements PaymentMethodService {
         String bin = cardValidationService.extractBin(request.getCardNumber());
         debitCard.setCard_network(determineCardNetwork(bin));
         
-        return debitCardRepository.save(debitCard);
+        return paymentMethodRepository.save(debitCard);
     }
     
     private String determineCardNetwork(String bin) {
@@ -159,26 +147,22 @@ public class PaymentMethodServiceImpl implements PaymentMethodService {
     
     @Override
     public PaymentMethod getPaymentMethodById(Long id) {
+        // Buscar en todos los repositorios específicos
+        PaymentMethod method = cashPaymentRepository.findById(id).orElse(null);
+        if (method != null) return method;
         
-        if (cashPaymentRepository.existsById(id)) {
-            return cashPaymentRepository.findById(id).orElse(null);
-        }
+        method = mercadoPagoRepository.findById(id).orElse(null);
+        if (method != null) return method;
         
-        if (mercadoPagoRepository.existsById(id)) {
-            return mercadoPagoRepository.findById(id).orElse(null);
-        }
         
-        if (paypalPaymentRepository.existsById(id)) {
-            return paypalPaymentRepository.findById(id).orElse(null);
-        }
+        method = paymentMethodRepository.findById(id).orElse(null);
+        if (method != null) return method;
         
-  
         return null;
     }
     
     @Override
     public void deletePaymentMethod(Long id) {
-        
         if (cashPaymentRepository.existsById(id)) {
             cashPaymentRepository.deleteById(id);
             return;
@@ -189,8 +173,9 @@ public class PaymentMethodServiceImpl implements PaymentMethodService {
             return;
         }
         
-        if (paypalPaymentRepository.existsById(id)) {
-            paypalPaymentRepository.deleteById(id);
+        
+        if (paymentMethodRepository.existsById(id)) {
+            paymentMethodRepository.deleteById(id);
             return;
         }
         

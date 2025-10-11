@@ -12,7 +12,7 @@ public class CreatePaymentRequest {
    // private String cotizacion_reference; // ej: "COT-2024-005" - Se integra con el módulo Cotizacion
     
     @NotBlank(message = "Provider reference es requerido")
-    private String provider_reference; // ej: "PROV-STRIPE-001", "PROV-PAYPAL-002"
+    private String provider_reference; // ej: "PROV-STRIPE-001", "PROV-MERCADOPAGO-002"
     
     private Long provider_id; 
     

@@ -8,8 +8,8 @@ import lombok.Data;
 public class ConfirmPaymentRequest {
     
     @NotBlank(message = "Payment method type es requerido")
-    @Pattern(regexp = "^(credit_card|debit_card|bank_transfer|paypal|cash)$", 
-             message = "Payment method debe ser: credit_card, debit_card, bank_transfer, paypal, cash")
+    @Pattern(regexp = "^(credit_card|debit_card|bank_transfer|cash)$", 
+             message = "Payment method debe ser: credit_card, debit_card, bank_transfer, cash")
     private String paymentMethodType;
     
     private String paymentMethodId;
