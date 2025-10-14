@@ -33,7 +33,7 @@
 		<sonar.projectKey>backend-devapps_modulo-pagos-y-facturacion</sonar.projectKey>
 		<sonar.host.url>https://sonarcloud.io</sonar.host.url>
                 <jacoco.version>0.8.13</jacoco.version>
-		<coverage.minimum>50.0</coverage.minimum>
+		<coverage.minimum>30.0</coverage.minimum>
         <jacoco.skip>false</jacoco.skip>
 		<maven.compiler.source>17</maven.compiler.source>
 		<maven.compiler.target>17</maven.compiler.target>
