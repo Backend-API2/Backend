@@ -1,0 +1,105 @@
+package backend_api.Backend.Service.Implementation;
+
+import backend_api.Backend.Entity.UserData;
+import backend_api.Backend.Entity.ProviderData;
+import backend_api.Backend.Entity.SolicitudData;
+import backend_api.Backend.Repository.UserDataRepository;
+import backend_api.Backend.Repository.ProviderDataRepository;
+import backend_api.Backend.Repository.SolicitudDataRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Map;
+import java.util.Optional;
+
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class DataStorageServiceImpl {
+
+    private final UserDataRepository userDataRepository;
+    private final ProviderDataRepository providerDataRepository;
+    private final SolicitudDataRepository solicitudDataRepository;
+
+    @Transactional
+    public void saveUserData(Long userId, Map<String, Object> userDataMap, String secondaryId) {
+        try {
+            UserData userData = new UserData();
+            userData.setUserId(userId);
+            userData.setName((String) userDataMap.get("name"));
+            userData.setEmail((String) userDataMap.get("email"));
+            userData.setPhone((String) userDataMap.get("phone"));
+            userData.setSecondaryId(secondaryId);
+
+            userDataRepository.save(userData);
+            log.info("Datos de usuario guardados: userId={}, name={}", userId, userData.getName());
+        } catch (Exception e) {
+            log.error("Error guardando datos de usuario: userId={}, error={}", userId, e.getMessage());
+        }
+    }
+
+    @Transactional
+    public void saveProviderData(Long providerId, Map<String, Object> providerDataMap, String secondaryId) {
+        try {
+            ProviderData providerData = new ProviderData();
+            providerData.setProviderId(providerId);
+            providerData.setName((String) providerDataMap.get("name"));
+            providerData.setEmail((String) providerDataMap.get("email"));
+            providerData.setPhone((String) providerDataMap.get("phone"));
+            providerData.setSecondaryId(secondaryId);
+
+            providerDataRepository.save(providerData);
+            log.info("Datos de prestador guardados: providerId={}, name={}", providerId, providerData.getName());
+        } catch (Exception e) {
+            log.error("Error guardando datos de prestador: providerId={}, error={}", providerId, e.getMessage());
+        }
+    }
+
+    @Transactional
+    public void saveSolicitudData(Long solicitudId, Long userId, Long providerId, 
+                                 Double amount, String currency, String description, 
+                                 String secondaryId, String status) {
+        try {
+            SolicitudData solicitudData = new SolicitudData();
+            solicitudData.setSolicitudId(solicitudId);
+            solicitudData.setUserId(userId);
+            solicitudData.setProviderId(providerId);
+            solicitudData.setAmount(amount);
+            solicitudData.setCurrency(currency);
+            solicitudData.setDescription(description);
+            solicitudData.setSecondaryId(secondaryId);
+            solicitudData.setStatus(status);
+
+            solicitudDataRepository.save(solicitudData);
+            log.info("Datos de solicitud guardados: solicitudId={}, amount={}", solicitudId, amount);
+        } catch (Exception e) {
+            log.error("Error guardando datos de solicitud: solicitudId={}, error={}", solicitudId, e.getMessage());
+        }
+    }
+
+    public Optional<UserData> getUserData(Long userId) {
+        return userDataRepository.findByUserId(userId);
+    }
+
+    public Optional<ProviderData> getProviderData(Long providerId) {
+        return providerDataRepository.findByProviderId(providerId);
+    }
+
+    public Optional<SolicitudData> getSolicitudData(Long solicitudId) {
+        return solicitudDataRepository.findBySolicitudId(solicitudId);
+    }
+
+    public boolean userDataExists(Long userId) {
+        return userDataRepository.existsByUserId(userId);
+    }
+
+    public boolean providerDataExists(Long providerId) {
+        return providerDataRepository.existsByProviderId(providerId);
+    }
+
+    public boolean solicitudDataExists(Long solicitudId) {
+        return solicitudDataRepository.existsBySolicitudId(solicitudId);
+    }
+}

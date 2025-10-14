@@ -3,6 +3,7 @@ package backend_api.Backend.messaging.service;
 import backend_api.Backend.Entity.payment.Payment;
 import backend_api.Backend.Entity.payment.PaymentStatus;
 import backend_api.Backend.Service.Interface.PaymentService;
+import backend_api.Backend.Service.Implementation.DataStorageServiceImpl;
 import backend_api.Backend.messaging.dto.*;
 import backend_api.Backend.messaging.publisher.CoreEventPublisher;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -24,24 +25,31 @@ public class CoreEventProcessorService {
 
     private final CoreEventPublisher coreEventPublisher;
     private final PaymentService paymentService;
+    private final DataStorageServiceImpl dataStorageService;
     private final ObjectMapper objectMapper;
 
     public void processPaymentRequestFromCore(CoreEventMessage coreMessage) {
         log.info("Procesando solicitud de pago del CORE - MessageId: {}", coreMessage.getMessageId());
 
-        PaymentRequestPayload paymentRequest = objectMapper.convertValue(
-            coreMessage.getPayload(),
-            PaymentRequestPayload.class
-        );
-
-        Long userId = paymentRequest.getUserId();
-        Long providerId = paymentRequest.getProviderId();
-        Long solicitudId = paymentRequest.getSolicitudId();
+        Map<String, Object> payload = coreMessage.getPayload();
+        Long solicitudId = extractLong(payload, "solicitudId");
+        Long userId = extractLong(payload, "userId");
+        Long providerId = extractLong(payload, "providerId");
+        Double amount = extractDouble(payload, "amount");
+        String currency = extractString(payload, "currency");
+        String description = extractString(payload, "description");
 
         log.info("IDs extraídos - SolicitudId: {}, UserId: {}, ProviderId: {}",
             solicitudId, userId, providerId);
 
-        sendIdsToCore(solicitudId, userId, providerId, coreMessage.getMessageId());
+        // Verificar si ya tenemos los datos en BD
+        if (dataStorageService.solicitudDataExists(solicitudId)) {
+            log.info("Solicitud ya existe en BD, creando pago directamente");
+            createPaymentFromStoredData(solicitudId, coreMessage.getMessageId());
+        } else {
+            log.info("Solicitud no existe en BD, enviando IDs al CORE para obtener datos");
+            sendIdsToCore(solicitudId, userId, providerId, coreMessage.getMessageId());
+        }
     }
 
     private void sendIdsToCore(Long solicitudId, Long userId, Long providerId, String originalMessageId) {
@@ -69,6 +77,60 @@ public class CoreEventProcessorService {
         log.info("IDs enviados al CORE para distribución - SolicitudId: {}", solicitudId);
     }
 
+    private void createPaymentFromStoredData(Long solicitudId, String originalMessageId) {
+        log.info("Creando pago desde datos almacenados - SolicitudId: {}", solicitudId);
+
+        var solicitudData = dataStorageService.getSolicitudData(solicitudId);
+        if (solicitudData.isEmpty()) {
+            log.error("No se encontraron datos de solicitud para SolicitudId: {}", solicitudId);
+            return;
+        }
+
+        var solicitud = solicitudData.get();
+        var userData = dataStorageService.getUserData(solicitud.getUserId());
+        var providerData = dataStorageService.getProviderData(solicitud.getProviderId());
+
+        // Crear el pago
+        Payment payment = new Payment();
+        payment.setUser_id(solicitud.getUserId());
+        payment.setProvider_id(solicitud.getProviderId());
+        payment.setAmount_total(solicitud.getAmount() != null ? BigDecimal.valueOf(solicitud.getAmount()) : BigDecimal.ZERO);
+        payment.setAmount_subtotal(solicitud.getAmount() != null ? BigDecimal.valueOf(solicitud.getAmount()) : BigDecimal.ZERO);
+        payment.setTaxes(BigDecimal.ZERO);
+        payment.setFees(BigDecimal.ZERO);
+        payment.setCurrency(solicitud.getCurrency() != null ? solicitud.getCurrency() : "USD");
+        payment.setStatus(PaymentStatus.PENDING_PAYMENT);
+        payment.setCreated_at(LocalDateTime.now());
+        payment.setUpdated_at(LocalDateTime.now());
+
+        // Construir metadata
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("solicitudId", solicitudId);
+        metadata.put("coreMessageId", originalMessageId);
+        metadata.put("description", solicitud.getDescription());
+
+        if (userData.isPresent()) {
+            metadata.put("userName", userData.get().getName());
+        }
+        if (providerData.isPresent()) {
+            metadata.put("providerName", providerData.get().getName());
+        }
+
+        try {
+            payment.setMetadata(objectMapper.writeValueAsString(metadata));
+        } catch (Exception e) {
+            log.error("Error serializando metadata: {}", e.getMessage());
+            payment.setMetadata("{}");
+        }
+
+        Payment savedPayment = paymentService.createPayment(payment);
+        log.info("Pago creado exitosamente desde datos almacenados - PaymentId: {}, SolicitudId: {}",
+            savedPayment.getId(), solicitudId);
+
+        // Enviar confirmación al CORE
+        sendPaymentCreatedConfirmation(savedPayment, originalMessageId);
+    }
+
     public void processUserProviderDataFromCore(CoreEventMessage coreMessage) {
         log.info("Recibido datos de usuario/prestador del CORE - MessageId: {}", coreMessage.getMessageId());
 
@@ -79,10 +141,10 @@ public class CoreEventProcessorService {
         Long solicitudId = extractLong(payload, "solicitudId");
         Long userId = extractLong(payload, "userId");
         Long providerId = extractLong(payload, "providerId");
-        BigDecimal amount = extractBigDecimal(payload, "amount");
+        Double amount = extractDouble(payload, "amount");
         String currency = extractString(payload, "currency");
         String description = extractString(payload, "description");
-        Long cotizacionId = extractLong(payload, "cotizacionId");
+        String status = extractString(payload, "status");
 
         // Extraer datos de usuario y prestador si vienen en el payload
         @SuppressWarnings("unchecked")
@@ -90,21 +152,74 @@ public class CoreEventProcessorService {
         @SuppressWarnings("unchecked")
         Map<String, Object> providerData = extractMap(payload, "providerData");
 
-        log.info("Creando pago - SolicitudId: {}, UserId: {}, ProviderId: {}, Amount: {}",
-            solicitudId, userId, providerId, amount);
+        // Guardar datos en BD
+        if (userData != null && userId != null) {
+            dataStorageService.saveUserData(userId, userData, coreMessage.getMessageId());
+        }
 
-        // Crear el pago
-        Payment payment = createPaymentFromCoreData(
-            solicitudId, userId, providerId, amount, currency, description,
-            cotizacionId, userData, providerData, coreMessage.getMessageId()
-        );
+        if (providerData != null && providerId != null) {
+            dataStorageService.saveProviderData(providerId, providerData, coreMessage.getMessageId());
+        }
 
-        Payment savedPayment = paymentService.createPayment(payment);
-        log.info("Pago creado exitosamente - PaymentId: {}, SolicitudId: {}",
-            savedPayment.getId(), solicitudId);
+        if (solicitudId != null) {
+            dataStorageService.saveSolicitudData(
+                solicitudId, userId, providerId, amount, currency, description,
+                coreMessage.getMessageId(), status != null ? status : "PENDING"
+            );
+        }
 
-        // Enviar confirmación al CORE
-        sendPaymentCreatedConfirmation(savedPayment, coreMessage.getMessageId());
+        log.info("Datos guardados en BD - SolicitudId: {}, UserId: {}, ProviderId: {}",
+            solicitudId, userId, providerId);
+
+        // Crear pago si tenemos todos los datos
+        if (solicitudId != null && userId != null && providerId != null) {
+            createPaymentFromStoredData(solicitudId, coreMessage.getMessageId());
+        }
+    }
+
+    public void processUserDataFromCore(CoreEventMessage coreMessage) {
+        log.info("Procesando datos de usuario del CORE - MessageId: {}", coreMessage.getMessageId());
+
+        Map<String, Object> payload = coreMessage.getPayload();
+        Long userId = extractLong(payload, "userId");
+        
+        if (userId != null) {
+            dataStorageService.saveUserData(userId, payload, coreMessage.getMessageId());
+            log.info("Datos de usuario guardados - UserId: {}", userId);
+        }
+    }
+
+    public void processProviderDataFromCore(CoreEventMessage coreMessage) {
+        log.info("Procesando datos de prestador del CORE - MessageId: {}", coreMessage.getMessageId());
+
+        Map<String, Object> payload = coreMessage.getPayload();
+        Long providerId = extractLong(payload, "providerId");
+        
+        if (providerId != null) {
+            dataStorageService.saveProviderData(providerId, payload, coreMessage.getMessageId());
+            log.info("Datos de prestador guardados - ProviderId: {}", providerId);
+        }
+    }
+
+    public void processSolicitudDataFromCore(CoreEventMessage coreMessage) {
+        log.info("Procesando datos de solicitud del CORE - MessageId: {}", coreMessage.getMessageId());
+
+        Map<String, Object> payload = coreMessage.getPayload();
+        Long solicitudId = extractLong(payload, "solicitudId");
+        Long userId = extractLong(payload, "userId");
+        Long providerId = extractLong(payload, "providerId");
+        Double amount = extractDouble(payload, "amount");
+        String currency = extractString(payload, "currency");
+        String description = extractString(payload, "description");
+        String status = extractString(payload, "status");
+
+        if (solicitudId != null) {
+            dataStorageService.saveSolicitudData(
+                solicitudId, userId, providerId, amount, currency, description,
+                coreMessage.getMessageId(), status != null ? status : "PENDING"
+            );
+            log.info("Datos de solicitud guardados - SolicitudId: {}", solicitudId);
+        }
     }
 
     private Payment createPaymentFromCoreData(Long solicitudId, Long userId, Long providerId,
@@ -200,6 +315,20 @@ public class CoreEventProcessorService {
             return new BigDecimal(value.toString());
         } catch (NumberFormatException e) {
             log.warn("No se pudo convertir {} a BigDecimal: {}", key, value);
+            return null;
+        }
+    }
+
+    private Double extractDouble(Map<String, Object> map, String key) {
+        Object value = map.get(key);
+        if (value == null) return null;
+        if (value instanceof Number) {
+            return ((Number) value).doubleValue();
+        }
+        try {
+            return Double.parseDouble(value.toString());
+        } catch (NumberFormatException e) {
+            log.warn("No se pudo convertir {} a Double: {}", key, value);
             return null;
         }
     }
