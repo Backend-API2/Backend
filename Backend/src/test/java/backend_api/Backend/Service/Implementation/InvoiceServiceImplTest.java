@@ -8,6 +8,8 @@ import backend_api.Backend.Repository.InvoiceLineRepository;
 import backend_api.Backend.Repository.InvoiceRepository;
 import backend_api.Backend.Repository.PaymentRepository;
 import backend_api.Backend.Service.Interface.InvoiceEventService;
+import backend_api.Backend.Service.Common.EntityValidationService;
+import backend_api.Backend.Service.Common.InvoiceCalculationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,6 +44,12 @@ class InvoiceServiceImplTest {
 
     @Mock
     private InvoiceEventService invoiceEventService;
+
+    @Mock
+    private EntityValidationService entityValidationService;
+
+    @Mock
+    private InvoiceCalculationService invoiceCalculationService;
 
     @InjectMocks
     private InvoiceServiceImpl invoiceService;
@@ -82,12 +90,17 @@ class InvoiceServiceImplTest {
         line.setUnitPrice(BigDecimal.valueOf(100.00));
         line.setLineNumber(1);
         createRequest.setLines(Arrays.asList(line));
+
+        // Setup mocks (using lenient to avoid unnecessary stubbing errors)
+        lenient().when(entityValidationService.getPaymentOrThrow(anyLong())).thenReturn(testPayment);
+        lenient().when(entityValidationService.getInvoiceOrThrow(anyLong())).thenReturn(testInvoice);
+        lenient().when(entityValidationService.getInvoiceByNumberOrThrow(anyString())).thenReturn(testInvoice);
+        lenient().doNothing().when(invoiceCalculationService).calculateInvoiceTotals(any(), any());
     }
 
     @Test
     void testCreateInvoice_Success() {
         // Given
-        when(paymentRepository.findById(1L)).thenReturn(Optional.of(testPayment));
         when(invoiceRepository.save(any(Invoice.class))).thenReturn(testInvoice);
 
         // When
@@ -100,28 +113,28 @@ class InvoiceServiceImplTest {
         assertEquals(BigDecimal.valueOf(100.00), response.getTotalAmount());
         assertEquals(InvoiceStatus.PENDING, response.getStatus());
 
-        verify(paymentRepository).findById(1L);
+        verify(entityValidationService).getPaymentOrThrow(1L);
         verify(invoiceRepository).save(any(Invoice.class));
     }
 
     @Test
     void testCreateInvoice_PaymentNotFound() {
         // Given
-        when(paymentRepository.findById(1L)).thenReturn(Optional.empty());
+        when(entityValidationService.getPaymentOrThrow(1L)).thenThrow(new RuntimeException("Payment not found"));
 
         // When & Then
         assertThrows(RuntimeException.class, () -> {
             invoiceService.createInvoice(createRequest);
         });
 
-        verify(paymentRepository).findById(1L);
+        verify(entityValidationService).getPaymentOrThrow(1L);
         verify(invoiceRepository, never()).save(any(Invoice.class));
     }
 
     @Test
     void testGetInvoiceById_Success() {
         // Given
-        when(invoiceRepository.findById(1L)).thenReturn(Optional.of(testInvoice));
+        // EntityValidationService mock is already set up in setUp()
 
         // When
         InvoiceResponse response = invoiceService.getInvoiceById(1L);
@@ -132,26 +145,26 @@ class InvoiceServiceImplTest {
         assertEquals("INV-001", response.getInvoiceNumber());
         assertEquals(BigDecimal.valueOf(100.00), response.getTotalAmount());
 
-        verify(invoiceRepository).findById(1L);
+        verify(entityValidationService).getInvoiceOrThrow(1L);
     }
 
     @Test
     void testGetInvoiceById_NotFound() {
         // Given
-        when(invoiceRepository.findById(1L)).thenReturn(Optional.empty());
+        when(entityValidationService.getInvoiceOrThrow(1L)).thenThrow(new RuntimeException("Invoice not found"));
 
         // When & Then
         assertThrows(RuntimeException.class, () -> {
             invoiceService.getInvoiceById(1L);
         });
 
-        verify(invoiceRepository).findById(1L);
+        verify(entityValidationService).getInvoiceOrThrow(1L);
     }
 
     @Test
     void testGetInvoiceByNumber_Success() {
         // Given
-        when(invoiceRepository.findByInvoiceNumber("INV-001")).thenReturn(Optional.of(testInvoice));
+        // EntityValidationService mock is already set up in setUp()
 
         // When
         InvoiceResponse response = invoiceService.getInvoiceByNumber("INV-001");
@@ -161,20 +174,20 @@ class InvoiceServiceImplTest {
         assertEquals(1L, response.getId());
         assertEquals("INV-001", response.getInvoiceNumber());
 
-        verify(invoiceRepository).findByInvoiceNumber("INV-001");
+        verify(entityValidationService).getInvoiceByNumberOrThrow("INV-001");
     }
 
     @Test
     void testGetInvoiceByNumber_NotFound() {
         // Given
-        when(invoiceRepository.findByInvoiceNumber("INV-999")).thenReturn(Optional.empty());
+        when(entityValidationService.getInvoiceByNumberOrThrow("INV-999")).thenThrow(new RuntimeException("Invoice not found"));
 
         // When & Then
         assertThrows(RuntimeException.class, () -> {
             invoiceService.getInvoiceByNumber("INV-999");
         });
 
-        verify(invoiceRepository).findByInvoiceNumber("INV-999");
+        verify(entityValidationService).getInvoiceByNumberOrThrow("INV-999");
     }
 
     @Test
@@ -279,7 +292,7 @@ class InvoiceServiceImplTest {
     @Test
     void testGeneratePdf_Success() {
         // Given
-        when(invoiceRepository.findById(1L)).thenReturn(Optional.of(testInvoice));
+        when(invoiceRepository.save(any(Invoice.class))).thenReturn(testInvoice);
 
         // When
         String pdfUrl = invoiceService.generatePdf(1L);
@@ -289,7 +302,8 @@ class InvoiceServiceImplTest {
         assertTrue(pdfUrl.contains("invoice"));
         assertTrue(pdfUrl.contains("1"));
 
-        verify(invoiceRepository).findById(1L);
+        verify(entityValidationService).getInvoiceOrThrow(1L);
+        verify(invoiceRepository).save(any(Invoice.class));
     }
 
     @Test
@@ -303,7 +317,6 @@ class InvoiceServiceImplTest {
         testPayment.setCurrency("USD");
         testPayment.setAmount_total(BigDecimal.valueOf(100.00));
 
-        when(paymentRepository.findById(paymentId)).thenReturn(Optional.of(testPayment));
         when(invoiceRepository.save(any(Invoice.class))).thenReturn(testInvoice);
 
         // When
@@ -314,7 +327,7 @@ class InvoiceServiceImplTest {
         assertEquals(1L, response.getId());
         assertEquals("INV-001", response.getInvoiceNumber());
 
-        verify(paymentRepository, atLeastOnce()).findById(paymentId);
+        verify(entityValidationService, atLeastOnce()).getPaymentOrThrow(paymentId);
         verify(invoiceRepository).save(any(Invoice.class));
     }
 
@@ -323,14 +336,14 @@ class InvoiceServiceImplTest {
         // Given
         Long paymentId = 1L;
 
-        when(paymentRepository.findById(paymentId)).thenReturn(Optional.empty());
+        when(entityValidationService.getPaymentOrThrow(paymentId)).thenThrow(new RuntimeException("Payment not found"));
 
         // When & Then
         assertThrows(RuntimeException.class, () -> {
             invoiceService.createInvoiceFromPayment(paymentId);
         });
 
-        verify(paymentRepository).findById(paymentId);
+        verify(entityValidationService).getPaymentOrThrow(paymentId);
         verify(invoiceRepository, never()).save(any(Invoice.class));
     }
 }

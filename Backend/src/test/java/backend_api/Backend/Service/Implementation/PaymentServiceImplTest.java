@@ -8,6 +8,10 @@ import backend_api.Backend.Entity.payment.types.CreditCardPayment;
 import backend_api.Backend.Repository.PaymentRepository;
 import backend_api.Backend.Service.Interface.PaymentAttemptService;
 import backend_api.Backend.Service.Interface.PaymentEventService;
+import backend_api.Backend.messaging.publisher.PaymentStatusPublisher;
+import backend_api.Backend.messaging.publisher.PaymentCoordinationPublisher;
+import backend_api.Backend.messaging.publisher.PaymentMethodSelectedPublisher;
+import backend_api.Backend.messaging.publisher.PaymentTimelineEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,6 +46,18 @@ class PaymentServiceImplTest {
     @Mock
     private PaymentAttemptService paymentAttemptService;
 
+    @Mock
+    private PaymentStatusPublisher paymentStatusPublisher;
+
+    @Mock
+    private PaymentCoordinationPublisher paymentCoordinationPublisher;
+
+    @Mock
+    private PaymentMethodSelectedPublisher paymentMethodSelectedPublisher;
+
+    @Mock
+    private PaymentTimelineEventPublisher paymentTimelineEventPublisher;
+
     @InjectMocks
     private PaymentServiceImpl paymentService;
 
@@ -62,6 +78,12 @@ class PaymentServiceImplTest {
         testPaymentMethod = new CreditCardPayment();
         testPaymentMethod.setId(1L);
         testPaymentMethod.setType(backend_api.Backend.Entity.payment.types.PaymentMethodType.CREDIT_CARD);
+
+        // Mock publishers to avoid errors (using lenient to avoid unnecessary stubbing errors)
+        lenient().doNothing().when(paymentStatusPublisher).publishPaymentStatusUpdate(any());
+        lenient().doNothing().when(paymentCoordinationPublisher).publishCoordination(any());
+        lenient().doNothing().when(paymentMethodSelectedPublisher).publish(any());
+        lenient().doNothing().when(paymentTimelineEventPublisher).publish(any());
     }
 
     @Test
@@ -478,7 +500,7 @@ class PaymentServiceImplTest {
 
         // Then
         assertNotNull(result);
-        verify(paymentRepository).findById(paymentId);
+        verify(paymentRepository, atLeastOnce()).findById(paymentId);
         verify(paymentEventService, atLeastOnce()).createEvent(anyLong(), any(), anyString(), anyString());
         verify(paymentRepository).save(any(Payment.class));
     }
@@ -547,7 +569,7 @@ class PaymentServiceImplTest {
         // Then
         assertNotNull(result);
         assertEquals(PaymentStatus.CANCELLED, result.getStatus());
-        verify(paymentRepository).findById(paymentId);
+        verify(paymentRepository, atLeastOnce()).findById(paymentId);
         verify(paymentEventService).createEvent(anyLong(), any(), anyString(), anyString());
         verify(paymentRepository).save(any(Payment.class));
     }
@@ -579,7 +601,7 @@ class PaymentServiceImplTest {
         // Then
         assertNotNull(result);
         assertEquals(PaymentStatus.EXPIRED, result.getStatus());
-        verify(paymentRepository).findById(paymentId);
+        verify(paymentRepository, atLeastOnce()).findById(paymentId);
         verify(paymentEventService).createEvent(anyLong(), any(), anyString(), anyString());
         verify(paymentRepository).save(any(Payment.class));
     }

@@ -57,6 +57,20 @@ class InvoiceControllerTest {
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(invoiceController).build();
         objectMapper = new ObjectMapper();
+        
+        // Setup default mocks
+        when(jwtUtil.getSubject("valid-jwt-token")).thenReturn("test@example.com");
+        when(jwtUtil.getSubject("invalid-jwt-token")).thenReturn(null);
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(createTestUser()));
+        when(userRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
+    }
+    
+    private User createTestUser() {
+        User user = new User();
+        user.setId(1L);
+        user.setEmail("test@example.com");
+        user.setRole(UserRole.USER);
+        return user;
     }
 
     @Test

@@ -10,6 +10,8 @@ import backend_api.Backend.Entity.user.User;
 import backend_api.Backend.Entity.user.UserRole;
 import backend_api.Backend.Repository.UserRepository;
 import backend_api.Backend.Service.Interface.*;
+import backend_api.Backend.Service.Common.AuthenticationService;
+import backend_api.Backend.Service.Common.ResponseMapperService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -65,6 +67,12 @@ class PaymentControllerTest {
     @Mock
     private BalanceService balanceService;
 
+    @Mock
+    private AuthenticationService authenticationService;
+
+    @Mock
+    private ResponseMapperService responseMapperService;
+
     @InjectMocks
     private PaymentController paymentController;
 
@@ -115,6 +123,22 @@ class PaymentControllerTest {
         createPaymentRequest.setCurrency("USD");
         createPaymentRequest.setProvider_id(2L);
         createPaymentRequest.setMetadata("Test payment");
+
+        // Setup default mocks
+        when(jwtUtil.getSubject("valid-token")).thenReturn("user@example.com");
+        when(jwtUtil.getSubject("invalid-token")).thenReturn(null);
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(testUser));
+        when(userRepository.findByEmail("merchant@example.com")).thenReturn(Optional.of(merchantUser));
+        when(userRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
+        
+        // Setup AuthenticationService mock
+        when(authenticationService.getUserFromToken(anyString())).thenReturn(testUser);
+        when(authenticationService.getUserFromToken("invalid-token")).thenReturn(null);
+        when(authenticationService.getUserFromToken("merchant-token")).thenReturn(merchantUser);
+        
+        // Setup ResponseMapperService mock
+        when(responseMapperService.mapPaymentsToResponses(anyList(), anyString())).thenReturn(new ArrayList<>());
+        when(responseMapperService.mapPaymentToResponse(any(Payment.class), anyString())).thenReturn(new PaymentResponse());
     }
 
     // ========== CREATE PAYMENT TESTS ==========
@@ -213,7 +237,6 @@ class PaymentControllerTest {
     void testCreatePayment_Exception() {
         // Given
         String authHeader = "Bearer valid-token";
-        when(jwtUtil.getSubject("valid-token")).thenReturn("user@example.com");
         when(userRepository.findByEmail("user@example.com")).thenThrow(new RuntimeException("Database error"));
 
         // When
