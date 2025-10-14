@@ -12,6 +12,7 @@ import backend_api.Backend.Repository.UserRepository;
 import backend_api.Backend.Service.Interface.*;
 import backend_api.Backend.Service.Common.AuthenticationService;
 import backend_api.Backend.Service.Common.ResponseMapperService;
+import backend_api.Backend.Service.Common.EntityValidationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,6 +29,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
+import jakarta.persistence.EntityNotFoundException;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -72,6 +74,9 @@ class PaymentControllerTest {
 
     @Mock
     private ResponseMapperService responseMapperService;
+
+    @Mock
+    private EntityValidationService entityValidationService;
 
     @InjectMocks
     private PaymentController paymentController;
@@ -124,21 +129,21 @@ class PaymentControllerTest {
         createPaymentRequest.setProvider_id(2L);
         createPaymentRequest.setMetadata("Test payment");
 
-        // Setup default mocks
-        when(jwtUtil.getSubject("valid-token")).thenReturn("user@example.com");
-        when(jwtUtil.getSubject("invalid-token")).thenReturn(null);
-        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(testUser));
-        when(userRepository.findByEmail("merchant@example.com")).thenReturn(Optional.of(merchantUser));
-        when(userRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
+        // Setup default mocks (using lenient to avoid unnecessary stubbing errors)
+        lenient().when(jwtUtil.getSubject("valid-token")).thenReturn("user@example.com");
+        lenient().when(jwtUtil.getSubject("invalid-token")).thenReturn(null);
+        lenient().when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(testUser));
+        lenient().when(userRepository.findByEmail("merchant@example.com")).thenReturn(Optional.of(merchantUser));
+        lenient().when(userRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
         
         // Setup AuthenticationService mock
-        when(authenticationService.getUserFromToken(anyString())).thenReturn(testUser);
-        when(authenticationService.getUserFromToken("invalid-token")).thenReturn(null);
-        when(authenticationService.getUserFromToken("merchant-token")).thenReturn(merchantUser);
+        lenient().when(authenticationService.getUserFromToken(anyString())).thenReturn(testUser);
+        lenient().when(authenticationService.getUserFromToken("invalid-token")).thenReturn(null);
+        lenient().when(authenticationService.getUserFromToken("merchant-token")).thenReturn(merchantUser);
         
         // Setup ResponseMapperService mock
-        when(responseMapperService.mapPaymentsToResponses(anyList(), anyString())).thenReturn(new ArrayList<>());
-        when(responseMapperService.mapPaymentToResponse(any(Payment.class), anyString())).thenReturn(new PaymentResponse());
+        lenient().when(responseMapperService.mapPaymentsToResponses(anyList(), anyString())).thenReturn(new ArrayList<>());
+        lenient().when(responseMapperService.mapPaymentToResponse(any(Payment.class), anyString())).thenReturn(new PaymentResponse());
     }
 
     // ========== CREATE PAYMENT TESTS ==========
@@ -147,8 +152,7 @@ class PaymentControllerTest {
     void testCreatePayment_Success() {
         // Given
         String authHeader = "Bearer valid-token";
-        when(jwtUtil.getSubject("valid-token")).thenReturn("user@example.com");
-        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(testUser));
+        when(authenticationService.getUserFromToken(authHeader)).thenReturn(testUser);
         when(balanceService.hasSufficientBalance(1L, BigDecimal.valueOf(115.00))).thenReturn(true);
         when(paymentService.createPayment(any(Payment.class))).thenReturn(testPayment);
 
@@ -161,6 +165,7 @@ class PaymentControllerTest {
         assertEquals(testPayment.getId(), response.getBody().getId());
         assertEquals(testPayment.getAmount_total(), response.getBody().getAmount_total());
 
+        verify(authenticationService).getUserFromToken(authHeader);
         verify(paymentService).createPayment(any(Payment.class));
         verify(paymentEventService).createEvent(eq(testPayment.getId()), eq(PaymentEventType.PAYMENT_PENDING), anyString(), anyString());
     }
@@ -169,7 +174,7 @@ class PaymentControllerTest {
     void testCreatePayment_InvalidToken() {
         // Given
         String authHeader = "Bearer invalid-token";
-        when(jwtUtil.getSubject("invalid-token")).thenReturn(null);
+        when(authenticationService.getUserFromToken(authHeader)).thenReturn(null);
 
         // When
         ResponseEntity<PaymentResponse> response = paymentController.createPayment(createPaymentRequest, authHeader);
@@ -177,6 +182,7 @@ class PaymentControllerTest {
         // Then
         assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
         assertNull(response.getBody());
+        verify(authenticationService).getUserFromToken(authHeader);
         verify(paymentService, never()).createPayment(any(Payment.class));
     }
 
@@ -184,8 +190,7 @@ class PaymentControllerTest {
     void testCreatePayment_UserNotFound() {
         // Given
         String authHeader = "Bearer valid-token";
-        when(jwtUtil.getSubject("valid-token")).thenReturn("user@example.com");
-        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.empty());
+        when(authenticationService.getUserFromToken(authHeader)).thenThrow(new SecurityException("User not found"));
 
         // When
         ResponseEntity<PaymentResponse> response = paymentController.createPayment(createPaymentRequest, authHeader);
@@ -193,6 +198,7 @@ class PaymentControllerTest {
         // Then
         assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
         assertNull(response.getBody());
+        verify(authenticationService).getUserFromToken(authHeader);
         verify(paymentService, never()).createPayment(any(Payment.class));
     }
 
@@ -200,8 +206,7 @@ class PaymentControllerTest {
     void testCreatePayment_InsufficientBalance() {
         // Given
         String authHeader = "Bearer valid-token";
-        when(jwtUtil.getSubject("valid-token")).thenReturn("user@example.com");
-        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(testUser));
+        when(authenticationService.getUserFromToken(authHeader)).thenReturn(testUser);
         when(balanceService.hasSufficientBalance(1L, BigDecimal.valueOf(115.00))).thenReturn(false);
         when(balanceService.getCurrentBalance(1L)).thenReturn(BigDecimal.valueOf(50.00));
 
@@ -212,6 +217,7 @@ class PaymentControllerTest {
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
         assertNull(response.getBody());
         assertTrue(response.getHeaders().containsKey("Error-Message"));
+        verify(authenticationService).getUserFromToken(authHeader);
         verify(paymentService, never()).createPayment(any(Payment.class));
     }
 
@@ -219,8 +225,7 @@ class PaymentControllerTest {
     void testCreatePayment_MerchantUser() {
         // Given
         String authHeader = "Bearer valid-token";
-        when(jwtUtil.getSubject("valid-token")).thenReturn("merchant@example.com");
-        when(userRepository.findByEmail("merchant@example.com")).thenReturn(Optional.of(merchantUser));
+        when(authenticationService.getUserFromToken(authHeader)).thenReturn(merchantUser);
         when(paymentService.createPayment(any(Payment.class))).thenReturn(testPayment);
 
         // When
@@ -229,6 +234,7 @@ class PaymentControllerTest {
         // Then
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertNotNull(response.getBody());
+        verify(authenticationService).getUserFromToken(authHeader);
         verify(balanceService, never()).hasSufficientBalance(anyLong(), any(BigDecimal.class));
         verify(paymentService).createPayment(any(Payment.class));
     }
@@ -237,7 +243,7 @@ class PaymentControllerTest {
     void testCreatePayment_Exception() {
         // Given
         String authHeader = "Bearer valid-token";
-        when(userRepository.findByEmail("user@example.com")).thenThrow(new RuntimeException("Database error"));
+        when(authenticationService.getUserFromToken(authHeader)).thenThrow(new RuntimeException("Authentication error"));
 
         // When
         ResponseEntity<PaymentResponse> response = paymentController.createPayment(createPaymentRequest, authHeader);
@@ -245,6 +251,7 @@ class PaymentControllerTest {
         // Then
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
         assertNull(response.getBody());
+        verify(authenticationService).getUserFromToken(authHeader);
     }
 
     // ========== GET PAYMENT TIMELINE TESTS ==========
@@ -317,7 +324,7 @@ class PaymentControllerTest {
         updatedPayment.setStatus(PaymentStatus.PENDING_PAYMENT);
         updatedPayment.setMethod(paymentMethod);
 
-        when(paymentService.getPaymentById(paymentId)).thenReturn(Optional.of(testPayment));
+        when(entityValidationService.getPaymentOrThrow(paymentId)).thenReturn(testPayment);
         when(paymentMethodService.createPaymentMethod(request)).thenReturn(paymentMethod);
         when(paymentService.updatePaymentMethod(paymentId, paymentMethod)).thenReturn(updatedPayment);
 
@@ -336,13 +343,13 @@ class PaymentControllerTest {
         // Given
         Long paymentId = 1L;
         SelectPaymentMethodRequest request = new SelectPaymentMethodRequest();
-        when(paymentService.getPaymentById(paymentId)).thenReturn(Optional.empty());
+        when(entityValidationService.getPaymentOrThrow(paymentId)).thenThrow(new EntityNotFoundException("Payment not found"));
 
         // When
         ResponseEntity<PaymentResponse> response = paymentController.selectPaymentMethod(paymentId, request);
 
         // Then
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
         assertNull(response.getBody());
         verify(paymentMethodService, never()).createPaymentMethod(any());
     }
@@ -353,7 +360,7 @@ class PaymentControllerTest {
         Long paymentId = 1L;
         SelectPaymentMethodRequest request = new SelectPaymentMethodRequest();
         testPayment.setStatus(PaymentStatus.APPROVED);
-        when(paymentService.getPaymentById(paymentId)).thenReturn(Optional.of(testPayment));
+        when(entityValidationService.getPaymentOrThrow(paymentId)).thenReturn(testPayment);
 
         // When
         ResponseEntity<PaymentResponse> response = paymentController.selectPaymentMethod(paymentId, request);
@@ -378,7 +385,7 @@ class PaymentControllerTest {
         updatedPayment.setId(paymentId);
         updatedPayment.setStatus(PaymentStatus.PENDING_APPROVAL);
 
-        when(paymentService.getPaymentById(paymentId)).thenReturn(Optional.of(testPayment));
+        when(entityValidationService.getPaymentOrThrow(paymentId)).thenReturn(testPayment);
         when(paymentService.updatePaymentStatus(paymentId, PaymentStatus.PENDING_APPROVAL)).thenReturn(updatedPayment);
 
         // When
@@ -403,8 +410,8 @@ class PaymentControllerTest {
         updatedPayment.setId(paymentId);
         updatedPayment.setStatus(PaymentStatus.APPROVED);
 
-        when(paymentService.getPaymentById(paymentId)).thenReturn(Optional.of(testPayment));
-        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(entityValidationService.getPaymentOrThrow(paymentId)).thenReturn(testPayment);
+        when(entityValidationService.getUserOrThrow(1L)).thenReturn(testUser);
         when(balanceService.deductBalance(1L, BigDecimal.valueOf(115.00))).thenReturn(testUser);
         when(paymentService.updatePaymentStatus(paymentId, PaymentStatus.APPROVED)).thenReturn(updatedPayment);
 
@@ -427,8 +434,8 @@ class PaymentControllerTest {
         paymentMethod.setType(PaymentMethodType.CASH);
         testPayment.setMethod(paymentMethod);
 
-        when(paymentService.getPaymentById(paymentId)).thenReturn(Optional.of(testPayment));
-        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(entityValidationService.getPaymentOrThrow(paymentId)).thenReturn(testPayment);
+        when(entityValidationService.getUserOrThrow(1L)).thenReturn(testUser);
         when(balanceService.deductBalance(1L, BigDecimal.valueOf(115.00))).thenThrow(new IllegalStateException("Insufficient balance"));
 
         // When
@@ -447,7 +454,7 @@ class PaymentControllerTest {
         // Given
         Long paymentId = 1L;
         testPayment.setMethod(null);
-        when(paymentService.getPaymentById(paymentId)).thenReturn(Optional.of(testPayment));
+        when(entityValidationService.getPaymentOrThrow(paymentId)).thenReturn(testPayment);
 
         // When
         ResponseEntity<PaymentResponse> response = paymentController.confirmPayment(paymentId);
@@ -464,7 +471,7 @@ class PaymentControllerTest {
         // Given
         Long paymentId = 1L;
         testPayment.setStatus(PaymentStatus.APPROVED);
-        when(paymentService.getPaymentById(paymentId)).thenReturn(Optional.of(testPayment));
+        when(entityValidationService.getPaymentOrThrow(paymentId)).thenReturn(testPayment);
 
         // When
         ResponseEntity<PaymentResponse> response = paymentController.confirmPayment(paymentId);
@@ -639,9 +646,8 @@ class PaymentControllerTest {
         updatedPayment.setStatus(PaymentStatus.PENDING_PAYMENT);
         updatedPayment.setRetry_attempts(2);
 
-        when(jwtUtil.getSubject("valid-token")).thenReturn("user@example.com");
-        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(testUser));
-        when(paymentService.getPaymentById(paymentId)).thenReturn(Optional.of(testPayment));
+        when(authenticationService.getUserFromToken(authHeader)).thenReturn(testUser);
+        when(entityValidationService.getPaymentOrThrow(paymentId)).thenReturn(testPayment);
         when(balanceService.canRetryPayment(paymentId)).thenReturn(true);
         when(balanceService.hasSufficientBalance(1L, BigDecimal.valueOf(115.00))).thenReturn(true);
         when(paymentService.createPayment(any(Payment.class))).thenReturn(updatedPayment);
@@ -663,7 +669,7 @@ class PaymentControllerTest {
         // Given
         Long paymentId = 1L;
         String authHeader = "Bearer invalid-token";
-        when(jwtUtil.getSubject("invalid-token")).thenReturn(null);
+        when(authenticationService.getUserFromToken(authHeader)).thenReturn(null);
 
         // When
         ResponseEntity<PaymentResponse> response = paymentController.retryPaymentByBalance(paymentId, authHeader);
@@ -681,9 +687,8 @@ class PaymentControllerTest {
         String authHeader = "Bearer valid-token";
         testPayment.setUser_id(999L); // Different user
 
-        when(jwtUtil.getSubject("valid-token")).thenReturn("user@example.com");
-        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(testUser));
-        when(paymentService.getPaymentById(paymentId)).thenReturn(Optional.of(testPayment));
+        when(authenticationService.getUserFromToken(authHeader)).thenReturn(testUser);
+        when(entityValidationService.getPaymentOrThrow(paymentId)).thenReturn(testPayment);
 
         // When
         ResponseEntity<PaymentResponse> response = paymentController.retryPaymentByBalance(paymentId, authHeader);
@@ -699,9 +704,8 @@ class PaymentControllerTest {
         // Given
         Long paymentId = 1L;
         String authHeader = "Bearer valid-token";
-        when(jwtUtil.getSubject("valid-token")).thenReturn("user@example.com");
-        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(testUser));
-        when(paymentService.getPaymentById(paymentId)).thenReturn(Optional.of(testPayment));
+        when(authenticationService.getUserFromToken(authHeader)).thenReturn(testUser);
+        when(entityValidationService.getPaymentOrThrow(paymentId)).thenReturn(testPayment);
         when(balanceService.canRetryPayment(paymentId)).thenReturn(false);
 
         // When
@@ -720,9 +724,8 @@ class PaymentControllerTest {
         // Given
         Long paymentId = 1L;
         String authHeader = "Bearer valid-token";
-        when(jwtUtil.getSubject("valid-token")).thenReturn("user@example.com");
-        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(testUser));
-        when(paymentService.getPaymentById(paymentId)).thenReturn(Optional.of(testPayment));
+        when(authenticationService.getUserFromToken(authHeader)).thenReturn(testUser);
+        when(entityValidationService.getPaymentOrThrow(paymentId)).thenReturn(testPayment);
         when(balanceService.canRetryPayment(paymentId)).thenReturn(true);
         when(balanceService.hasSufficientBalance(1L, BigDecimal.valueOf(115.00))).thenReturn(false);
         when(balanceService.getCurrentBalance(1L)).thenReturn(BigDecimal.valueOf(50.00));
@@ -745,9 +748,12 @@ class PaymentControllerTest {
         // Given
         Long paymentId = 1L;
         String authHeader = "Bearer valid-token";
-        when(jwtUtil.getSubject("valid-token")).thenReturn("user@example.com");
-        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(testUser));
-        when(paymentService.getPaymentById(paymentId)).thenReturn(Optional.of(testPayment));
+        when(authenticationService.getUserFromToken(authHeader)).thenReturn(testUser);
+        when(entityValidationService.getPaymentOrThrow(paymentId)).thenReturn(testPayment);
+        
+        PaymentResponse expectedResponse = new PaymentResponse();
+        expectedResponse.setId(testPayment.getId());
+        when(responseMapperService.mapPaymentToResponse(testPayment, "USER")).thenReturn(expectedResponse);
 
         // When
         ResponseEntity<PaymentResponse> response = paymentController.getPaymentById(paymentId, authHeader);
@@ -764,9 +770,12 @@ class PaymentControllerTest {
         Long paymentId = 1L;
         String authHeader = "Bearer valid-token";
         testPayment.setProvider_id(2L); // Merchant's ID
-        when(jwtUtil.getSubject("valid-token")).thenReturn("merchant@example.com");
-        when(userRepository.findByEmail("merchant@example.com")).thenReturn(Optional.of(merchantUser));
-        when(paymentService.getPaymentById(paymentId)).thenReturn(Optional.of(testPayment));
+        when(authenticationService.getUserFromToken(authHeader)).thenReturn(merchantUser);
+        when(entityValidationService.getPaymentOrThrow(paymentId)).thenReturn(testPayment);
+        
+        PaymentResponse expectedResponse = new PaymentResponse();
+        expectedResponse.setId(testPayment.getId());
+        when(responseMapperService.mapPaymentToResponse(testPayment, "MERCHANT")).thenReturn(expectedResponse);
 
         // When
         ResponseEntity<PaymentResponse> response = paymentController.getPaymentById(paymentId, authHeader);
@@ -784,9 +793,9 @@ class PaymentControllerTest {
         String authHeader = "Bearer valid-token";
         testPayment.setUser_id(999L); // Different user
         testPayment.setProvider_id(999L); // Different provider
-        when(jwtUtil.getSubject("valid-token")).thenReturn("user@example.com");
-        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(testUser));
-        when(paymentService.getPaymentById(paymentId)).thenReturn(Optional.of(testPayment));
+        when(authenticationService.getUserFromToken(authHeader)).thenReturn(testUser);
+        when(entityValidationService.getPaymentOrThrow(paymentId)).thenReturn(testPayment);
+        doThrow(new SecurityException("Access denied")).when(entityValidationService).validatePaymentOwnership(paymentId, testUser.getId(), "USER");
 
         // When
         ResponseEntity<PaymentResponse> response = paymentController.getPaymentById(paymentId, authHeader);
@@ -801,7 +810,7 @@ class PaymentControllerTest {
         // Given
         Long paymentId = 1L;
         String authHeader = "Bearer invalid-token";
-        when(jwtUtil.getSubject("invalid-token")).thenReturn(null);
+        when(authenticationService.getUserFromToken(authHeader)).thenReturn(null);
 
         // When
         ResponseEntity<PaymentResponse> response = paymentController.getPaymentById(paymentId, authHeader);
@@ -818,9 +827,12 @@ class PaymentControllerTest {
         // Given
         String authHeader = "Bearer valid-token";
         List<Payment> payments = Arrays.asList(testPayment);
-        when(jwtUtil.getSubject("valid-token")).thenReturn("user@example.com");
-        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(testUser));
+        when(authenticationService.getUserFromToken(authHeader)).thenReturn(testUser);
         when(paymentService.getPaymentsByUserId(1L)).thenReturn(payments);
+        
+        PaymentResponse expectedResponse = new PaymentResponse();
+        expectedResponse.setId(testPayment.getId());
+        when(responseMapperService.mapPaymentsToResponses(payments, "USER")).thenReturn(Arrays.asList(expectedResponse));
 
         // When
         ResponseEntity<List<PaymentResponse>> response = paymentController.getMyPayments(authHeader, 0, 10);
@@ -837,9 +849,12 @@ class PaymentControllerTest {
         // Given
         String authHeader = "Bearer valid-token";
         List<Payment> payments = Arrays.asList(testPayment);
-        when(jwtUtil.getSubject("valid-token")).thenReturn("merchant@example.com");
-        when(userRepository.findByEmail("merchant@example.com")).thenReturn(Optional.of(merchantUser));
+        when(authenticationService.getUserFromToken(authHeader)).thenReturn(merchantUser);
         when(paymentService.getPaymentsByProviderId(2L)).thenReturn(payments);
+        
+        PaymentResponse expectedResponse = new PaymentResponse();
+        expectedResponse.setId(testPayment.getId());
+        when(responseMapperService.mapPaymentsToResponses(payments, "MERCHANT")).thenReturn(Arrays.asList(expectedResponse));
 
         // When
         ResponseEntity<List<PaymentResponse>> response = paymentController.getMyPayments(authHeader, 0, 10);
@@ -855,7 +870,7 @@ class PaymentControllerTest {
     void testGetMyPayments_Unauthorized() {
         // Given
         String authHeader = "Bearer invalid-token";
-        when(jwtUtil.getSubject("invalid-token")).thenReturn(null);
+        when(authenticationService.getUserFromToken(authHeader)).thenReturn(null);
 
         // When
         ResponseEntity<List<PaymentResponse>> response = paymentController.getMyPayments(authHeader, 0, 10);
@@ -875,9 +890,12 @@ class PaymentControllerTest {
         String authHeader = "Bearer valid-token";
         PaymentStatus status = PaymentStatus.APPROVED;
         List<Payment> payments = Arrays.asList(testPayment);
-        when(jwtUtil.getSubject("valid-token")).thenReturn("user@example.com");
-        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(testUser));
+        when(authenticationService.getUserFromToken(authHeader)).thenReturn(testUser);
         when(paymentService.getPaymentsByUserAndStatus(1L, status)).thenReturn(payments);
+        
+        PaymentResponse expectedResponse = new PaymentResponse();
+        expectedResponse.setId(testPayment.getId());
+        when(responseMapperService.mapPaymentsToResponses(payments, "USER")).thenReturn(Arrays.asList(expectedResponse));
 
         // When
         ResponseEntity<List<PaymentResponse>> response = paymentController.getMyPaymentsByStatus(authHeader, status);
@@ -895,9 +913,12 @@ class PaymentControllerTest {
         String authHeader = "Bearer valid-token";
         PaymentStatus status = PaymentStatus.APPROVED;
         List<Payment> payments = Arrays.asList(testPayment);
-        when(jwtUtil.getSubject("valid-token")).thenReturn("merchant@example.com");
-        when(userRepository.findByEmail("merchant@example.com")).thenReturn(Optional.of(merchantUser));
+        when(authenticationService.getUserFromToken(authHeader)).thenReturn(merchantUser);
         when(paymentService.getPaymentsByProviderAndStatus(2L, status)).thenReturn(payments);
+        
+        PaymentResponse expectedResponse = new PaymentResponse();
+        expectedResponse.setId(testPayment.getId());
+        when(responseMapperService.mapPaymentsToResponses(payments, "MERCHANT")).thenReturn(Arrays.asList(expectedResponse));
 
         // When
         ResponseEntity<List<PaymentResponse>> response = paymentController.getMyPaymentsByStatus(authHeader, status);
@@ -916,8 +937,7 @@ class PaymentControllerTest {
         // Given
         String authHeader = "Bearer valid-token";
         BigDecimal total = BigDecimal.valueOf(1000.00);
-        when(jwtUtil.getSubject("valid-token")).thenReturn("user@example.com");
-        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(testUser));
+        when(authenticationService.getUserFromToken(authHeader)).thenReturn(testUser);
         when(paymentService.getTotalAmountByUserId(1L)).thenReturn(total);
 
         // When
@@ -934,8 +954,7 @@ class PaymentControllerTest {
         // Given
         String authHeader = "Bearer valid-token";
         BigDecimal total = BigDecimal.valueOf(5000.00);
-        when(jwtUtil.getSubject("valid-token")).thenReturn("merchant@example.com");
-        when(userRepository.findByEmail("merchant@example.com")).thenReturn(Optional.of(merchantUser));
+        when(authenticationService.getUserFromToken(authHeader)).thenReturn(merchantUser);
         when(paymentService.getTotalAmountByProviderId(2L)).thenReturn(total);
 
         // When
@@ -954,8 +973,7 @@ class PaymentControllerTest {
         // Given
         String authHeader = "Bearer valid-token";
         BigDecimal balance = BigDecimal.valueOf(1000.00);
-        when(jwtUtil.getSubject("valid-token")).thenReturn("user@example.com");
-        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(testUser));
+        when(authenticationService.getUserFromToken(authHeader)).thenReturn(testUser);
         when(balanceService.getCurrentBalance(1L)).thenReturn(balance);
 
         // When
@@ -971,8 +989,7 @@ class PaymentControllerTest {
     void testGetMyBalance_MerchantNotAllowed() {
         // Given
         String authHeader = "Bearer valid-token";
-        when(jwtUtil.getSubject("valid-token")).thenReturn("merchant@example.com");
-        when(userRepository.findByEmail("merchant@example.com")).thenReturn(Optional.of(merchantUser));
+        when(authenticationService.getUserFromToken(authHeader)).thenReturn(merchantUser);
 
         // When
         ResponseEntity<BigDecimal> response = paymentController.getMyBalance(authHeader);
@@ -997,8 +1014,7 @@ class PaymentControllerTest {
         request.setMaxAmount(BigDecimal.valueOf(200.00));
 
         List<Payment> payments = Arrays.asList(testPayment);
-        when(jwtUtil.getSubject("valid-token")).thenReturn("user@example.com");
-        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(testUser));
+        when(authenticationService.getUserFromToken(authHeader)).thenReturn(testUser);
         when(paymentService.getPaymentsByUserId(1L)).thenReturn(payments);
 
         // When
@@ -1017,8 +1033,7 @@ class PaymentControllerTest {
         String authHeader = "Bearer valid-token";
         PaymentSearchRequest request = new PaymentSearchRequest();
         List<Payment> payments = Arrays.asList(testPayment);
-        when(jwtUtil.getSubject("valid-token")).thenReturn("merchant@example.com");
-        when(userRepository.findByEmail("merchant@example.com")).thenReturn(Optional.of(merchantUser));
+        when(authenticationService.getUserFromToken(authHeader)).thenReturn(merchantUser);
         when(paymentService.getPaymentsByProviderId(2L)).thenReturn(payments);
 
         // When
@@ -1035,7 +1050,7 @@ class PaymentControllerTest {
         // Given
         String authHeader = "Bearer invalid-token";
         PaymentSearchRequest request = new PaymentSearchRequest();
-        when(jwtUtil.getSubject("invalid-token")).thenReturn(null);
+        when(authenticationService.getUserFromToken(authHeader)).thenReturn(null);
 
         // When
         ResponseEntity<PagedPaymentResponse> response = paymentController.searchMyPayments(authHeader, request, 0, 10);

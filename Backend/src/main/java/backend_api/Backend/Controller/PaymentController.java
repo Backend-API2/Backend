@@ -82,6 +82,9 @@ public class PaymentController {
             @RequestHeader("Authorization") String authHeader) {
         try {
             User user = authenticationService.getUserFromToken(authHeader);
+            if (user == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
             
             BigDecimal total = request.getAmount_subtotal()
                                 .add(request.getTaxes())
@@ -300,6 +303,9 @@ public class PaymentController {
             @RequestHeader("Authorization") String authHeader) {
         try {
             User user = authenticationService.getUserFromToken(authHeader);
+            if (user == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
             Payment payment = entityValidationService.getPaymentOrThrow(paymentId);
 
             if (!payment.getUser_id().equals(user.getId())) {
@@ -353,6 +359,9 @@ public class PaymentController {
             @RequestHeader("Authorization") String authHeader) {
         try {
             User currentUser = authenticationService.getUserFromToken(authHeader);
+            if (currentUser == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
             Payment payment = entityValidationService.getPaymentOrThrow(paymentId);
 
             entityValidationService.validatePaymentOwnership(paymentId, currentUser.getId(), currentUser.getRole().name());
@@ -378,6 +387,9 @@ public class PaymentController {
             @RequestParam(defaultValue = "10") int size) {
         try {
             User user = authenticationService.getUserFromToken(authHeader);
+            if (user == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
 
             List<Payment> payments;
 
@@ -406,6 +418,9 @@ public class PaymentController {
             @PathVariable PaymentStatus status) {
         try {
             User user = authenticationService.getUserFromToken(authHeader);
+            if (user == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
 
             List<Payment> payments;
 
@@ -431,6 +446,9 @@ public class PaymentController {
             @RequestHeader("Authorization") String authHeader) {
         try {
             User user = authenticationService.getUserFromToken(authHeader);
+            if (user == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
 
             BigDecimal total;
 
@@ -454,6 +472,9 @@ public class PaymentController {
             @RequestHeader("Authorization") String authHeader) {
         try {
             User user = authenticationService.getUserFromToken(authHeader);
+            if (user == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
 
             // Solo usuarios tienen saldo, merchants no
             if (user.getRole().name().equals("MERCHANT")) {
@@ -481,6 +502,9 @@ public class PaymentController {
             @RequestParam(defaultValue = "10") int size) {
         try {
             User user = authenticationService.getUserFromToken(authHeader);
+            if (user == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
             
             List<Payment> userPayments;
             
