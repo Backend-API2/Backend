@@ -21,32 +21,28 @@ public class DataSubscriptionController {
         log.info("Iniciando suscripciones a todos los eventos de datos...");
 
         try {
-            // Suscribirse a eventos de usuarios - CREAR USUARIO
             coreHubService.subscribeToTopic(
-                "users",                    // equipo que publica usuarios
-                "users.user.create_user",   // topic completo
-                "create_user"               // evento de usuario creado
+                "users",                    
+                "users.user.create_user",   
+                "create_user"               
             );
 
-            // Suscribirse a eventos de usuarios - ACTUALIZAR USUARIO
             coreHubService.subscribeToTopic(
-                "users",                    // equipo que publica usuarios
-                "users.user.update_user",   // topic completo
-                "update_user"               // evento de usuario actualizado
+                "users",                    
+                "users.user.update_user",   
+                "update_user"               
             );
 
-            // Suscribirse a eventos de usuarios - DESACTIVAR USUARIO
             coreHubService.subscribeToTopic(
-                "users",                        // equipo que publica usuarios
-                "users.user.deactivate_user",   // topic completo
-                "deactivate_user"               // evento de usuario desactivado
+                "users",                       
+                "users.user.deactivate_user",   
+                "deactivate_user"               
             );
 
-            // Suscribirse a eventos de solicitudes
             coreHubService.subscribeToTopic(
-                "matching",           // equipo que publica solicitudes
-                "solicitud",          // dominio de solicitudes
-                "created"             // evento de solicitud creada
+                "matching",           
+                "solicitud",          
+                "created"             
             );
 
             log.info("Todas las suscripciones creadas exitosamente");

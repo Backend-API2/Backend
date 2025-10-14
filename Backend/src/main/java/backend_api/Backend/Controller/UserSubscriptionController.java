@@ -105,13 +105,10 @@ public class UserSubscriptionController {
         log.info("Suscribiéndose a todos los eventos de usuarios...");
 
         try {
-            // Suscribirse a creación de usuarios
             coreHubService.subscribeToTopic("users", "users.user.create_user", "create_user");
             
-            // Suscribirse a actualización de usuarios
             coreHubService.subscribeToTopic("users", "users.user.update_user", "update_user");
             
-            // Suscribirse a desactivación de usuarios
             coreHubService.subscribeToTopic("users", "users.user.deactivate_user", "deactivate_user");
 
             log.info("Todas las suscripciones de usuarios creadas exitosamente");

@@ -12,9 +12,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
-/**
- * Webhook para recibir eventos del CORE HUB
- */
+
 @RestController
 @RequestMapping("/api/core/webhook")
 @RequiredArgsConstructor
@@ -25,10 +23,7 @@ public class CoreWebhookController {
     private final UserEventProcessorService userEventProcessorService;
     private final CoreHubService coreHubService;
 
-    /**
-     * Endpoint que el CORE HUB llama cuando hay un evento de pagos
-     * POST /api/core/webhook/payment-events
-     */
+  
     @PostMapping("/payment-events")
     public ResponseEntity<Map<String, String>> receivePaymentEvent(@RequestBody CoreEventMessage message) {
         try {
@@ -37,10 +32,8 @@ public class CoreWebhookController {
                 message.getDestination().getEventName(),
                 message.getSource());
 
-            // Extraer subscriptionId del payload si viene
             String subscriptionId = extractSubscriptionId(message);
 
-            // Procesar según el tipo de evento
             String eventName = message.getDestination().getEventName();
 
             switch (eventName) {
@@ -59,12 +52,10 @@ public class CoreWebhookController {
                     log.warn("Evento no reconocido: {}", eventName);
             }
 
-            // Enviar ACK al CORE
             if (subscriptionId != null) {
                 coreHubService.sendAck(message.getMessageId(), subscriptionId);
             }
 
-            // Responder 200 en < 3s como recomienda la doc
             return ResponseEntity.ok(Map.of(
                 "status", "processed",
                 "messageId", message.getMessageId()
@@ -74,7 +65,6 @@ public class CoreWebhookController {
             log.error("Error procesando webhook del CORE - MessageId: {}, Error: {}",
                 message.getMessageId(), e.getMessage(), e);
 
-            // Devolver error para que el CORE reintente
             return ResponseEntity.status(500).body(Map.of(
                 "status", "error",
                 "messageId", message.getMessageId(),
@@ -84,10 +74,7 @@ public class CoreWebhookController {
         }
     }
 
-    /**
-     * Endpoint que el CORE HUB llama cuando hay un evento de usuarios
-     * POST /api/core/webhook/user-events
-     */
+   
     @PostMapping("/user-events")
     public ResponseEntity<Map<String, String>> receiveUserEvent(@RequestBody CoreEventMessage message) {
         try {
@@ -96,10 +83,8 @@ public class CoreWebhookController {
                 message.getDestination().getEventName(),
                 message.getSource());
 
-            // Extraer subscriptionId del payload si viene
             String subscriptionId = extractSubscriptionId(message);
 
-            // Procesar según el tipo de evento de usuario
             String eventName = message.getDestination().getEventName();
 
             switch (eventName) {
@@ -119,12 +104,10 @@ public class CoreWebhookController {
                     log.warn("Evento de usuario no reconocido: {}", eventName);
             }
 
-            // Enviar ACK al CORE
             if (subscriptionId != null) {
                 coreHubService.sendAck(message.getMessageId(), subscriptionId);
             }
 
-            // Responder 200 en < 3s como recomienda la doc
             return ResponseEntity.ok(Map.of(
                 "status", "processed",
                 "messageId", message.getMessageId()
@@ -134,7 +117,6 @@ public class CoreWebhookController {
             log.error("Error procesando webhook de usuarios del CORE - MessageId: {}, Error: {}",
                 message.getMessageId(), e.getMessage(), e);
 
-            // Devolver error para que el CORE reintente
             return ResponseEntity.status(500).body(Map.of(
                 "status", "error",
                 "messageId", message.getMessageId(),
@@ -144,9 +126,7 @@ public class CoreWebhookController {
         }
     }
 
-    /**
-     * Health check del webhook
-     */
+    
     @GetMapping("/health")
     public ResponseEntity<Map<String, String>> webhookHealth() {
         return ResponseEntity.ok(Map.of(

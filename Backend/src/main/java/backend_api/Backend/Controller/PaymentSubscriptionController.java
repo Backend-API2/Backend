@@ -28,9 +28,9 @@ public class PaymentSubscriptionController {
                 subscriberTeam, subscriberWebhookUrl);
 
             coreHubService.subscribeToTopic(
-                "payments",           // nuestro equipo
-                "payment",            // dominio
-                "status_updated"      // acción (cuando se actualiza el estado)
+                "payments",
+                "payment",
+                "status_updated"
             );
 
             return ResponseEntity.ok(Map.of(
@@ -53,7 +53,6 @@ public class PaymentSubscriptionController {
     }
 
     
-     // Endpoint para que otros módulos se suscriban a eventos de coordinación de pago
     @PostMapping("/payment-coordination")
     public ResponseEntity<?> subscribeToPaymentCoordination(
             @RequestParam String subscriberTeam,
@@ -87,7 +86,6 @@ public class PaymentSubscriptionController {
     }
 
     
-     // Endpoint para que otros módulos se suscriban a eventos de método de pago seleccionado
    
     @PostMapping("/payment-method-selected")
     public ResponseEntity<?> subscribeToPaymentMethodSelected(
@@ -122,7 +120,6 @@ public class PaymentSubscriptionController {
     }
 
     
-     //Lista todos los eventos disponibles para suscripción
      
     @GetMapping("/available-events")
     public ResponseEntity<?> getAvailableEvents() {

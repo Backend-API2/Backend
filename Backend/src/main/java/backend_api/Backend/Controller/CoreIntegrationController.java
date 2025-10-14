@@ -12,9 +12,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * Endpoints para probar integración con CORE HUB
- */
+
 @RestController
 @RequestMapping("/api/core/integration")
 @RequiredArgsConstructor
@@ -23,20 +21,13 @@ public class CoreIntegrationController {
 
     private final CoreHubService coreHubService;
 
-    /**
-     * Verifica configuración y conexión con CORE HUB
-     * GET /api/core/integration/status
-     */
+    
     @GetMapping("/status")
     public ResponseEntity<?> getCoreStatus() {
         Map<String, Object> status = coreHubService.checkConnection();
         return ResponseEntity.ok(status);
     }
 
-    /**
-     * Suscribe al webhook para recibir eventos de solicitudes de pago
-     * POST /api/core/integration/subscribe-payment-requests?targetTeam=matching&domain=solicitud&action=created
-     */
     @PostMapping("/subscribe-payment-requests")
     public ResponseEntity<?> subscribeToPaymentRequests(
             @RequestParam(defaultValue = "matching") String targetTeam,
@@ -63,10 +54,7 @@ public class CoreIntegrationController {
         }
     }
 
-    /**
-     * Publica un mensaje de prueba al CORE
-     * POST /api/core/integration/test-publish
-     */
+    
     @PostMapping("/test-publish")
     public ResponseEntity<?> testPublish(
             @RequestParam(defaultValue = "payment") String domain,
@@ -106,10 +94,7 @@ public class CoreIntegrationController {
         }
     }
 
-    /**
-     * Envía confirmación de IDs al CORE (simula el flujo real)
-     * POST /api/core/integration/send-ids
-     */
+    
     @PostMapping("/send-ids")
     public ResponseEntity<?> sendIdsToCore(
             @RequestParam Long solicitudId,

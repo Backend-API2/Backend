@@ -22,7 +22,6 @@ public class UserDataWebhookController {
         log.info("Recibido evento de usuario: {}", message.getMessageId());
         
         try {
-            // Procesar evento de usuario
             coreEventProcessorService.processUserDataFromCore(message);
             
             return ResponseEntity.ok(Map.of(

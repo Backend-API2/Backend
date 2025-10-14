@@ -22,7 +22,6 @@ public class SolicitudDataWebhookController {
         log.info("Recibido evento de solicitud: {}", message.getMessageId());
         
         try {
-            // Procesar evento de solicitud
             coreEventProcessorService.processSolicitudDataFromCore(message);
             
             return ResponseEntity.ok(Map.of(

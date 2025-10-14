@@ -22,7 +22,6 @@ public class ProviderDataWebhookController {
         log.info("Recibido evento de prestador: {}", message.getMessageId());
         
         try {
-            // Procesar evento de prestador
             coreEventProcessorService.processProviderDataFromCore(message);
             
             return ResponseEntity.ok(Map.of(
