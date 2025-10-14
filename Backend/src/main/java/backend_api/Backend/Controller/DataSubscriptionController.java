@@ -21,18 +21,25 @@ public class DataSubscriptionController {
         log.info("Iniciando suscripciones a todos los eventos de datos...");
 
         try {
-            // Suscribirse a eventos de usuarios
+            // Suscribirse a eventos de usuarios - CREAR USUARIO
             coreHubService.subscribeToTopic(
-                "users",              // equipo que publica usuarios
-                "user",               // dominio de usuarios
-                "created"             // evento de usuario creado
+                "users",                    // equipo que publica usuarios
+                "users.user.create_user",   // topic completo
+                "create_user"               // evento de usuario creado
             );
 
-            // Suscribirse a eventos de prestadores
+            // Suscribirse a eventos de usuarios - ACTUALIZAR USUARIO
             coreHubService.subscribeToTopic(
-                "providers",          // equipo que publica prestadores
-                "provider",           // dominio de prestadores
-                "created"             // evento de prestador creado
+                "users",                    // equipo que publica usuarios
+                "users.user.update_user",   // topic completo
+                "update_user"               // evento de usuario actualizado
+            );
+
+            // Suscribirse a eventos de usuarios - DESACTIVAR USUARIO
+            coreHubService.subscribeToTopic(
+                "users",                        // equipo que publica usuarios
+                "users.user.deactivate_user",   // topic completo
+                "deactivate_user"               // evento de usuario desactivado
             );
 
             // Suscribirse a eventos de solicitudes
@@ -62,8 +69,9 @@ public class DataSubscriptionController {
         return ResponseEntity.ok(Map.of(
             "status", "active",
             "subscriptions", new String[]{
-                "users.user.created",
-                "providers.provider.created", 
+                "users.user.create_user",
+                "users.user.update_user",
+                "users.user.deactivate_user",
                 "matching.solicitud.created"
             }
         ));

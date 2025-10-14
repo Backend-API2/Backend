@@ -31,6 +31,9 @@ public class CoreHubService {
     @Value("${core.hub.webhook.url:}")
     private String webhookUrl;
 
+    @Value("${core.hub.user.webhook.url:}")
+    private String userWebhookUrl;
+
 
     public void publishMessage(CoreResponseMessage message) {
         String url = coreHubUrl + "/publish";
@@ -61,8 +64,14 @@ public class CoreHubService {
     public void subscribeToTopic(String targetTeamName, String domain, String action) {
         String url = coreHubUrl + "/subscribe";
     
+        // Determinar el webhook URL correcto según el tipo de evento
+        String webhookUrlToUse = webhookUrl;
+        if ("users".equals(targetTeamName)) {
+            webhookUrlToUse = userWebhookUrl;
+        }
+    
         Map<String, String> subscriptionData = new HashMap<>();
-        subscriptionData.put("webhookUrl", webhookUrl);
+        subscriptionData.put("webhookUrl", webhookUrlToUse);
         subscriptionData.put("squadName", teamName);
         subscriptionData.put("topic", String.format("%s.%s.%s", targetTeamName, domain, action));
         subscriptionData.put("eventName", action);
@@ -76,6 +85,7 @@ public class CoreHubService {
         try {
             log.info("Intentando suscribirse al tópico: {}.{}.{}", targetTeamName, domain, action);
             log.info("URL: {}", url);
+            log.info("Webhook URL: {}", webhookUrlToUse);
             log.info("Payload: {}", subscriptionData);
             
             ResponseEntity<String> response = restTemplate.postForEntity(url, request, String.class);

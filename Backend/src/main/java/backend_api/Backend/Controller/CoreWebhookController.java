@@ -2,6 +2,7 @@ package backend_api.Backend.Controller;
 
 import backend_api.Backend.messaging.dto.CoreEventMessage;
 import backend_api.Backend.messaging.service.CoreEventProcessorService;
+import backend_api.Backend.messaging.service.UserEventProcessorService;
 import backend_api.Backend.messaging.service.CoreHubService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -21,10 +22,11 @@ import java.util.Map;
 public class CoreWebhookController {
 
     private final CoreEventProcessorService coreEventProcessorService;
+    private final UserEventProcessorService userEventProcessorService;
     private final CoreHubService coreHubService;
 
     /**
-     * Endpoint que el CORE HUB llama cuando hay un evento
+     * Endpoint que el CORE HUB llama cuando hay un evento de pagos
      * POST /api/core/webhook/payment-events
      */
     @PostMapping("/payment-events")
@@ -70,6 +72,66 @@ public class CoreWebhookController {
 
         } catch (Exception e) {
             log.error("Error procesando webhook del CORE - MessageId: {}, Error: {}",
+                message.getMessageId(), e.getMessage(), e);
+
+            // Devolver error para que el CORE reintente
+            return ResponseEntity.status(500).body(Map.of(
+                "status", "error",
+                "messageId", message.getMessageId(),
+                "error", e.getMessage(),
+                "retryAfter","30"
+            ));
+        }
+    }
+
+    /**
+     * Endpoint que el CORE HUB llama cuando hay un evento de usuarios
+     * POST /api/core/webhook/user-events
+     */
+    @PostMapping("/user-events")
+    public ResponseEntity<Map<String, String>> receiveUserEvent(@RequestBody CoreEventMessage message) {
+        try {
+            log.info("Webhook de usuarios recibido del CORE - MessageId: {}, EventName: {}, Source: {}",
+                message.getMessageId(),
+                message.getDestination().getEventName(),
+                message.getSource());
+
+            // Extraer subscriptionId del payload si viene
+            String subscriptionId = extractSubscriptionId(message);
+
+            // Procesar según el tipo de evento de usuario
+            String eventName = message.getDestination().getEventName();
+
+            switch (eventName) {
+                case "create_user":
+                    userEventProcessorService.processUserCreatedFromCore(message);
+                    break;
+
+                case "update_user":
+                    userEventProcessorService.processUserUpdatedFromCore(message);
+                    break;
+
+                case "deactivate_user":
+                    userEventProcessorService.processUserDeactivatedFromCore(message);
+                    break;
+
+                default:
+                    log.warn("Evento de usuario no reconocido: {}", eventName);
+            }
+
+            // Enviar ACK al CORE
+            if (subscriptionId != null) {
+                coreHubService.sendAck(message.getMessageId(), subscriptionId);
+            }
+
+            // Responder 200 en < 3s como recomienda la doc
+            return ResponseEntity.ok(Map.of(
+                "status", "processed",
+                "messageId", message.getMessageId()
+            ));
+
+        } catch (Exception e) {
+            log.error("Error procesando webhook de usuarios del CORE - MessageId: {}, Error: {}",
                 message.getMessageId(), e.getMessage(), e);
 
             // Devolver error para que el CORE reintente
