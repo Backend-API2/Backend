@@ -2,12 +2,15 @@ package backend_api.Backend.Controller;
 
 import backend_api.Backend.Auth.JwtUtil;
 import backend_api.Backend.DTO.invoice.*;
+import backend_api.Backend.DTO.payment.PaymentResponse;
 import backend_api.Backend.Entity.invoice.InvoiceStatus;
 import backend_api.Backend.Entity.invoice.InvoiceEventType;
 import backend_api.Backend.Entity.user.User;
 import backend_api.Backend.Entity.user.UserRole;
 import backend_api.Backend.Repository.UserRepository;
 import backend_api.Backend.Service.Interface.InvoiceService;
+import backend_api.Backend.Service.Common.AuthenticationService;
+import backend_api.Backend.Service.Common.ResponseMapperService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,6 +28,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -47,6 +51,12 @@ class InvoiceControllerTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private AuthenticationService authenticationService;
+
+    @Mock
+    private ResponseMapperService responseMapperService;
+
     @InjectMocks
     private InvoiceController invoiceController;
 
@@ -58,11 +68,19 @@ class InvoiceControllerTest {
         mockMvc = MockMvcBuilders.standaloneSetup(invoiceController).build();
         objectMapper = new ObjectMapper();
         
-        // Setup default mocks
-        when(jwtUtil.getSubject("valid-jwt-token")).thenReturn("test@example.com");
-        when(jwtUtil.getSubject("invalid-jwt-token")).thenReturn(null);
-        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(createTestUser()));
-        when(userRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
+        // Setup default mocks (using lenient to avoid unnecessary stubbing errors)
+        lenient().when(jwtUtil.getSubject("valid-jwt-token")).thenReturn("test@example.com");
+        lenient().when(jwtUtil.getSubject("invalid-jwt-token")).thenReturn(null);
+        lenient().when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(createTestUser()));
+        lenient().when(userRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
+        
+        // Setup AuthenticationService mock
+        lenient().when(authenticationService.getUserFromToken(anyString())).thenReturn(createTestUser());
+        lenient().when(authenticationService.getUserFromToken("invalid-jwt-token")).thenReturn(null);
+        
+        // Setup ResponseMapperService mock (only for payments, not invoices)
+        lenient().when(responseMapperService.mapPaymentsToResponses(anyList(), anyString())).thenReturn(new ArrayList<>());
+        lenient().when(responseMapperService.mapPaymentToResponse(any(), anyString())).thenReturn(new PaymentResponse());
     }
     
     private User createTestUser() {
@@ -316,8 +334,7 @@ class InvoiceControllerTest {
             1L
         );
 
-        when(jwtUtil.getSubject(token)).thenReturn("test@example.com");
-        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
+        when(authenticationService.getUserFromToken(authHeader)).thenReturn(user);
         when(invoiceService.getInvoicesByUserId(1L, page, size)).thenReturn(expectedPage);
 
         // When
@@ -329,8 +346,7 @@ class InvoiceControllerTest {
         assertEquals(1, response.getBody().getContent().size());
         assertEquals(1L, response.getBody().getContent().get(0).getUserId());
 
-        verify(jwtUtil).getSubject(token);
-        verify(userRepository).findByEmail("test@example.com");
+        verify(authenticationService).getUserFromToken(authHeader);
         verify(invoiceService).getInvoicesByUserId(1L, page, size);
     }
 
@@ -342,7 +358,7 @@ class InvoiceControllerTest {
         int page = 0;
         int size = 10;
 
-        when(jwtUtil.getSubject(token)).thenReturn(null);
+        when(authenticationService.getUserFromToken(authHeader)).thenReturn(null);
 
         // When
         ResponseEntity<Page<InvoiceResponse>> response = invoiceController.getMyInvoices(page, size, authHeader);
@@ -351,8 +367,7 @@ class InvoiceControllerTest {
         assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
         assertNull(response.getBody());
 
-        verify(jwtUtil).getSubject(token);
-        verify(userRepository, never()).findByEmail(anyString());
+        verify(authenticationService).getUserFromToken(authHeader);
     }
 
     @Test
@@ -363,18 +378,16 @@ class InvoiceControllerTest {
         int page = 0;
         int size = 10;
 
-        when(jwtUtil.getSubject(token)).thenReturn("nonexistent@example.com");
-        when(userRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
+        when(authenticationService.getUserFromToken(authHeader)).thenThrow(new SecurityException("User not found"));
 
         // When
         ResponseEntity<Page<InvoiceResponse>> response = invoiceController.getMyInvoices(page, size, authHeader);
 
         // Then
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
         assertNull(response.getBody());
 
-        verify(jwtUtil).getSubject(token);
-        verify(userRepository).findByEmail("nonexistent@example.com");
+        verify(authenticationService).getUserFromToken(authHeader);
     }
 
     @Test
@@ -385,7 +398,7 @@ class InvoiceControllerTest {
         int page = 0;
         int size = 10;
 
-        when(jwtUtil.getSubject(token)).thenThrow(new RuntimeException("JWT error"));
+        when(authenticationService.getUserFromToken(authHeader)).thenThrow(new RuntimeException("Authentication error"));
 
         // When
         ResponseEntity<Page<InvoiceResponse>> response = invoiceController.getMyInvoices(page, size, authHeader);
@@ -394,8 +407,7 @@ class InvoiceControllerTest {
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
         assertNull(response.getBody());
 
-        verify(jwtUtil).getSubject(token);
-        verify(userRepository, never()).findByEmail(anyString());
+        verify(authenticationService).getUserFromToken(authHeader);
     }
 
     @Test
@@ -416,8 +428,7 @@ class InvoiceControllerTest {
                 .pendingInvoices(2L)
                 .build();
 
-        when(jwtUtil.getSubject(token)).thenReturn("test@example.com");
-        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
+        when(authenticationService.getUserFromToken(authHeader)).thenReturn(user);
         when(invoiceService.getInvoiceSummaryByUser(1L)).thenReturn(expectedSummary);
 
         // When
@@ -429,8 +440,7 @@ class InvoiceControllerTest {
         assertEquals(5L, response.getBody().getTotalInvoices());
         assertEquals(BigDecimal.valueOf(1000.00), response.getBody().getTotalAmount());
 
-        verify(jwtUtil).getSubject(token);
-        verify(userRepository).findByEmail("test@example.com");
+        verify(authenticationService).getUserFromToken(authHeader);
         verify(invoiceService).getInvoiceSummaryByUser(1L);
     }
 
@@ -440,7 +450,7 @@ class InvoiceControllerTest {
         String token = "invalid-jwt-token";
         String authHeader = "Bearer " + token;
 
-        when(jwtUtil.getSubject(token)).thenReturn(null);
+        when(authenticationService.getUserFromToken(authHeader)).thenReturn(null);
 
         // When
         ResponseEntity<InvoiceSummaryResponse> response = invoiceController.getMySummary(authHeader);
@@ -449,8 +459,7 @@ class InvoiceControllerTest {
         assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
         assertNull(response.getBody());
 
-        verify(jwtUtil).getSubject(token);
-        verify(userRepository, never()).findByEmail(anyString());
+        verify(authenticationService).getUserFromToken(authHeader);
     }
 
     @Test
@@ -459,18 +468,16 @@ class InvoiceControllerTest {
         String token = "valid-jwt-token";
         String authHeader = "Bearer " + token;
 
-        when(jwtUtil.getSubject(token)).thenReturn("nonexistent@example.com");
-        when(userRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
+        when(authenticationService.getUserFromToken(authHeader)).thenThrow(new SecurityException("User not found"));
 
         // When
         ResponseEntity<InvoiceSummaryResponse> response = invoiceController.getMySummary(authHeader);
 
         // Then
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
         assertNull(response.getBody());
 
-        verify(jwtUtil).getSubject(token);
-        verify(userRepository).findByEmail("nonexistent@example.com");
+        verify(authenticationService).getUserFromToken(authHeader);
     }
 
     @Test
@@ -479,7 +486,7 @@ class InvoiceControllerTest {
         String token = "valid-jwt-token";
         String authHeader = "Bearer " + token;
 
-        when(jwtUtil.getSubject(token)).thenThrow(new RuntimeException("JWT error"));
+        when(authenticationService.getUserFromToken(authHeader)).thenThrow(new RuntimeException("Authentication error"));
 
         // When
         ResponseEntity<InvoiceSummaryResponse> response = invoiceController.getMySummary(authHeader);
@@ -488,8 +495,7 @@ class InvoiceControllerTest {
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
         assertNull(response.getBody());
 
-        verify(jwtUtil).getSubject(token);
-        verify(userRepository, never()).findByEmail(anyString());
+        verify(authenticationService).getUserFromToken(authHeader);
     }
 
     @Test

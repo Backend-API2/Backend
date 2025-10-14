@@ -384,6 +384,9 @@ public class InvoiceController {
             @RequestHeader("Authorization") String authHeader) {
         try {
             User user = authenticationService.getUserFromToken(authHeader);
+            if (user == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
 
             Page<InvoiceResponse> response = invoiceService.getInvoicesByUserId(user.getId(), page, size);
             return ResponseEntity.ok(response);
@@ -401,6 +404,9 @@ public class InvoiceController {
             @RequestHeader("Authorization") String authHeader) {
         try {
             User user = authenticationService.getUserFromToken(authHeader);
+            if (user == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
 
             InvoiceSummaryResponse response = invoiceService.getInvoiceSummaryByUser(user.getId());
             return ResponseEntity.ok(response);
