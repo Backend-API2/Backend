@@ -41,9 +41,9 @@ public class UserDataIntegrationService {
             
             return UserInfo.builder()
                     .userId(userId)
-                    .name(user.getFirstName() + " " + user.getLastName())
+                    .name(user.getName())
                     .email(user.getEmail())
-                    .phone(user.getPhoneNumber())
+                    .phone(user.getPhone())
                     .source("LOCAL")
                     .build();
         }

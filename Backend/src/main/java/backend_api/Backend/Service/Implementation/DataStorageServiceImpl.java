@@ -26,17 +26,39 @@ public class DataStorageServiceImpl {
     @Transactional
     public void saveUserData(Long userId, Map<String, Object> userDataMap, String secondaryId) {
         try {
-            UserData userData = new UserData();
-            userData.setUserId(userId);
+            // Buscar si ya existe el usuario
+            Optional<UserData> existingUserOpt = userDataRepository.findByUserId(userId);
+            UserData userData;
+            
+            if (existingUserOpt.isPresent()) {
+                userData = existingUserOpt.get();
+                log.info("Actualizando usuario existente: userId={}", userId);
+            } else {
+                userData = new UserData();
+                userData.setUserId(userId);
+                log.info("Creando nuevo usuario: userId={}", userId);
+            }
+            
+            // Actualizar datos
             userData.setName((String) userDataMap.get("name"));
             userData.setEmail((String) userDataMap.get("email"));
             userData.setPhone((String) userDataMap.get("phone"));
             userData.setSecondaryId(secondaryId);
+            
+            // Manejar estado de desactivación
+            if (userDataMap.containsKey("status")) {
+                String status = (String) userDataMap.get("status");
+                if ("DEACTIVATED".equals(status)) {
+                    log.info("Usuario desactivado: userId={}, reason={}", userId, userDataMap.get("deactivationReason"));
+                }
+            }
 
             userDataRepository.save(userData);
-            log.info("Datos de usuario guardados: userId={}, name={}", userId, userData.getName());
+            log.info("Datos de usuario guardados exitosamente: userId={}, name={}, email={}", 
+                userId, userData.getName(), userData.getEmail());
         } catch (Exception e) {
-            log.error("Error guardando datos de usuario: userId={}, error={}", userId, e.getMessage());
+            log.error("Error guardando datos de usuario: userId={}, error={}", userId, e.getMessage(), e);
+            throw new RuntimeException("Error al guardar datos de usuario", e);
         }
     }
 
@@ -101,5 +123,38 @@ public class DataStorageServiceImpl {
 
     public boolean solicitudDataExists(Long solicitudId) {
         return solicitudDataRepository.existsBySolicitudId(solicitudId);
+    }
+
+    @Transactional
+    public void deactivateUser(Long userId, String reason) {
+        try {
+            Optional<UserData> userDataOpt = userDataRepository.findByUserId(userId);
+            if (userDataOpt.isPresent()) {
+                UserData userData = userDataOpt.get();
+                // Aquí podrías agregar un campo de estado si lo necesitas
+                log.info("Usuario desactivado: userId={}, reason={}", userId, reason);
+            } else {
+                log.warn("Usuario no encontrado para desactivar: userId={}", userId);
+            }
+        } catch (Exception e) {
+            log.error("Error desactivando usuario: userId={}, error={}", userId, e.getMessage(), e);
+            throw new RuntimeException("Error al desactivar usuario", e);
+        }
+    }
+
+    @Transactional
+    public void deleteUserData(Long userId) {
+        try {
+            Optional<UserData> userDataOpt = userDataRepository.findByUserId(userId);
+            if (userDataOpt.isPresent()) {
+                userDataRepository.delete(userDataOpt.get());
+                log.info("Datos de usuario eliminados: userId={}", userId);
+            } else {
+                log.warn("Usuario no encontrado para eliminar: userId={}", userId);
+            }
+        } catch (Exception e) {
+            log.error("Error eliminando datos de usuario: userId={}, error={}", userId, e.getMessage(), e);
+            throw new RuntimeException("Error al eliminar datos de usuario", e);
+        }
     }
 }

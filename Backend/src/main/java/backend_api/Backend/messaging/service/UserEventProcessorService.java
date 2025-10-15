@@ -91,6 +91,7 @@ public class UserEventProcessorService {
             log.info("Usuario desactivado - UserId: {}, Email: {}, Reason: {}",
                 userDeactivated.getUserId(), userDeactivated.getEmail(), userDeactivated.getReason());
 
+            // Actualizar datos del usuario con estado de desactivación
             Map<String, Object> userData = Map.of(
                 "name", userDeactivated.getFirstName() + " " + userDeactivated.getLastName(),
                 "email", userDeactivated.getEmail(),
@@ -102,6 +103,9 @@ public class UserEventProcessorService {
             );
 
             dataStorageService.saveUserData(userDeactivated.getUserId(), userData, coreMessage.getMessageId());
+            
+            // También llamar al método específico de desactivación
+            dataStorageService.deactivateUser(userDeactivated.getUserId(), userDeactivated.getReason());
             
             log.info("Usuario desactivado exitosamente en BD - UserId: {}", userDeactivated.getUserId());
 
