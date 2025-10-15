@@ -40,9 +40,27 @@ public class DataSubscriptionController {
             );
 
             coreHubService.subscribeToTopic(
-                "matching",           
-                "solicitud",          
+                "providers",           
+                "providers.provider.created",          
                 "created"             
+            );
+
+            coreHubService.subscribeToTopic(
+                "providers",           
+                "providers.provider.updated",          
+                "updated"             
+            );
+
+            coreHubService.subscribeToTopic(
+                "matching",           
+                "matching.solicitud.created",          
+                "created"             
+            );
+
+            coreHubService.subscribeToTopic(
+                "matching",           
+                "matching.solicitud.updated",          
+                "updated"             
             );
 
             log.info("Todas las suscripciones creadas exitosamente");
@@ -68,7 +86,10 @@ public class DataSubscriptionController {
                 "users.user.create_user",
                 "users.user.update_user",
                 "users.user.deactivate_user",
-                "matching.solicitud.created"
+                "providers.provider.created",
+                "providers.provider.updated",
+                "matching.solicitud.created",
+                "matching.solicitud.updated"
             }
         ));
     }

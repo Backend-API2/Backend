@@ -14,6 +14,11 @@ import java.time.LocalDateTime;
 public class UserDeactivatedMessage extends BaseMessage {
     private Long userId;
     private String email;
+    private String role;
+    private String dni;
+    private String firstName;
+    private String lastName;
+    private String phoneNumber;
     private String reason;
     private LocalDateTime deactivatedAt;
 }
