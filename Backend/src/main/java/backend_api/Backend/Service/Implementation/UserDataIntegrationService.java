@@ -52,16 +52,9 @@ public class UserDataIntegrationService {
         return null;
     }
 
-    /**
-     * Verifica si existen datos del módulo de usuarios para un userId
-     */
     public boolean hasUserModuleData(Long userId) {
         return userDataRepository.existsByUserId(userId);
     }
-
-    /**
-     * Clase interna para representar información de usuario unificada
-     */
     @lombok.Data
     @lombok.Builder
     public static class UserInfo {
@@ -69,6 +62,6 @@ public class UserDataIntegrationService {
         private String name;
         private String email;
         private String phone;
-        private String source; // "USER_MODULE" o "LOCAL"
+        private String source;
     }
 }

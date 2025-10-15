@@ -22,20 +22,17 @@ public class ResponseMapperService {
     private final UserDataIntegrationService userDataIntegrationService;
 
     public List<PaymentResponse> mapPaymentsToResponses(List<Payment> payments, String userRole) {
-        // Optimización: Obtener todos los IDs únicos de usuarios y providers
         Set<Long> allUserIds = payments.stream()
             .flatMap(p -> java.util.stream.Stream.of(p.getUser_id(), p.getProvider_id()))
             .filter(id -> id != null)
             .collect(Collectors.toSet());
 
-        // Obtener datos de usuarios usando el servicio de integración
         Map<Long, UserDataIntegrationService.UserInfo> userInfoMap = allUserIds.stream()
             .collect(Collectors.toMap(
                 userId -> userId,
                 userId -> userDataIntegrationService.getUserInfo(userId)
             ));
 
-        // Ahora mapear usando los datos reales del módulo de usuarios
         return payments.stream()
             .map(payment -> PaymentResponse.fromEntityWithRealUserData(payment, userInfoMap, userRole))
             .collect(Collectors.toList());

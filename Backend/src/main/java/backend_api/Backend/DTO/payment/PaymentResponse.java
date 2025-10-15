@@ -89,12 +89,10 @@ public class PaymentResponse {
         return response;
     }
 
-    // Versión optimizada que usa un Map precargado en lugar de hacer queries individuales
     public static PaymentResponse fromEntityWithNamesOptimized(Payment payment, Map<Long, User> userMap, String currentUserRole) {
         PaymentResponse response = fromEntity(payment);
 
         try {
-            // Buscar en el Map en lugar de hacer query a DB
             User user = userMap.get(payment.getUser_id());
             if (user != null) {
                 response.setUser_name(user.getName());
@@ -105,7 +103,6 @@ public class PaymentResponse {
                 response.setProvider_name(provider.getName());
             }
 
-            // Filtrar según rol
             if ("MERCHANT".equals(currentUserRole)) {
                 response.setProvider_name(null);
             } else {
@@ -119,12 +116,10 @@ public class PaymentResponse {
         return response;
     }
 
-    // Versión que usa datos reales del módulo de usuarios
     public static PaymentResponse fromEntityWithRealUserData(Payment payment, Map<Long, UserDataIntegrationService.UserInfo> userInfoMap, String currentUserRole) {
         PaymentResponse response = fromEntity(payment);
 
         try {
-            // Buscar datos del usuario usando información real del módulo de usuarios
             UserDataIntegrationService.UserInfo userInfo = userInfoMap.get(payment.getUser_id());
             if (userInfo != null) {
                 response.setUser_name(userInfo.getName());
@@ -135,7 +130,6 @@ public class PaymentResponse {
                 response.setProvider_name(providerInfo.getName());
             }
 
-            // Filtrar según rol
             if ("MERCHANT".equals(currentUserRole)) {
                 response.setProvider_name(null);
             } else {
