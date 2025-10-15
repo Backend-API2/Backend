@@ -4,6 +4,7 @@ import backend_api.Backend.DTO.payment.PaymentResponse;
 import backend_api.Backend.Entity.payment.Payment;
 import backend_api.Backend.Entity.user.User;
 import backend_api.Backend.Repository.UserRepository;
+import backend_api.Backend.Service.Implementation.UserDataIntegrationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -18,6 +19,7 @@ import java.util.stream.Collectors;
 public class ResponseMapperService {
 
     private final UserRepository userRepository;
+    private final UserDataIntegrationService userDataIntegrationService;
 
     public List<PaymentResponse> mapPaymentsToResponses(List<Payment> payments, String userRole) {
         // Optimización: Obtener todos los IDs únicos de usuarios y providers
@@ -26,13 +28,16 @@ public class ResponseMapperService {
             .filter(id -> id != null)
             .collect(Collectors.toSet());
 
-        // Hacer UNA SOLA query para traer todos los usuarios necesarios
-        Map<Long, User> userMap = userRepository.findAllById(allUserIds).stream()
-            .collect(Collectors.toMap(User::getId, user -> user));
+        // Obtener datos de usuarios usando el servicio de integración
+        Map<Long, UserDataIntegrationService.UserInfo> userInfoMap = allUserIds.stream()
+            .collect(Collectors.toMap(
+                userId -> userId,
+                userId -> userDataIntegrationService.getUserInfo(userId)
+            ));
 
-        // Ahora mapear sin hacer queries adicionales
+        // Ahora mapear usando los datos reales del módulo de usuarios
         return payments.stream()
-            .map(payment -> PaymentResponse.fromEntityWithNamesOptimized(payment, userMap, userRole))
+            .map(payment -> PaymentResponse.fromEntityWithRealUserData(payment, userInfoMap, userRole))
             .collect(Collectors.toList());
     }
 

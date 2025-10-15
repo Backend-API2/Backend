@@ -72,7 +72,7 @@ public class CoreHubService {
     
         Map<String, String> subscriptionData = new HashMap<>();
         subscriptionData.put("webhookUrl", webhookUrlToUse);
-        subscriptionData.put("squadName", teamName);
+        subscriptionData.put("squadName", targetTeamName); // Usar el targetTeamName como squadName
         subscriptionData.put("topic", String.format("%s.%s.%s", targetTeamName, domain, action));
         subscriptionData.put("eventName", action);
     

@@ -5,6 +5,7 @@ import backend_api.Backend.Entity.payment.PaymentMethod;
 import backend_api.Backend.Entity.payment.PaymentStatus;
 import backend_api.Backend.Entity.user.User;
 import backend_api.Backend.Repository.UserRepository;
+import backend_api.Backend.Service.Implementation.UserDataIntegrationService;
 import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -20,8 +21,6 @@ public class PaymentResponse {
     private Long provider_id; 
     private Long solicitud_id;
     private Long refund_id;
-  //  private Long cotizacion_id; // Se integra con el módulo Cotizaciono
-  //  private Long cotizacion_id; // Se integra con el módulo Cotizacion
     
     private BigDecimal amount_subtotal;
     private BigDecimal taxes;
@@ -34,16 +33,13 @@ public class PaymentResponse {
     
     private LocalDateTime created_at;
     private LocalDateTime updated_at;
-    private LocalDateTime captured_at; // cuando se completó el pago
-    private LocalDateTime expired_at;   // cuando expira (si aplica)
+    private LocalDateTime captured_at;
+    private LocalDateTime expired_at;
     
     private String metadata;
     
     private String user_name;      
-    private String provider_name;  
-    
-    // gateway_txn_id - ID interno del gateway (sensible)
-    // method - puede ser complejo, mejor endpoint separado si se necesita
+    private String provider_name;
     
     public static PaymentResponse fromEntity(backend_api.Backend.Entity.payment.Payment payment) {
         PaymentResponse response = new PaymentResponse();
@@ -51,7 +47,6 @@ public class PaymentResponse {
         response.setUser_id(payment.getUser_id());
         response.setProvider_id(payment.getProvider_id());
         response.setSolicitud_id(payment.getSolicitud_id());
-      //  response.setCotizacion_id(payment.getCotizacion_id());
         response.setAmount_subtotal(payment.getAmount_subtotal());
         response.setTaxes(payment.getTaxes());
         response.setFees(payment.getFees());
@@ -119,6 +114,36 @@ public class PaymentResponse {
 
         } catch (Exception e) {
             System.err.println("Error obteniendo nombres para payment " + payment.getId() + ": " + e.getMessage());
+        }
+
+        return response;
+    }
+
+    // Versión que usa datos reales del módulo de usuarios
+    public static PaymentResponse fromEntityWithRealUserData(Payment payment, Map<Long, UserDataIntegrationService.UserInfo> userInfoMap, String currentUserRole) {
+        PaymentResponse response = fromEntity(payment);
+
+        try {
+            // Buscar datos del usuario usando información real del módulo de usuarios
+            UserDataIntegrationService.UserInfo userInfo = userInfoMap.get(payment.getUser_id());
+            if (userInfo != null) {
+                response.setUser_name(userInfo.getName());
+            }
+
+            UserDataIntegrationService.UserInfo providerInfo = userInfoMap.get(payment.getProvider_id());
+            if (providerInfo != null) {
+                response.setProvider_name(providerInfo.getName());
+            }
+
+            // Filtrar según rol
+            if ("MERCHANT".equals(currentUserRole)) {
+                response.setProvider_name(null);
+            } else {
+                response.setUser_name(null);
+            }
+
+        } catch (Exception e) {
+            System.err.println("Error obteniendo datos reales para payment " + payment.getId() + ": " + e.getMessage());
         }
 
         return response;
