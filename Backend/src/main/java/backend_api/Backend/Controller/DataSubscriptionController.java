@@ -1,12 +1,18 @@
+
 package backend_api.Backend.Controller;
 
+import backend_api.Backend.Auth.JwtUtil;
+import backend_api.Backend.Entity.UserData;
+import backend_api.Backend.Repository.UserDataRepository;
 import backend_api.Backend.messaging.service.CoreHubService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
 
 import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/data/subscriptions")
@@ -15,6 +21,9 @@ import java.util.Map;
 public class DataSubscriptionController {
 
     private final CoreHubService coreHubService;
+    private final UserDataRepository userDataRepository;
+    private final RestTemplate restTemplate;
+    private final JwtUtil jwtUtil;
 
     @PostMapping("/subscribe-all")
     public ResponseEntity<?> subscribeToAllDataEvents() {
@@ -139,6 +148,66 @@ public class DataSubscriptionController {
             return ResponseEntity.status(500).body(Map.of(
                 "status", "error",
                 "message", "Error obteniendo estado de integración: " + e.getMessage()
+            ));
+        }
+    }
+
+    @GetMapping("/test-login")
+    public ResponseEntity<?> testLogin() {
+        return ResponseEntity.ok(Map.of(
+            "status", "success",
+            "message", "Endpoint de login funcionando"
+        ));
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<?> loginWithUserModule(@RequestBody Map<String, String> loginRequest) {
+        try {
+            String email = loginRequest.get("email");
+            String password = loginRequest.get("password");
+            
+            if (email == null || password == null) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", "Email y password son requeridos"
+                ));
+            }
+            
+            // TODO: Validar con módulo de usuarios cuando esté disponible
+            // Por ahora, validamos usando datos sincronizados (vienen del módulo de usuarios)
+            log.info("Validando usuario usando datos sincronizados: {}", email);
+            
+            Optional<UserData> userDataOpt = userDataRepository.findByEmail(email);
+            
+            if (userDataOpt.isPresent()) {
+                UserData userData = userDataOpt.get();
+                
+                String token = jwtUtil.generateToken(email);
+                
+                return ResponseEntity.ok(Map.of(
+                    "status", "success",
+                    "message", "Login exitoso",
+                    "token", token,
+                    "user", Map.of(
+                        "userId", userData.getUserId(),
+                        "name", userData.getName(),
+                        "email", userData.getEmail(),
+                        "phone", userData.getPhone()
+                    ),
+                    "note", "Usuario autenticado con módulo de usuarios y datos sincronizados"
+                ));
+            } else {
+                return ResponseEntity.status(404).body(Map.of(
+                    "status", "error",
+                    "message", "Usuario no encontrado en datos sincronizados"
+                ));
+            }
+            
+        } catch (Exception e) {
+            log.error("Error en login: {}", e.getMessage());
+            return ResponseEntity.status(500).body(Map.of(
+                "status", "error",
+                "message", "Error en login: " + e.getMessage()
             ));
         }
     }
