@@ -100,6 +100,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/rabbitmq/**").permitAll()
                         // Data subscription endpoints - públicos
                         .requestMatchers("/api/data/**").permitAll()
+                        // Webhook endpoints - públicos
+                        .requestMatchers("/api/core/webhook/**").permitAll()
                         // Endpoints públicos (sin autenticación)
                         .requestMatchers("/api/payments/webhook/**").permitAll()
                         .requestMatchers("/api/invoices/webhook/**").permitAll()
