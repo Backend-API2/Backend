@@ -8,6 +8,9 @@ import backend_api.Backend.Service.Implementation.DataStorageServiceImpl;
 import backend_api.Backend.messaging.service.CoreHubService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
@@ -328,10 +331,17 @@ public class DataSubscriptionController {
             if (userDataOpt.isPresent()) {
                 UserData userData = userDataOpt.get();
                 
-                // TODO: Aquí deberías validar la contraseña con el módulo de usuarios
-                // Por ahora, asumimos que si el usuario existe en nuestros datos sincronizados,
-                // la autenticación es válida (esto debería cambiarse en producción)
-                log.info("Usuario encontrado en datos sincronizados: userId={}, name={}", 
+                // Validar contraseña contra el módulo de usuarios
+                boolean passwordValid = validatePasswordWithUserModule(email, password);
+                if (!passwordValid) {
+                    log.warn("Contraseña inválida para usuario: {}", email);
+                    return ResponseEntity.status(401).body(Map.of(
+                        "status", "error",
+                        "message", "Credenciales inválidas"
+                    ));
+                }
+                
+                log.info("Usuario autenticado exitosamente: userId={}, name={}", 
                     userData.getUserId(), userData.getName());
                 
                 String token = jwtUtil.generateToken(email);
@@ -364,6 +374,40 @@ public class DataSubscriptionController {
                 "status", "error",
                 "message", "Error en login: " + e.getMessage()
             ));
+        }
+    }
+
+    private boolean validatePasswordWithUserModule(String email, String password) {
+        try {
+            // URL del módulo de usuarios
+            String userModuleUrl = "http://dev.desarrollo2-usuarios.shop:8081/api/users/login";
+            
+            // Crear request body
+            Map<String, String> loginRequest = Map.of(
+                "Email", email,
+                "Password", password
+            );
+            
+            // Configurar headers
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            
+            // Crear entidad HTTP
+            HttpEntity<Map<String, String>> requestEntity = new HttpEntity<>(loginRequest, headers);
+            
+            // Hacer petición POST
+            ResponseEntity<Map<String, Object>> response = restTemplate.postForEntity(
+                userModuleUrl, 
+                requestEntity, 
+                Map.class
+            );
+            
+            // Verificar si la respuesta es exitosa (200-299)
+            return response.getStatusCode().is2xxSuccessful();
+            
+        } catch (Exception e) {
+            log.error("Error validando contraseña con módulo de usuarios: {}", e.getMessage());
+            return false;
         }
     }
 
