@@ -88,6 +88,7 @@ public class SecurityConfig {
     }
 
     @Bean
+    @Order(3)
     public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthFilter jwtAuthFilter) throws Exception {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
