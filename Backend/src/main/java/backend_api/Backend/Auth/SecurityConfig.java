@@ -63,16 +63,6 @@ public class SecurityConfig {
         return http.build();
     }
 
-    @Bean
-    @Order(1)
-    public SecurityFilterChain dataSubscriptionSecurityFilterChain(HttpSecurity http) throws Exception {
-        http
-            .securityMatcher("/api/data/**")
-            .csrf(AbstractHttpConfigurer::disable)
-            .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
-
-        return http.build();
-    }
 
     @Bean
     @Order(2)
