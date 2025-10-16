@@ -32,6 +32,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
         
+        // Saltar el filtro para endpoints públicos
+        String requestURI = request.getRequestURI();
+        if (isPublicEndpoint(requestURI)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+        
         try {
             String authHeader = request.getHeader("Authorization");
 
@@ -77,5 +84,18 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+    
+    private boolean isPublicEndpoint(String requestURI) {
+        return requestURI.startsWith("/api/core/") ||
+               requestURI.startsWith("/api/data/") ||
+               requestURI.startsWith("/api/auth/") ||
+               requestURI.startsWith("/actuator/") ||
+               requestURI.startsWith("/health") ||
+               requestURI.startsWith("/v3/api-docs/") ||
+               requestURI.startsWith("/swagger-ui/") ||
+               requestURI.startsWith("/api/payments/webhook/") ||
+               requestURI.startsWith("/api/invoices/webhook/") ||
+               requestURI.equals("/api/payments/methods");
     }
 }
