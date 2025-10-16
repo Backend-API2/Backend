@@ -50,7 +50,8 @@ public class PaymentStatusPublisher {
             coreMessage.setMessageId(message.getMessageId());
             coreMessage.setTimestamp(Instant.now().toString());
             coreMessage.setSource("payments");
-            coreMessage.setDestination(createDestination("payments", "payment", "coordination_confirmed"));            coreMessage.setPayload(createPaymentCoordinationPayload(message));
+            coreMessage.setDestination(createDestination("payments", "payment", "coordination_confirmed"));
+            coreMessage.setPayload(createPaymentCoordinationPayload(message));
 
             coreHubService.publishMessage(coreMessage);
 

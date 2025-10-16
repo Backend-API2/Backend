@@ -48,14 +48,16 @@ public class CoreHubService {
             ResponseEntity<String> response = restTemplate.postForEntity(url, request, String.class);
 
             if (response.getStatusCode().is2xxSuccessful()) {
-                log.info("Mensaje publicado exitosamente al CORE - MessageId: {}", message.getMessageId());
+                log.info("✅ Mensaje publicado exitosamente al CORE - MessageId: {}", message.getMessageId());
+                log.info("📋 Respuesta del CORE Hub: {}", response.getBody());
+                log.info("🔗 URL del CORE Hub: {}", url);
             } else {
-                log.error("Error publicando mensaje al CORE - Status: {}, Response: {}",
+                log.error("❌ Error publicando mensaje al CORE - Status: {}, Response: {}",
                     response.getStatusCode(), response.getBody());
             }
 
         } catch (Exception e) {
-            log.error("Error al publicar mensaje al CORE: {}", e.getMessage(), e);
+            log.error("❌ Error al publicar mensaje al CORE: {}", e.getMessage(), e);
             throw new RuntimeException("Error publicando al CORE", e);
         }
     }

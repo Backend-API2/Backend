@@ -91,28 +91,6 @@ public class DataSubscriptionController {
         }
     }
 
-    @PostMapping("/subscribe-user")
-    public ResponseEntity<?> subscribeToUserEvents() {
-        try {
-            log.info("Suscribiéndose a eventos de usuarios...");
-            
-            coreHubService.subscribeToTopic("users", "user", "create_user");
-            coreHubService.subscribeToTopic("users", "user", "update_user");
-            coreHubService.subscribeToTopic("users", "user", "deactivate_user");
-            
-            return ResponseEntity.ok(Map.of(
-                "status", "success",
-                "message", "Suscripciones a eventos de usuarios creadas exitosamente"
-            ));
-        } catch (Exception e) {
-            log.error("Error creando suscripciones de usuarios: {}", e.getMessage());
-            return ResponseEntity.internalServerError().body(Map.of(
-                "status", "error",
-                "message", "Error creando suscripciones: " + e.getMessage()
-            ));
-        }
-    }
-
     @GetMapping("/users")
     public ResponseEntity<?> getStoredUsers() {
         try {
@@ -147,6 +125,59 @@ public class DataSubscriptionController {
         }
     }
 
+    @GetMapping("/logs")
+    public ResponseEntity<?> getRecentLogs() {
+        try {
+            return ResponseEntity.ok(Map.of(
+                "status", "success",
+                "message", "Para ver los logs en tiempo real, ejecuta:",
+                "commands", new String[]{
+                    "tail -f logs/application.log | grep -E '(Pago|Payment|CORE|Evento)'",
+                    "grep -E '(Pago|Payment|CORE|Evento)' logs/application.log | tail -20",
+                    "docker logs -f <container_name> | grep -E '(Pago|Payment|CORE|Evento)'"
+                },
+                "note", "Los logs muestran cuando se envían eventos al CORE Hub",
+                "lookFor", new String[]{
+                    "🚀 Enviando evento de pago al CORE Hub",
+                    "✅ Evento enviado al CORE Hub exitosamente",
+                    "❌ Error enviando evento al CORE Hub"
+                }
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of(
+                "status", "error",
+                "message", "Error obteniendo información de logs: " + e.getMessage()
+            ));
+        }
+    }
+
+    @GetMapping("/payment-events-status")
+    public ResponseEntity<?> getPaymentEventsStatus() {
+        try {
+            return ResponseEntity.ok(Map.of(
+                "status", "success",
+                "message", "Estado de eventos de pagos",
+                "features", new String[]{
+                    "Envío de eventos de pagos al CORE Hub",
+                    "Confirmación de recepción de eventos",
+                    "Logs detallados de envío",
+                    "Reintentos automáticos en caso de fallo"
+                },
+                "endpoints", Map.of(
+                    "sendEvent", "/api/data/subscriptions/payment-events",
+                    "webhook", "/api/core/webhook/payment-events",
+                    "status", "/api/data/subscriptions/payment-events-status"
+                ),
+                "lastEventSent", "N/A - Usar payment-events para enviar eventos"
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of(
+                "status", "error",
+                "message", "Error obteniendo estado de eventos de pagos: " + e.getMessage()
+            ));
+        }
+    }
+
     @GetMapping("/integration-status")
     public ResponseEntity<?> getIntegrationStatus() {
         try {
@@ -173,12 +204,108 @@ public class DataSubscriptionController {
         }
     }
 
-    @GetMapping("/test-login")
-    public ResponseEntity<?> testLogin() {
-        return ResponseEntity.ok(Map.of(
-            "status", "success",
-            "message", "Endpoint de login funcionando"
-        ));
+    @GetMapping("/core-hub-verification")
+    public ResponseEntity<?> verifyCoreHubReception() {
+        try {
+            // Verificar conexión al CORE Hub
+            Map<String, Object> connectionStatus = coreHubService.checkConnection();
+            
+            return ResponseEntity.ok(Map.of(
+                "status", "success",
+                "message", "Verificación de recepción en CORE Hub",
+                "coreHubConnection", connectionStatus,
+                "verificationSteps", new String[]{
+                    "1. Revisa los logs de tu aplicación para ver '✅ Mensaje publicado exitosamente al CORE'",
+                    "2. Verifica que aparezca '📋 Respuesta del CORE Hub: {...}' en los logs",
+                    "3. Si hay errores, aparecerá '❌ Error publicando mensaje al CORE'",
+                    "4. El CORE Hub debería confirmar la recepción con un status 200"
+                },
+                "logPatterns", Map.of(
+                    "success", "✅ Mensaje publicado exitosamente al CORE",
+                    "response", "📋 Respuesta del CORE Hub:",
+                    "error", "❌ Error publicando mensaje al CORE"
+                ),
+                "note", "Los logs muestran si el CORE Hub recibió y procesó el mensaje correctamente"
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of(
+                "status", "error",
+                "message", "Error verificando CORE Hub: " + e.getMessage()
+            ));
+        }
+    }
+
+
+    @PostMapping("/payment-events")
+    public ResponseEntity<?> sendPaymentEvent(@RequestBody Map<String, Object> paymentData) {
+        try {
+            log.info("🚀 Enviando evento de pago al CORE Hub: {}", paymentData);
+            
+            Long paymentId = Long.valueOf(paymentData.get("paymentId").toString());
+            String status = (String) paymentData.get("status");
+            String amount = paymentData.get("amount").toString();
+            String currency = (String) paymentData.get("currency");
+            Long userId = Long.valueOf(paymentData.get("userId").toString());
+            
+            // Crear mensaje para el CORE Hub
+            backend_api.Backend.messaging.dto.CoreResponseMessage coreMessage = 
+                new backend_api.Backend.messaging.dto.CoreResponseMessage();
+            
+            coreMessage.setMessageId("payment_" + paymentId + "_" + System.currentTimeMillis());
+            coreMessage.setTimestamp(java.time.Instant.now().toString());
+            coreMessage.setSource("payments");
+            
+            // Crear destino
+            backend_api.Backend.messaging.dto.CoreResponseMessage.Destination destination = 
+                new backend_api.Backend.messaging.dto.CoreResponseMessage.Destination();
+            destination.setChannel("payments.payment.status_updated");
+            destination.setEventName("status_updated");
+            coreMessage.setDestination(destination);
+            
+            // Crear payload
+            Map<String, Object> payload = new java.util.HashMap<>();
+            payload.put("paymentId", paymentId);
+            payload.put("userId", userId);
+            payload.put("status", status);
+            payload.put("amount", amount);
+            payload.put("currency", currency);
+            payload.put("timestamp", java.time.LocalDateTime.now().toString());
+            payload.put("gatewayTxnId", "gw_" + paymentId);
+            payload.put("reason", "Payment processed successfully");
+            
+            coreMessage.setPayload(payload);
+            
+            log.info("📊 Mensaje CORE Hub creado: {}", coreMessage);
+            
+            // Enviar al CORE Hub
+            try {
+                coreHubService.publishMessage(coreMessage);
+                log.info("✅ Evento enviado al CORE Hub exitosamente - MessageId: {}", coreMessage.getMessageId());
+                
+                return ResponseEntity.ok(Map.of(
+                    "status", "success",
+                    "message", "Evento de pago enviado al CORE Hub exitosamente",
+                    "paymentId", paymentId,
+                    "userId", userId,
+                    "messageId", coreMessage.getMessageId(),
+                    "coreHubStatus", "sent"
+                ));
+                
+            } catch (Exception e) {
+                log.error("❌ Error enviando evento al CORE Hub: {}", e.getMessage(), e);
+                return ResponseEntity.status(500).body(Map.of(
+                    "status", "error",
+                    "message", "Error enviando evento al CORE Hub: " + e.getMessage()
+                ));
+            }
+            
+        } catch (Exception e) {
+            log.error("Error enviando evento de pago: {}", e.getMessage(), e);
+            return ResponseEntity.status(500).body(Map.of(
+                "status", "error",
+                "message", "Error enviando evento de pago: " + e.getMessage()
+            ));
+        }
     }
 
     @PostMapping("/login")
@@ -240,39 +367,4 @@ public class DataSubscriptionController {
         }
     }
 
-    @PostMapping("/simulate-user-created")
-    public ResponseEntity<?> simulateUserCreated(@RequestBody Map<String, Object> userData) {
-        try {
-            log.info("Simulando evento de usuario creado: {}", userData);
-            
-            // Simular el procesamiento de un evento de usuario creado
-            Long userId = Long.valueOf(userData.get("userId").toString());
-            String messageId = "sim_" + System.currentTimeMillis();
-            
-            Map<String, Object> userDataMap = Map.of(
-                "name", userData.get("firstName") + " " + userData.get("lastName"),
-                "email", userData.get("email"),
-                "phone", userData.get("phoneNumber"),
-                "role", userData.get("role"),
-                "dni", userData.get("dni")
-            );
-            
-            // Usar el servicio de almacenamiento directamente
-            dataStorageService.saveUserData(userId, userDataMap, messageId);
-            
-            return ResponseEntity.ok(Map.of(
-                "status", "success",
-                "message", "Usuario simulado creado exitosamente",
-                "userId", userId,
-                "messageId", messageId
-            ));
-            
-        } catch (Exception e) {
-            log.error("Error simulando usuario creado: {}", e.getMessage(), e);
-            return ResponseEntity.status(500).body(Map.of(
-                "status", "error",
-                "message", "Error simulando usuario creado: " + e.getMessage()
-            ));
-        }
-    }
 }
