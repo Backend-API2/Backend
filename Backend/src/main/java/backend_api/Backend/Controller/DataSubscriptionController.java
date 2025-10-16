@@ -399,7 +399,7 @@ public class DataSubscriptionController {
             ResponseEntity<Map<String, Object>> response = restTemplate.postForEntity(
                 userModuleUrl, 
                 requestEntity, 
-                Map.class
+                (Class<Map<String, Object>>) (Class<?>) Map.class
             );
             
             // Verificar si la respuesta es exitosa (200-299)
