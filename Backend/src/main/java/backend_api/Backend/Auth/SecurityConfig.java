@@ -65,6 +65,17 @@ public class SecurityConfig {
 
     @Bean
     @Order(1)
+    public SecurityFilterChain dataSubscriptionSecurityFilterChain(HttpSecurity http) throws Exception {
+        http
+            .securityMatcher("/api/data/**")
+            .csrf(AbstractHttpConfigurer::disable)
+            .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+
+        return http.build();
+    }
+
+    @Bean
+    @Order(2)
     public SecurityFilterChain actuatorSecurityFilterChain(HttpSecurity http) throws Exception {
         http
             .securityMatcher("/actuator/**")
