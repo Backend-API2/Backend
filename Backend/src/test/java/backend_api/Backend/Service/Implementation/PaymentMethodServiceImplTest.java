@@ -116,7 +116,7 @@ class PaymentMethodServiceImplTest {
     @Test
     void testCreatePaymentMethod_Paypal_Success() {
         // Given
-        request.setPaymentMethodType("PAYPAL");
+        request.setPaymentMethodType("MERCADO_PAGO");
         request.setPaypalEmail("test@paypal.com");
         when(paypalPaymentRepository.save(any(PaypalPayment.class))).thenReturn(paypalPayment);
 
@@ -632,7 +632,7 @@ class PaymentMethodServiceImplTest {
     @Test
     void testCreatePaymentMethod_Paypal_InvalidEmail() {
         // Given
-        request.setPaymentMethodType("PAYPAL");
+        request.setPaymentMethodType("MERCADO_PAGO");
         request.setPaypalEmail(""); // Empty email
         when(paypalPaymentRepository.save(any(PaypalPayment.class))).thenReturn(new PaypalPayment());
 
