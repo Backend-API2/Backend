@@ -96,6 +96,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                requestURI.startsWith("/swagger-ui/") ||
                requestURI.startsWith("/api/payments/webhook/") ||
                requestURI.startsWith("/api/invoices/webhook/") ||
-               requestURI.equals("/api/payments/methods");
+               requestURI.equals("/api/payments/methods") ||
+               requestURI.equals("/api/core/integration/status");
     }
 }
