@@ -102,6 +102,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/data/**").permitAll()
                         // Webhook endpoints - públicos
                         .requestMatchers("/api/core/webhook/**").permitAll()
+                        // User subscription endpoints - públicos
+                        .requestMatchers("/api/users/subscriptions/**").permitAll()
                         // Endpoints públicos (sin autenticación)
                         .requestMatchers("/api/payments/webhook/**").permitAll()
                         .requestMatchers("/api/invoices/webhook/**").permitAll()

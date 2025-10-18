@@ -42,63 +42,44 @@ public class CoreEventProcessorService {
         log.info("IDs extraídos - SolicitudId: {}, UserId: {}, ProviderId: {}",
             solicitudId, userId, providerId);
 
-        // Verificar si ya tenemos los datos en BD
-        if (dataStorageService.solicitudDataExists(solicitudId)) {
-            log.info("Solicitud ya existe en BD, creando pago directamente");
-            createPaymentFromStoredData(solicitudId, coreMessage.getMessageId());
-        } else {
-            log.info("Solicitud no existe en BD, enviando IDs al CORE para obtener datos");
-            sendIdsToCore(solicitudId, userId, providerId, coreMessage.getMessageId());
-        }
-    }
-
-    private void sendIdsToCore(Long solicitudId, Long userId, Long providerId, String originalMessageId) {
-        UserProviderIdsPayload payload = UserProviderIdsPayload.builder()
-            .solicitudId(solicitudId)
-            .userId(userId)
-            .providerId(providerId)
-            .build();
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> payloadMap = objectMapper.convertValue(payload, Map.class);
-
-        CoreResponseMessage response = CoreResponseMessage.builder()
-            .messageId(UUID.randomUUID().toString())
-            .timestamp(Instant.now().toString())
-            .source("payments")
-            .destination(CoreResponseMessage.Destination.builder()
-                .channel("payments.id.extracted")
-                .eventName("extracted")
-                .build())
-            .payload(payloadMap)
-            .build();
-
-        coreEventPublisher.publishToCore(response);
-        log.info("IDs enviados al CORE para distribución - SolicitudId: {}", solicitudId);
-    }
-
-    private void createPaymentFromStoredData(Long solicitudId, String originalMessageId) {
-        log.info("Creando pago desde datos almacenados - SolicitudId: {}", solicitudId);
-
-        var solicitudData = dataStorageService.getSolicitudData(solicitudId);
-        if (solicitudData.isEmpty()) {
-            log.error("No se encontraron datos de solicitud para SolicitudId: {}", solicitudId);
+        // Siempre buscar datos en BD local (que ya recibimos del módulo de usuarios)
+        log.info("Buscando datos en BD local para crear pago - SolicitudId: {}, UserId: {}, ProviderId: {}", 
+            solicitudId, userId, providerId);
+        
+        // Verificar que tenemos todos los datos necesarios
+        if (!dataStorageService.userDataExists(userId)) {
+            log.error("Usuario no encontrado en BD local - UserId: {}", userId);
             return;
         }
+        
+        if (!dataStorageService.providerDataExists(providerId)) {
+            log.error("Proveedor no encontrado en BD local - ProviderId: {}", providerId);
+            return;
+        }
+        
+        // Crear pago con datos de BD local
+        createPaymentFromStoredData(solicitudId, userId, providerId, amount, currency, description, coreMessage.getMessageId());
+    }
 
-        var solicitud = solicitudData.get();
-        var userData = dataStorageService.getUserData(solicitud.getUserId());
-        var providerData = dataStorageService.getProviderData(solicitud.getProviderId());
+
+    private void createPaymentFromStoredData(Long solicitudId, Long userId, Long providerId, 
+                                           Double amount, String currency, String description, 
+                                           String originalMessageId) {
+        log.info("Creando pago desde datos almacenados - SolicitudId: {}, UserId: {}, ProviderId: {}", 
+            solicitudId, userId, providerId);
+
+        var userData = dataStorageService.getUserData(userId);
+        var providerData = dataStorageService.getProviderData(providerId);
 
         // Crear el pago
         Payment payment = new Payment();
-        payment.setUser_id(solicitud.getUserId());
-        payment.setProvider_id(solicitud.getProviderId());
-        payment.setAmount_total(solicitud.getAmount() != null ? BigDecimal.valueOf(solicitud.getAmount()) : BigDecimal.ZERO);
-        payment.setAmount_subtotal(solicitud.getAmount() != null ? BigDecimal.valueOf(solicitud.getAmount()) : BigDecimal.ZERO);
+        payment.setUser_id(userId);
+        payment.setProvider_id(providerId);
+        payment.setAmount_total(amount != null ? BigDecimal.valueOf(amount) : BigDecimal.ZERO);
+        payment.setAmount_subtotal(amount != null ? BigDecimal.valueOf(amount) : BigDecimal.ZERO);
         payment.setTaxes(BigDecimal.ZERO);
         payment.setFees(BigDecimal.ZERO);
-        payment.setCurrency(solicitud.getCurrency() != null ? solicitud.getCurrency() : "USD");
+        payment.setCurrency(currency != null ? currency : "USD");
         payment.setStatus(PaymentStatus.PENDING_PAYMENT);
         payment.setCreated_at(LocalDateTime.now());
         payment.setUpdated_at(LocalDateTime.now());
@@ -107,7 +88,7 @@ public class CoreEventProcessorService {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("solicitudId", solicitudId);
         metadata.put("coreMessageId", originalMessageId);
-        metadata.put("description", solicitud.getDescription());
+        metadata.put("description", description);
 
         if (userData.isPresent()) {
             metadata.put("userName", userData.get().getName());
@@ -173,7 +154,7 @@ public class CoreEventProcessorService {
 
         // Crear pago si tenemos todos los datos
         if (solicitudId != null && userId != null && providerId != null) {
-            createPaymentFromStoredData(solicitudId, coreMessage.getMessageId());
+            createPaymentFromStoredData(solicitudId, userId, providerId, amount, currency, description, coreMessage.getMessageId());
         }
     }
 

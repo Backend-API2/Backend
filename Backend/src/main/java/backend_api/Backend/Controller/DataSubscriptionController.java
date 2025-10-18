@@ -6,6 +6,7 @@ import backend_api.Backend.Entity.UserData;
 import backend_api.Backend.Repository.UserDataRepository;
 import backend_api.Backend.Service.Implementation.DataStorageServiceImpl;
 import backend_api.Backend.messaging.service.CoreHubService;
+import backend_api.Backend.messaging.service.UserEventProcessorService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpEntity;
@@ -30,6 +31,7 @@ public class DataSubscriptionController {
     private final RestTemplate restTemplate;
     private final JwtUtil jwtUtil;
     private final DataStorageServiceImpl dataStorageService;
+    private final UserEventProcessorService userEventProcessorService;
 
     @PostMapping("/subscribe-all")
     public ResponseEntity<?> subscribeToAllDataEvents() {
@@ -255,7 +257,7 @@ public class DataSubscriptionController {
                 new backend_api.Backend.messaging.dto.CoreResponseMessage();
             
             coreMessage.setMessageId("payment_" + paymentId + "_" + System.currentTimeMillis());
-            coreMessage.setTimestamp(java.time.Instant.now().toString());
+            coreMessage.setTimestamp(java.time.Instant.now().toString().substring(0, 23) + "Z");
             coreMessage.setSource("payments");
             
             // Crear destino
@@ -282,17 +284,27 @@ public class DataSubscriptionController {
             
             // Enviar al CORE Hub
             try {
-                coreHubService.publishMessage(coreMessage);
-                log.info("✅ Evento enviado al CORE Hub exitosamente - MessageId: {}", coreMessage.getMessageId());
+                Map<String, Object> coreHubResponse = coreHubService.publishMessage(coreMessage);
                 
-                return ResponseEntity.ok(Map.of(
-                    "status", "success",
-                    "message", "Evento de pago enviado al CORE Hub exitosamente",
-                    "paymentId", paymentId,
-                    "userId", userId,
-                    "messageId", coreMessage.getMessageId(),
-                    "coreHubStatus", "sent"
-                ));
+                if ((Boolean) coreHubResponse.get("success")) {
+                    log.info("✅ Evento enviado al CORE Hub exitosamente - MessageId: {}", coreMessage.getMessageId());
+                    
+                    return ResponseEntity.ok(Map.of(
+                        "status", "success",
+                        "message", "Evento de pago enviado al CORE Hub exitosamente",
+                        "paymentId", paymentId,
+                        "userId", userId,
+                        "messageId", coreMessage.getMessageId(),
+                        "coreHubResponse", coreHubResponse
+                    ));
+                } else {
+                    log.error("❌ Error enviando evento al CORE Hub: {}", coreHubResponse.get("error"));
+                    return ResponseEntity.status(500).body(Map.of(
+                        "status", "error",
+                        "message", "Error enviando evento al CORE Hub: " + coreHubResponse.get("error"),
+                        "coreHubResponse", coreHubResponse
+                    ));
+                }
                 
             } catch (Exception e) {
                 log.error("❌ Error enviando evento al CORE Hub: {}", e.getMessage(), e);
@@ -396,7 +408,7 @@ public class DataSubscriptionController {
             HttpEntity<Map<String, String>> requestEntity = new HttpEntity<>(loginRequest, headers);
             
             // Hacer petición POST
-            ResponseEntity<Map<String, Object>> response = restTemplate.postForEntity(
+            ResponseEntity<Map> response = restTemplate.postForEntity(
                 userModuleUrl, 
                 requestEntity, 
                 (Class<Map<String, Object>>) (Class<?>) Map.class

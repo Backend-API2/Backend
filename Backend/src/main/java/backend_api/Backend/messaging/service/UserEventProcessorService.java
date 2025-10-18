@@ -29,13 +29,13 @@ public class UserEventProcessorService {
             log.info("Usuario creado - UserId: {}, Email: {}, Role: {}",
                 userCreated.getUserId(), userCreated.getEmail(), userCreated.getRole());
 
-            Map<String, Object> userData = Map.of(
-                "name", userCreated.getFirstName() + " " + userCreated.getLastName(),
-                "email", userCreated.getEmail(),
-                "phone", userCreated.getPhoneNumber(),
-                "role", userCreated.getRole(),
-                "dni", userCreated.getDni()
-            );
+            Map<String, Object> userData = new java.util.HashMap<>();
+            userData.put("name", (userCreated.getFirstName() != null ? userCreated.getFirstName() : "") + 
+                               " " + (userCreated.getLastName() != null ? userCreated.getLastName() : ""));
+            userData.put("email", userCreated.getEmail());
+            userData.put("phone", userCreated.getPhoneNumber());
+            userData.put("role", userCreated.getRole());
+            userData.put("dni", userCreated.getDni());
 
             dataStorageService.saveUserData(userCreated.getUserId(), userData, coreMessage.getMessageId());
             
@@ -60,13 +60,13 @@ public class UserEventProcessorService {
             log.info("Usuario actualizado - UserId: {}, Email: {}, Role: {}",
                 userUpdated.getUserId(), userUpdated.getEmail(), userUpdated.getRole());
 
-            Map<String, Object> userData = Map.of(
-                "name", userUpdated.getFirstName() + " " + userUpdated.getLastName(),
-                "email", userUpdated.getEmail(),
-                "phone", userUpdated.getPhoneNumber(),
-                "role", userUpdated.getRole(),
-                "dni", userUpdated.getDni()
-            );
+            Map<String, Object> userData = new java.util.HashMap<>();
+            userData.put("name", (userUpdated.getFirstName() != null ? userUpdated.getFirstName() : "") + 
+                               " " + (userUpdated.getLastName() != null ? userUpdated.getLastName() : ""));
+            userData.put("email", userUpdated.getEmail());
+            userData.put("phone", userUpdated.getPhoneNumber());
+            userData.put("role", userUpdated.getRole());
+            userData.put("dni", userUpdated.getDni());
 
             dataStorageService.saveUserData(userUpdated.getUserId(), userData, coreMessage.getMessageId());
             
@@ -88,24 +88,32 @@ public class UserEventProcessorService {
                 UserDeactivatedMessage.class
             );
 
+            // Obtener el reason del payload original si no está en el DTO
+            String deactivationReason = userDeactivated.getReason();
+            if (deactivationReason == null) {
+                // Intentar obtener del payload original
+                Map<String, Object> originalPayload = coreMessage.getPayload();
+                deactivationReason = (String) originalPayload.get("deactivationReason");
+            }
+            
             log.info("Usuario desactivado - UserId: {}, Email: {}, Reason: {}",
-                userDeactivated.getUserId(), userDeactivated.getEmail(), userDeactivated.getReason());
+                userDeactivated.getUserId(), userDeactivated.getEmail(), deactivationReason);
 
             // Actualizar datos del usuario con estado de desactivación
-            Map<String, Object> userData = Map.of(
-                "name", userDeactivated.getFirstName() + " " + userDeactivated.getLastName(),
-                "email", userDeactivated.getEmail(),
-                "phone", userDeactivated.getPhoneNumber(),
-                "role", userDeactivated.getRole(),
-                "dni", userDeactivated.getDni(),
-                "status", "DEACTIVATED",
-                "deactivationReason", userDeactivated.getReason()
-            );
+            Map<String, Object> userData = new java.util.HashMap<>();
+            userData.put("name", (userDeactivated.getFirstName() != null ? userDeactivated.getFirstName() : "") + 
+                               " " + (userDeactivated.getLastName() != null ? userDeactivated.getLastName() : ""));
+            userData.put("email", userDeactivated.getEmail());
+            userData.put("phone", userDeactivated.getPhoneNumber());
+            userData.put("role", userDeactivated.getRole());
+            userData.put("dni", userDeactivated.getDni());
+            userData.put("status", "DEACTIVATED");
+            userData.put("deactivationReason", deactivationReason);
 
             dataStorageService.saveUserData(userDeactivated.getUserId(), userData, coreMessage.getMessageId());
             
             // También llamar al método específico de desactivación
-            dataStorageService.deactivateUser(userDeactivated.getUserId(), userDeactivated.getReason());
+            dataStorageService.deactivateUser(userDeactivated.getUserId(), deactivationReason);
             
             log.info("Usuario desactivado exitosamente en BD - UserId: {}", userDeactivated.getUserId());
 

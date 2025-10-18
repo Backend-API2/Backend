@@ -55,44 +55,6 @@ public class CoreIntegrationController {
     }
 
     
-    @PostMapping("/test-publish")
-    public ResponseEntity<?> testPublish(
-            @RequestParam(defaultValue = "payment") String domain,
-            @RequestParam(defaultValue = "test") String action) {
-        try {
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("message", "Test desde Payments Backend");
-            payload.put("timestamp", System.currentTimeMillis());
-
-            String channel = String.format("payments.%s.%s", domain, action);
-
-            CoreResponseMessage message = CoreResponseMessage.builder()
-                .messageId(UUID.randomUUID().toString())
-                .timestamp(Instant.now().toString())
-                .source("payments")
-                .destination(CoreResponseMessage.Destination.builder()
-                    .channel(channel)
-                    .eventName(action)
-                    .build())
-                .payload(payload)
-                .build();
-
-            coreHubService.publishMessage(message);
-
-            return ResponseEntity.ok(Map.of(
-                "status", "success",
-                "messageId", message.getMessageId(),
-                "channel", channel,
-                "message", "Mensaje publicado al CORE"
-            ));
-
-        } catch (Exception e) {
-            return ResponseEntity.status(500).body(Map.of(
-                "status", "error",
-                "message", e.getMessage()
-            ));
-        }
-    }
 
     
     @PostMapping("/send-ids")
@@ -117,12 +79,13 @@ public class CoreIntegrationController {
                 .payload(payload)
                 .build();
 
-            coreHubService.publishMessage(message);
+            Map<String, Object> coreHubResponse = coreHubService.publishMessage(message);
 
             return ResponseEntity.ok(Map.of(
                 "status", "success",
                 "messageId", message.getMessageId(),
-                "payload", payload
+                "payload", payload,
+                "coreHubResponse", coreHubResponse
             ));
 
         } catch (Exception e) {
