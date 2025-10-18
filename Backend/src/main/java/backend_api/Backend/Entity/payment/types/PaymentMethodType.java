@@ -6,5 +6,6 @@ public enum PaymentMethodType {
     BANK_TRANSFER,
     WALLET,
     CASH,
-    MERCADO_PAGO
+    MERCADO_PAGO,
+    PAYPAL
 }
