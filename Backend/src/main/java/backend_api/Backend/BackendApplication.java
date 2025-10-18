@@ -5,9 +5,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = "backend_api.Backend")
 @EnableScheduling
-@ComponentScan(basePackages = {"backend_api.Backend", "backend_api.Backend.Controller"})
 public class BackendApplication {
 
 	public static void main(String[] args) {
