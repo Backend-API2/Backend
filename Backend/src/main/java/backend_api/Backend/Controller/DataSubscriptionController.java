@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -408,10 +409,11 @@ public class DataSubscriptionController {
             HttpEntity<Map<String, String>> requestEntity = new HttpEntity<>(loginRequest, headers);
             
             // Hacer petición POST
-            ResponseEntity<Map<String, Object>> response = restTemplate.postForEntity(
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
                 userModuleUrl, 
+                HttpMethod.POST,
                 requestEntity, 
-                Map.class
+                new org.springframework.core.ParameterizedTypeReference<Map<String, Object>>() {}
             );
             
             // Verificar si la respuesta es exitosa (200-299)
