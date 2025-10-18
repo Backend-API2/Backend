@@ -23,7 +23,7 @@ public class UserSubscriptionController {
         try {
             coreHubService.subscribeToTopic(
                 "users",
-                "users.user.create_user",
+                "user",
                 "create_user"
             );
 
@@ -51,7 +51,7 @@ public class UserSubscriptionController {
         try {
             coreHubService.subscribeToTopic(
                 "users",
-                "users.user.update_user",
+                "user",
                 "update_user"
             );
 
@@ -79,7 +79,7 @@ public class UserSubscriptionController {
         try {
             coreHubService.subscribeToTopic(
                 "users",
-                "users.user.deactivate_user",
+                "user",
                 "deactivate_user"
             );
 
@@ -105,11 +105,11 @@ public class UserSubscriptionController {
         log.info("Suscribiéndose a todos los eventos de usuarios...");
 
         try {
-            coreHubService.subscribeToTopic("users", "users.user.create_user", "create_user");
+            coreHubService.subscribeToTopic("users", "user", "create_user");
             
-            coreHubService.subscribeToTopic("users", "users.user.update_user", "update_user");
+            coreHubService.subscribeToTopic("users", "user", "update_user");
             
-            coreHubService.subscribeToTopic("users", "users.user.deactivate_user", "deactivate_user");
+            coreHubService.subscribeToTopic("users", "user", "deactivate_user");
 
             log.info("Todas las suscripciones de usuarios creadas exitosamente");
             return ResponseEntity.ok(Map.of(

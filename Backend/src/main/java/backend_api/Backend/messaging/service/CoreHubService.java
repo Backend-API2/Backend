@@ -28,14 +28,14 @@ public class CoreHubService {
     @Value("${core.hub.team.name:payments}")
     private String teamName;
 
-    @Value("${core.hub.webhook.url:}")
+    @Value("${core.hub.webhook.url:https://3aadd844682e.ngrok-free.app/api/core/webhook/payment-events}")
     private String webhookUrl;
 
-    @Value("${core.hub.user.webhook.url:}")
+    @Value("${core.hub.user.webhook.url:https://3aadd844682e.ngrok-free.app/api/core/webhook/user-events}")
     private String userWebhookUrl;
 
 
-    public void publishMessage(CoreResponseMessage message) {
+    public Map<String, Object> publishMessage(CoreResponseMessage message) {
         String url = coreHubUrl + "/publish";
 
         HttpHeaders headers = new HttpHeaders();
@@ -44,6 +44,8 @@ public class CoreHubService {
 
         HttpEntity<CoreResponseMessage> request = new HttpEntity<>(message, headers);
 
+        Map<String, Object> result = new HashMap<>();
+
         try {
             ResponseEntity<String> response = restTemplate.postForEntity(url, request, String.class);
 
@@ -51,15 +53,29 @@ public class CoreHubService {
                 log.info("✅ Mensaje publicado exitosamente al CORE - MessageId: {}", message.getMessageId());
                 log.info("📋 Respuesta del CORE Hub: {}", response.getBody());
                 log.info("🔗 URL del CORE Hub: {}", url);
+                
+                result.put("success", true);
+                result.put("statusCode", response.getStatusCode().value());
+                result.put("response", response.getBody());
+                result.put("messageId", message.getMessageId());
             } else {
                 log.error("❌ Error publicando mensaje al CORE - Status: {}, Response: {}",
                     response.getStatusCode(), response.getBody());
+                
+                result.put("success", false);
+                result.put("statusCode", response.getStatusCode().value());
+                result.put("response", response.getBody());
+                result.put("error", "Error publicando al CORE");
             }
 
         } catch (Exception e) {
             log.error("❌ Error al publicar mensaje al CORE: {}", e.getMessage(), e);
+            result.put("success", false);
+            result.put("error", e.getMessage());
             throw new RuntimeException("Error publicando al CORE", e);
         }
+        
+        return result;
     }
 
    
@@ -71,10 +87,15 @@ public class CoreHubService {
         if ("users".equals(targetTeamName)) {
             webhookUrlToUse = userWebhookUrl;
         }
+        
+        log.info("🔧 Configuración de webhooks:");
+        log.info("   - webhookUrl: {}", webhookUrl);
+        log.info("   - userWebhookUrl: {}", userWebhookUrl);
+        log.info("   - webhookUrlToUse: {}", webhookUrlToUse);
     
         Map<String, String> subscriptionData = new HashMap<>();
         subscriptionData.put("webhookUrl", webhookUrlToUse);
-        subscriptionData.put("squadName", targetTeamName); // Usar el targetTeamName como squadName
+        subscriptionData.put("squadName", teamName); // Usar nuestro teamName (payments)
         subscriptionData.put("topic", String.format("%s.%s.%s", targetTeamName, domain, action));
         subscriptionData.put("eventName", action);
     

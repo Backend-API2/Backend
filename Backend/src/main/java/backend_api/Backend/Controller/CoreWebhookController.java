@@ -43,6 +43,12 @@ public class CoreWebhookController {
                     coreEventProcessorService.processPaymentRequestFromCore(message);
                     break;
 
+                case "status_updated":
+                    log.info("✅ Evento de pago procesado exitosamente - MessageId: {}", message.getMessageId());
+                    // Los eventos de status_updated son confirmaciones de que el pago fue procesado
+                    // No necesitamos procesamiento adicional, solo confirmar recepción
+                    break;
+
                 case "USER_PROVIDER_DATA":
                 case "DATA_RESPONSE":
                     coreEventProcessorService.processUserProviderDataFromCore(message);
