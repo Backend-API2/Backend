@@ -408,10 +408,10 @@ public class DataSubscriptionController {
             HttpEntity<Map<String, String>> requestEntity = new HttpEntity<>(loginRequest, headers);
             
             // Hacer petición POST
-            ResponseEntity<Map> response = restTemplate.postForEntity(
+            ResponseEntity<Map<String, Object>> response = restTemplate.postForEntity(
                 userModuleUrl, 
                 requestEntity, 
-                (Class<Map<String, Object>>) (Class<?>) Map.class
+                Map.class
             );
             
             // Verificar si la respuesta es exitosa (200-299)
