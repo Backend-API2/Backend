@@ -157,4 +157,29 @@ public class DataStorageServiceImpl {
             throw new RuntimeException("Error al eliminar datos de usuario", e);
         }
     }
+
+    public void deactivateProvider(Long providerId, String reason) {
+        try {
+            providerDataRepository.findByProviderId(providerId).ifPresentOrElse(p -> {
+                // Marcamos desactivación usando un campo existente (secondaryId) para no tocar el schema
+                String flag = "DEACTIVATED" + (reason != null && !reason.isBlank() ? (":" + reason) : "");
+                p.setSecondaryId(flag);
+                providerDataRepository.save(p);
+            }, () -> {
+                // Si no existe registro local, creamos uno mínimo para dejar trazabilidad
+                ProviderData p = new ProviderData();
+                p.setProviderId(providerId);
+                p.setName("(desactivado)");
+                p.setEmail(null);
+                p.setPhone(null);
+                p.setSecondaryId("DEACTIVATED" + (reason != null && !reason.isBlank() ? (":" + reason) : ""));
+                providerDataRepository.save(p);
+            });
+
+            log.info("Prestador {} marcado como DEACTIVATED. Motivo: {}", providerId, reason);
+        } catch (Exception e) {
+            log.error("Error desactivando prestador {}: {}", providerId, e.getMessage(), e);
+            // No relanzamos para no cortar el flujo del webhook; ajusta si preferís que sea hard-fail
+        }
+    }
 }

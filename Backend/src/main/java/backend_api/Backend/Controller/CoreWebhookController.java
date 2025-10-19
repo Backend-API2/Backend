@@ -2,6 +2,7 @@ package backend_api.Backend.Controller;
 
 import backend_api.Backend.messaging.dto.CoreEventMessage;
 import backend_api.Backend.messaging.service.CoreEventProcessorService;
+import backend_api.Backend.messaging.service.ProviderEventProcessorService;
 import backend_api.Backend.messaging.service.UserEventProcessorService;
 import backend_api.Backend.messaging.service.CoreHubService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -21,6 +22,7 @@ public class CoreWebhookController {
 
     private final CoreEventProcessorService coreEventProcessorService;
     private final UserEventProcessorService userEventProcessorService;
+    private final ProviderEventProcessorService providerEventProcessorService;
     private final CoreHubService coreHubService;
 
   
@@ -128,6 +130,51 @@ public class CoreWebhookController {
                 "messageId", message.getMessageId(),
                 "error", e.getMessage(),
                 "retryAfter","30"
+            ));
+        }
+    }
+
+    @PostMapping("/provider-events")
+    public ResponseEntity<Map<String, String>> receiveProviderEvent(@RequestBody CoreEventMessage message) {
+        try {
+            log.info("Webhook PROVEEDORES del CORE - msgId={}, eventName={}, source={}",
+                    message.getMessageId(),
+                    message.getDestination().getEventName(),
+                    message.getSource());
+
+            String subscriptionId = extractSubscriptionId(message);
+            String event = message.getDestination().getEventName();
+
+            switch (event) {
+                case "alta_prestador":
+                    providerEventProcessorService.processProviderCreatedFromCore(message);
+                    break;
+                case "modificacion_prestador":
+                    providerEventProcessorService.processProviderUpdatedFromCore(message);
+                    break;
+                case "baja_prestador":
+                    providerEventProcessorService.processProviderDeactivatedFromCore(message);
+                    break;
+                default:
+                    log.warn("Evento de provider no reconocido: {}", event);
+            }
+
+            if (subscriptionId != null) {
+                coreHubService.sendAck(message.getMessageId(), subscriptionId);
+            }
+
+            return ResponseEntity.ok(Map.of(
+                    "status", "processed",
+                    "messageId", message.getMessageId()
+            ));
+        } catch (Exception e) {
+            log.error("Error procesando webhook de providers - msgId={}, error={}",
+                    message.getMessageId(), e.getMessage(), e);
+            return ResponseEntity.status(500).body(Map.of(
+                    "status", "error",
+                    "messageId", message.getMessageId(),
+                    "error", e.getMessage(),
+                    "retryAfter", "30"
             ));
         }
     }
