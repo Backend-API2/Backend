@@ -18,9 +18,9 @@ jobs:
           java-version: '21'
           cache: 'maven'
 
-      - name: Build JAR with complete cleanup
+      - name: Build JAR
         working-directory: ./Backend
-        run: mvn -B -DskipTests clean package -U
+        run: mvn -B -DskipTests clean package
 
       - name: Setup SSH
         run: |
@@ -31,83 +31,29 @@ jobs:
 
       - name: Deploy to Production
         run: |
-          # Limpiar servidor
+          # Clean up ports and stop production services
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
             cd /home/ec2-user/app
-
-            echo '🧹 Cleaning up old containers, images and Maven artifacts...'
-            docker-compose -p app-prod -f docker-compose.prod.yml down --remove-orphans || true
-            docker rm -f $(docker ps -a -q --filter ancestor=app-prod-backend-prod) 2>/dev/null || true
-            docker rmi -f app-prod-backend-prod 2>/dev/null || true
+            echo '🧹 Cleaning up production ports...'
+            # Remueve contenedores con nombres fijos legacy si existen (una sola vez)
+            docker rm -f alertmanager-prod grafana-prod prometheus-prod backend-api-prod 2>/dev/null || true
+            docker-compose -p app-prod -f docker-compose.prod.yml down --remove-orphans 2>/dev/null || true
             docker container prune -f || true
-            
-            # Force kill any processes using port 8081/8082
-            echo '🧹 Cleaning up port conflicts...'
-            sudo lsof -ti:8081 | xargs sudo kill -9 2>/dev/null || true
-            sudo lsof -ti:8082 | xargs sudo kill -9 2>/dev/null || true
-            echo '✅ Port conflicts cleaned'
-            
-            # Clean up Maven artifacts
-            echo '🧹 Cleaning up Maven artifacts...'
-            if [ -d 'Backend/target' ]; then
-              rm -rf Backend/target
-              echo '✅ Maven target directory cleaned'
-            fi
-            
-            # Clean up obsolete test files that reference removed refund classes
-            echo '🧹 Cleaning up obsolete refund test files...'
-            rm -f Backend/src/test/java/backend_api/Backend/Controller/RefundControllerTest.java 2>/dev/null || true
-            rm -f Backend/src/test/java/backend_api/Backend/DTO/refund/RefundResponseTest.java 2>/dev/null || true
-            rm -f Backend/src/test/java/backend_api/Backend/Entity/RefundTest.java 2>/dev/null || true
-            echo '✅ Obsolete refund test files cleaned'
-            
-            # Clean up any staging JAR files to avoid conflicts
-            echo '🧹 Cleaning up staging JAR files...'
-            rm -f staging.jar 2>/dev/null || true
-            rm -f Backend-*.jar 2>/dev/null || true
-            echo '✅ Staging JAR files cleaned'
-            
-            # Clean up .class files
-            find . -name '*.class' -type f -delete 2>/dev/null || true
-            find . -name '*.jar.original' -type f -delete 2>/dev/null || true
-            
-            echo '✅ Complete cleanup done!'
-
-            # Crear directorios necesarios
-            mkdir -p /home/appuser/app
+            echo '✅ Ports cleaned!'
           "
 
-          # Copiar JAR compilado y docker-compose
-          echo '📦 Copying compiled JAR to server...'
-          JAR_FILE=$(find ./Backend/target -name "Backend-*-*.jar" -type f | head -1)
-          if [ -z "$JAR_FILE" ]; then
-            echo "❌ No JAR file found in Backend/target/"
-            ls -la ./Backend/target/
-            exit 1
-          fi
-          echo "📦 Found JAR file: $JAR_FILE"
-
-          scp -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} "$JAR_FILE" ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/app.jar
+          # Copy files to server
+          JAR_FILE=$(find ./Backend/target -name "*.jar" -type f | head -1)
+          scp -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} "$JAR_FILE" ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/
           scp -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} docker-compose.prod.yml ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/
+          scp -r -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} Backend ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/
 
-          # Construir y levantar producción
+          # Start production
+          echo "🚀 Starting production..."
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
             cd /home/ec2-user/app
-            
-            # Verificar que el JAR está presente
-            echo '🔍 Verifying JAR file...'
-            if [ ! -f 'app.jar' ]; then
-              echo '❌ app.jar not found!'
-              exit 1
-            fi
-            
-            echo '✅ JAR file verified'
-            echo '🔨 Building Docker image with compiled JAR...'
-            docker-compose -p app-prod -f docker-compose.prod.yml build --no-cache --pull backend-prod
-            
-            echo '🚀 Starting production services...'
+            docker-compose -p app-prod -f docker-compose.prod.yml build backend-prod
             docker-compose -p app-prod -f docker-compose.prod.yml up -d
-            
             echo '✅ Production deployed!'
             echo 'Backend: http://localhost:8081'
             echo 'Grafana: http://localhost:3001'

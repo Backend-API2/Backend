@@ -44,13 +44,13 @@ jobs:
           restore-keys: ${{ runner.os }}-sonar
 
       - name: Build with Maven (skip tests)
-        run: mvn -B -DskipTests clean package -U
+        run: mvn -B -DskipTests clean package
 
       - name: Upload JAR artifact
         uses: actions/upload-artifact@v4
         with:
           name: backend-jar
-          path: ${{ env.WORKDIR }}/target/Backend-*-*.jar
+          path: ${{ env.WORKDIR }}/target/Backend-*.jar
 
   test:
     runs-on: ubuntu-latest
@@ -216,26 +216,15 @@ jobs:
           echo "Creating app directory structure..."
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "mkdir -p /home/ec2-user/app/scripts"
 
-      - name: Stop existing Docker services and clean Maven artifacts
+      - name: Stop existing Docker services
         run: |
-          echo "🛑 Stopping existing Docker services and cleaning Maven artifacts..."
+          echo "🛑 Stopping existing Docker services..."
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
             cd /home/ec2-user/app
             
             # Stop only staging Docker Compose services
             echo '🛑 Stopping staging Docker Compose services...'
-            docker-compose -p app-staging -f docker-compose.staging.yml down --remove-orphans || echo 'No staging services to stop'
-            
-            # Clean up Maven artifacts
-            echo '🧹 Cleaning up Maven artifacts...'
-            if [ -d 'Backend/target' ]; then
-              rm -rf Backend/target
-              echo '✅ Maven target directory cleaned'
-            fi
-            
-            # Clean up .class files
-            find . -name '*.class' -type f -delete 2>/dev/null || true
-            find . -name '*.jar.original' -type f -delete 2>/dev/null || true
+            docker-compose -p app-staging down --remove-orphans || echo 'No staging services to stop'
             
             # Clean up only staging orphaned containers
             echo '🧹 Cleaning up staging orphaned containers...'
@@ -245,7 +234,7 @@ jobs:
             echo '🧹 Cleaning up unused networks (excluding production)...'
             docker network prune -f --filter "name=app-staging" || true
             
-            echo '✅ Docker and Maven cleanup completed'
+            echo '✅ Docker cleanup completed'
           "
 
       - name: Verify Docker cleanup
@@ -280,8 +269,8 @@ jobs:
         run: |
           echo "📋 Uploading Docker configuration files..."
 
-          # Upload docker-compose.staging.yml
-          scp -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} docker-compose.staging.yml ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/
+          # Upload docker-compose.yml
+          scp -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} docker-compose.yml ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/
 
           # Upload Dockerfile (ahora dentro de Backend/)
           scp -r -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} Backend ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/
@@ -295,27 +284,16 @@ jobs:
 
       - name: Copy JAR to EC2
         run: |
-          JAR_FILE=$(find ./artifacts -name "Backend-*-*.jar" -type f | head -1)
+          JAR_FILE=$(find ./artifacts -name "*.jar" -type f | head -1)
           if [ -z "$JAR_FILE" ]; then
             echo "❌ No JAR file found in artifacts directory"
             ls -la ./artifacts/
             exit 1
           fi
           echo "📦 Found JAR file: $JAR_FILE"
-
-          # Clean up any existing JAR files to avoid conflicts
-          echo "🧹 Cleaning up existing JAR files..."
-          ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
-            cd /home/ec2-user/app
-            rm -f Backend-*.jar 2>/dev/null || true
-            rm -f staging.jar 2>/dev/null || true
-            echo '✅ Existing JAR files cleaned'
-          "
-
-          # Copy JAR with staging-specific name
-          scp -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} "$JAR_FILE" ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/staging.jar
+          scp -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} "$JAR_FILE" ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/
           if [ $? -eq 0 ]; then
-            echo "✅ Staging JAR file copied successfully as staging.jar"
+            echo "✅ JAR file copied successfully"
           else
             echo "❌ Failed to copy JAR file"
             exit 1
@@ -358,21 +336,20 @@ jobs:
             
             # Copy JAR file to build context
             echo '📦 Copying JAR file to build context...'
-            JAR_FILE=\$(find /home/ec2-user/app -name 'staging.jar' -type f | head -1)
+            JAR_FILE=\$(find /home/ec2-user/app -name 'Backend-*.jar' -type f | head -1)
             if [ -z \"\$JAR_FILE\" ]; then
-              echo '❌ No staging.jar file found in app directory'
-              ls -la /home/ec2-user/app/*.jar || echo 'No JAR files found'
+              echo '❌ No JAR file found in app directory'
               exit 1
             fi
-            echo \"Found staging JAR file: \$JAR_FILE\"
+            echo \"Found JAR file: \$JAR_FILE\"
             
-            # Build Docker image for staging with complete cleanup
-            echo '🔨 Building Docker image for staging with complete cleanup...'
-            docker-compose -p app-staging -f docker-compose.staging.yml build --no-cache --pull backend
+            # Build Docker image for staging
+            echo '🔨 Building Docker image for staging...'
+            docker-compose -p app-staging build --no-cache backend
             
             # Start staging services
             echo '🚀 Starting staging services with Docker Compose...'
-            docker-compose -p app-staging -f docker-compose.staging.yml up -d
+            docker-compose -p app-staging up -d
             
             # Wait for services to be ready
             echo '⏳ Waiting for services to be ready...'
@@ -397,7 +374,7 @@ jobs:
             
             # Check Docker Compose service status
             echo '🔍 Checking Docker Compose service status...'
-            docker-compose -p app-staging -f docker-compose.staging.yml ps
+            docker-compose -p app-staging ps
             
             # Check backend health
             echo '🏥 Checking backend health...'
@@ -454,7 +431,7 @@ jobs:
           echo "🛑 Shutting down staging services (requested)..."
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
             cd /home/ec2-user/app
-            docker-compose -p app-staging -f docker-compose.staging.yml down
+            docker-compose -p app-staging down
             echo '✅ Staging services stopped'
           "
         continue-on-error: true
