@@ -48,6 +48,13 @@ jobs:
               echo '✅ Maven target directory cleaned'
             fi
             
+            # Clean up obsolete test files that reference removed refund classes
+            echo '🧹 Cleaning up obsolete refund test files...'
+            rm -f Backend/src/test/java/backend_api/Backend/Controller/RefundControllerTest.java 2>/dev/null || true
+            rm -f Backend/src/test/java/backend_api/Backend/DTO/refund/RefundResponseTest.java 2>/dev/null || true
+            rm -f Backend/src/test/java/backend_api/Backend/Entity/RefundTest.java 2>/dev/null || true
+            echo '✅ Obsolete refund test files cleaned'
+            
             # Clean up .class files
             find . -name '*.class' -type f -delete 2>/dev/null || true
             find . -name '*.jar.original' -type f -delete 2>/dev/null || true
