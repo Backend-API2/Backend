@@ -41,6 +41,12 @@ jobs:
             docker rmi -f app-prod-backend-prod 2>/dev/null || true
             docker container prune -f || true
             
+            # Force kill any processes using port 8081/8082
+            echo '🧹 Cleaning up port conflicts...'
+            sudo lsof -ti:8081 | xargs sudo kill -9 2>/dev/null || true
+            sudo lsof -ti:8082 | xargs sudo kill -9 2>/dev/null || true
+            echo '✅ Port conflicts cleaned'
+            
             # Clean up Maven artifacts
             echo '🧹 Cleaning up Maven artifacts...'
             if [ -d 'Backend/target' ]; then
