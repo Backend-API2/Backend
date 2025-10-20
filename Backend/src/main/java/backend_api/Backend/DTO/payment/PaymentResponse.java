@@ -20,7 +20,6 @@ public class PaymentResponse {
     private Long user_id;
     private Long provider_id; 
     private Long solicitud_id;
-    private Long refund_id;
     
     private BigDecimal amount_subtotal;
     private BigDecimal taxes;
