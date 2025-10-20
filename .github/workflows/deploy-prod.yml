@@ -31,30 +31,31 @@ jobs:
 
       - name: Deploy to Production
         run: |
-          # Clean up ports and stop production services
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
             cd /home/ec2-user/app
-            echo '🧹 Cleaning up production ports...'
-            # Remueve contenedores con nombres fijos legacy si existen (una sola vez)
-            docker rm -f alertmanager-prod grafana-prod prometheus-prod backend-api-prod 2>/dev/null || true
-            docker-compose -p app-prod -f docker-compose.prod.yml down --remove-orphans 2>/dev/null || true
+
+            echo '🧹 Cleaning up old containers and images...'
+            docker-compose -p app-prod -f docker-compose.prod.yml down --remove-orphans || true
+            docker rm -f $(docker ps -a -q --filter ancestor=app-prod-backend-prod) 2>/dev/null || true
+            docker rmi -f app-prod-backend-prod 2>/dev/null || true
             docker container prune -f || true
-            echo '✅ Ports cleaned!'
+            echo '✅ Cleanup done!'
+
+            # Crear directorios necesarios
+            mkdir -p /home/appuser/app
+
           "
 
-          # Copy files to server
-          JAR_FILE=$(find ./Backend/target -name "*.jar" -type f | head -1)
-          scp -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} "$JAR_FILE" ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/
+          # Copiar JAR y docker-compose
+          scp -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} ./Backend/target/*.jar ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/app.jar
           scp -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} docker-compose.prod.yml ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/
-          scp -r -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} Backend ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/
 
-          # Start production
-          echo "🚀 Starting production..."
+          # Construir y levantar producción
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
             cd /home/ec2-user/app
-            docker-compose -p app-prod -f docker-compose.prod.yml build backend-prod
+            docker-compose -p app-prod -f docker-compose.prod.yml build --no-cache backend-prod
             docker-compose -p app-prod -f docker-compose.prod.yml up -d
-            echo '✅ Production deployed!'
+            echo '🚀 Production deployed!'
             echo 'Backend: http://localhost:8081'
             echo 'Grafana: http://localhost:3001'
           "
