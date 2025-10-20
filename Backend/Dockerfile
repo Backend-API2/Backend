@@ -30,6 +30,9 @@ RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 # Copiar JAR desde build stage
 COPY --from=builder /app/target/Backend-*.jar app.jar
 
+# Crear directorio de logs
+RUN mkdir -p /app/logs
+
 # Crear usuario no-root
 RUN groupadd -r appuser && useradd -r -g appuser appuser
 RUN chown -R appuser:appuser /app
