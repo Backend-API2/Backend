@@ -1,0 +1,80 @@
+name: Deploy Fixed Backend
+
+on:
+  push:
+    branches: [prod]
+    paths:
+      - 'Backend-0.0.1-SNAPSHOT.jar'
+
+jobs:
+  deploy-fixed-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+      - name: Deploy Fixed Backend
+        run: |
+          echo "🚀 Deploying fixed backend to production..."
+          
+          # Verificar que el JAR existe
+          if [ ! -f "Backend-0.0.1-SNAPSHOT.jar" ]; then
+            echo "❌ JAR file not found!"
+            exit 1
+          fi
+          
+          echo "✅ JAR file found: Backend-0.0.1-SNAPSHOT.jar"
+          
+          # Copiar JAR al servidor
+          scp -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} Backend-0.0.1-SNAPSHOT.jar ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/app.jar
+          
+          # Desplegar en el servidor
+          ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
+            cd /home/ec2-user/app
+            
+            echo '🛑 Stopping existing containers...'
+            docker-compose -p app-prod -f docker-compose.prod.yml down --remove-orphans || true
+            docker stop backend-prod 2>/dev/null || true
+            docker rm backend-prod 2>/dev/null || true
+            
+            echo '🧹 Cleaning up old images...'
+            docker rmi app-prod-backend-prod 2>/dev/null || true
+            docker image prune -f || true
+            
+            echo '🔨 Building new image with fixed JAR...'
+            docker-compose -p app-prod -f docker-compose.prod.yml build --no-cache backend-prod
+            
+            echo '🚀 Starting fixed backend...'
+            docker-compose -p app-prod -f docker-compose.prod.yml up -d
+            
+            echo '⏳ Waiting for backend to start...'
+            sleep 30
+            
+            echo '🔍 Checking backend status...'
+            docker-compose -p app-prod -f docker-compose.prod.yml ps
+            
+            echo '🏥 Verifying health check...'
+            for i in {1..10}; do
+              if curl -f -s http://localhost:8081/actuator/health >/dev/null 2>&1; then
+                echo '✅ Backend is healthy!'
+                break
+              fi
+              if [ \$i -eq 10 ]; then
+                echo '❌ Backend health check failed'
+                docker-compose -p app-prod -f docker-compose.prod.yml logs backend-prod
+                exit 1
+              fi
+              echo \"⏳ Health check attempt \$i/10...\"
+              sleep 10
+            done
+            
+            echo '🎉 Fixed backend deployed successfully!'
+            echo 'Backend URL: http://localhost:8081'
+          "
