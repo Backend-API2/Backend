@@ -61,6 +61,12 @@ jobs:
             rm -f Backend/src/test/java/backend_api/Backend/Entity/RefundTest.java 2>/dev/null || true
             echo '✅ Obsolete refund test files cleaned'
             
+            # Clean up any staging JAR files to avoid conflicts
+            echo '🧹 Cleaning up staging JAR files...'
+            rm -f staging.jar 2>/dev/null || true
+            rm -f Backend-*.jar 2>/dev/null || true
+            echo '✅ Staging JAR files cleaned'
+            
             # Clean up .class files
             find . -name '*.class' -type f -delete 2>/dev/null || true
             find . -name '*.jar.original' -type f -delete 2>/dev/null || true
@@ -73,7 +79,7 @@ jobs:
 
           # Copiar JAR compilado y docker-compose
           echo '📦 Copying compiled JAR to server...'
-          JAR_FILE=$(find ./Backend/target -name "Backend-*.jar" -type f | head -1)
+          JAR_FILE=$(find ./Backend/target -name "Backend-*-*.jar" -type f | head -1)
           if [ -z "$JAR_FILE" ]; then
             echo "❌ No JAR file found in Backend/target/"
             ls -la ./Backend/target/

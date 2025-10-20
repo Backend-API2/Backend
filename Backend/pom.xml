@@ -39,6 +39,8 @@
 		<maven.compiler.target>17</maven.compiler.target>
 		<maven.surefire.version>3.5.3</maven.surefire.version>
 		<maven.compiler.plugin.version>3.14.0</maven.compiler.plugin.version>
+		<maven.build.timestamp.format>yyyyMMdd-HHmmss</maven.build.timestamp.format>
+		<project.build.finalName>${project.artifactId}-${project.version}-${maven.build.timestamp}</project.build.finalName>
 	</properties>
 	<dependencies>
 		<dependency>
