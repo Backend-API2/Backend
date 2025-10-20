@@ -44,7 +44,7 @@ jobs:
           restore-keys: ${{ runner.os }}-sonar
 
       - name: Build with Maven (skip tests)
-        run: mvn -B -DskipTests clean package
+        run: mvn -B -DskipTests clean package -U
 
       - name: Upload JAR artifact
         uses: actions/upload-artifact@v4
@@ -216,15 +216,26 @@ jobs:
           echo "Creating app directory structure..."
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "mkdir -p /home/ec2-user/app/scripts"
 
-      - name: Stop existing Docker services
+      - name: Stop existing Docker services and clean Maven artifacts
         run: |
-          echo "🛑 Stopping existing Docker services..."
+          echo "🛑 Stopping existing Docker services and cleaning Maven artifacts..."
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
             cd /home/ec2-user/app
             
             # Stop only staging Docker Compose services
             echo '🛑 Stopping staging Docker Compose services...'
             docker-compose -p app-staging down --remove-orphans || echo 'No staging services to stop'
+            
+            # Clean up Maven artifacts
+            echo '🧹 Cleaning up Maven artifacts...'
+            if [ -d 'Backend/target' ]; then
+              rm -rf Backend/target
+              echo '✅ Maven target directory cleaned'
+            fi
+            
+            # Clean up .class files
+            find . -name '*.class' -type f -delete 2>/dev/null || true
+            find . -name '*.jar.original' -type f -delete 2>/dev/null || true
             
             # Clean up only staging orphaned containers
             echo '🧹 Cleaning up staging orphaned containers...'
@@ -234,7 +245,7 @@ jobs:
             echo '🧹 Cleaning up unused networks (excluding production)...'
             docker network prune -f --filter "name=app-staging" || true
             
-            echo '✅ Docker cleanup completed'
+            echo '✅ Docker and Maven cleanup completed'
           "
 
       - name: Verify Docker cleanup
@@ -343,9 +354,9 @@ jobs:
             fi
             echo \"Found JAR file: \$JAR_FILE\"
             
-            # Build Docker image for staging
-            echo '🔨 Building Docker image for staging...'
-            docker-compose -p app-staging build --no-cache backend
+            # Build Docker image for staging with complete cleanup
+            echo '🔨 Building Docker image for staging with complete cleanup...'
+            docker-compose -p app-staging build --no-cache --pull backend
             
             # Start staging services
             echo '🚀 Starting staging services with Docker Compose...'

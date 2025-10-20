@@ -18,9 +18,9 @@ jobs:
           java-version: '21'
           cache: 'maven'
 
-      - name: Build JAR
+      - name: Build JAR with complete cleanup
         working-directory: ./Backend
-        run: mvn -B -DskipTests clean package
+        run: mvn -B -DskipTests clean package -U
 
       - name: Setup SSH
         run: |
@@ -34,12 +34,24 @@ jobs:
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
             cd /home/ec2-user/app
 
-            echo '🧹 Cleaning up old containers and images...'
+            echo '🧹 Cleaning up old containers, images and Maven artifacts...'
             docker-compose -p app-prod -f docker-compose.prod.yml down --remove-orphans || true
             docker rm -f $(docker ps -a -q --filter ancestor=app-prod-backend-prod) 2>/dev/null || true
             docker rmi -f app-prod-backend-prod 2>/dev/null || true
             docker container prune -f || true
-            echo '✅ Cleanup done!'
+            
+            # Clean up Maven artifacts
+            echo '🧹 Cleaning up Maven artifacts...'
+            if [ -d 'Backend/target' ]; then
+              rm -rf Backend/target
+              echo '✅ Maven target directory cleaned'
+            fi
+            
+            # Clean up .class files
+            find . -name '*.class' -type f -delete 2>/dev/null || true
+            find . -name '*.jar.original' -type f -delete 2>/dev/null || true
+            
+            echo '✅ Complete cleanup done!'
 
             # Crear directorios necesarios
             mkdir -p /home/appuser/app
@@ -53,7 +65,7 @@ jobs:
           # Construir y levantar producción
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
             cd /home/ec2-user/app
-            docker-compose -p app-prod -f docker-compose.prod.yml build --no-cache backend-prod
+            docker-compose -p app-prod -f docker-compose.prod.yml build --no-cache --pull backend-prod
             docker-compose -p app-prod -f docker-compose.prod.yml up -d
             echo '🚀 Production deployed!'
             echo 'Backend: http://localhost:8081'

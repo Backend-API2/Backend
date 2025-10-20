@@ -186,6 +186,27 @@ cleanup_system() {
     success "✅ Limpieza del sistema completada"
 }
 
+# Limpiar archivos Maven residuales
+cleanup_maven() {
+    log "🧹 Limpiando archivos Maven residuales..."
+    
+    cd "$APP_DIR"
+    
+    # Limpiar directorio target si existe
+    if [ -d "Backend/target" ]; then
+        log "🗑️  Eliminando directorio target..."
+        rm -rf Backend/target
+    fi
+    
+    # Limpiar archivos .class residuales
+    find . -name "*.class" -type f -delete 2>/dev/null || true
+    
+    # Limpiar archivos de compilación residuales
+    find . -name "*.jar.original" -type f -delete 2>/dev/null || true
+    
+    success "✅ Limpieza de Maven completada"
+}
+
 # Desplegar servicios
 deploy() {
     log "🚀 Iniciando despliegue en producción..."
@@ -199,12 +220,15 @@ deploy() {
     log "🛑 Deteniendo servicios existentes..."
     docker-compose down --remove-orphans || warning "No había servicios ejecutándose"
     
+    # Limpiar archivos Maven residuales
+    cleanup_maven
+    
     # Limpiar sistema
     cleanup_system
     
-    # Construir imagen del backend
-    log "🔨 Construyendo imagen del backend..."
-    docker-compose build --no-cache backend
+    # Construir imagen del backend con limpieza completa
+    log "🔨 Construyendo imagen del backend con limpieza completa..."
+    docker-compose build --no-cache --pull backend
     
     # Iniciar servicios
     log "🚀 Iniciando servicios..."
@@ -334,6 +358,7 @@ help() {
     echo "  backup       - Crear backup de datos"
     echo "  verify       - Verificar health checks"
     echo "  cleanup      - Limpiar recursos del sistema"
+    echo "  cleanup-maven - Limpiar archivos Maven residuales"
     echo "  info         - Mostrar información del sistema"
     echo "  help         - Mostrar esta ayuda"
     echo ""
@@ -361,6 +386,9 @@ main() {
             ;;
         cleanup)
             cleanup_system
+            ;;
+        cleanup-maven)
+            cleanup_maven
             ;;
         info)
             system_info

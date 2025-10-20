@@ -14,8 +14,8 @@ RUN mvn -q dependency:go-offline -B
 # Copiar código fuente
 COPY src ./src
 
-# Compilar JAR
-RUN mvn -q clean package -DskipTests -B
+# Compilar JAR con limpieza completa
+RUN mvn -q clean package -DskipTests -B -U
 
 # ====================
 # Runtime Stage
