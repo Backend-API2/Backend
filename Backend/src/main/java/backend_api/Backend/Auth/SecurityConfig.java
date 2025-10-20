@@ -90,6 +90,7 @@ public class SecurityConfig {
 
                         .requestMatchers("/api/auth/register").permitAll()
                         .requestMatchers("/api/auth/login").permitAll()
+                        .requestMatchers("/api/auth/profile").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
                         // Asegurar acceso público a Actuator también en la cadena principal
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/health").permitAll()
