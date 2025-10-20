@@ -31,6 +31,7 @@ jobs:
 
       - name: Deploy to Production
         run: |
+          # Limpiar servidor
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
             cd /home/ec2-user/app
 
@@ -55,19 +56,40 @@ jobs:
 
             # Crear directorios necesarios
             mkdir -p /home/appuser/app
-
           "
 
-          # Copiar JAR y docker-compose
-          scp -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} ./Backend/target/*.jar ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/app.jar
+          # Copiar JAR compilado y docker-compose
+          echo '📦 Copying compiled JAR to server...'
+          JAR_FILE=$(find ./Backend/target -name "Backend-*.jar" -type f | head -1)
+          if [ -z "$JAR_FILE" ]; then
+            echo "❌ No JAR file found in Backend/target/"
+            ls -la ./Backend/target/
+            exit 1
+          fi
+          echo "📦 Found JAR file: $JAR_FILE"
+
+          scp -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} "$JAR_FILE" ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/app.jar
           scp -o StrictHostKeyChecking=no -P ${{ secrets.EC2_PORT }} docker-compose.prod.yml ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ec2-user/app/
 
           # Construir y levantar producción
           ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
             cd /home/ec2-user/app
+            
+            # Verificar que el JAR está presente
+            echo '🔍 Verifying JAR file...'
+            if [ ! -f 'app.jar' ]; then
+              echo '❌ app.jar not found!'
+              exit 1
+            fi
+            
+            echo '✅ JAR file verified'
+            echo '🔨 Building Docker image with compiled JAR...'
             docker-compose -p app-prod -f docker-compose.prod.yml build --no-cache --pull backend-prod
+            
+            echo '🚀 Starting production services...'
             docker-compose -p app-prod -f docker-compose.prod.yml up -d
-            echo '🚀 Production deployed!'
+            
+            echo '✅ Production deployed!'
             echo 'Backend: http://localhost:8081'
             echo 'Grafana: http://localhost:3001'
           "
