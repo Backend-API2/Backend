@@ -13,6 +13,10 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
 
+/**
+ * Core Webhook Controller
+ * Handles incoming webhook events from the Core system
+ */
 @RestController
 @RequestMapping("/api/core/webhook")
 @RequiredArgsConstructor
