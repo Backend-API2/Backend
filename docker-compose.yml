@@ -17,12 +17,12 @@ services:
   # ====================
   backend:
     build:
-      context: ./Backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: Backend/Dockerfile.staging
     ports:
       - '8080:8080'
     environment:
-      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_PROFILES_ACTIVE=staging
       - DB_URL=${DB_URL:-jdbc:mysql://database-1.chaw6oq8ujma.us-east-2.rds.amazonaws.com:3306/base_api?allowPublicKeyRetrieval=true&useSSL=true&requireSSL=true&serverTimezone=UTC&createDatabaseIfNotExist=true&connectTimeout=60000&socketTimeout=60000&autoReconnect=true&failOverReadOnly=false&maxReconnects=10}
       - DB_USERNAME=${DB_USERNAME:-admin}
       - DB_PASSWORD=${DB_PASSWORD:-totocapo}
