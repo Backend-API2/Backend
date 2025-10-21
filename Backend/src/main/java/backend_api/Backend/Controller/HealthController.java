@@ -30,14 +30,14 @@ public class HealthController {
                 mediaType = "text/plain",
                 examples = @io.swagger.v3.oas.annotations.media.ExampleObject(
                     name = "Servicio activo",
-                    value = "UP Lucas"
+                    value = "UP"
                 )
             )
         )
     })
     @GetMapping("/health")
     public ResponseEntity<String> health() {
-        return ResponseEntity.ok("UP Lucas");
+        return ResponseEntity.ok("UP");
     }
 
     @Operation(
