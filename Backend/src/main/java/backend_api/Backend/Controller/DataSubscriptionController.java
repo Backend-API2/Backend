@@ -397,8 +397,8 @@ public class DataSubscriptionController {
             
             // Crear request body
             Map<String, String> loginRequest = Map.of(
-                "Email", email,
-                "Password", password
+                "email", email,
+                "password", password
             );
             
             // Configurar headers
