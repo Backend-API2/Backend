@@ -17,8 +17,8 @@ services:
   # ====================
   backend-prod:
     build:
-      context: ./Backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: Backend/Dockerfile.prod
     ports:
       - '8081:8080' # Puerto externo 8081 para producción
     environment:

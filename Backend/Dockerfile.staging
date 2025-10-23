@@ -1,24 +1,5 @@
 # ====================
-# Build Stage
-# ====================
-FROM maven:3.9.2-eclipse-temurin-17 AS builder
-
-WORKDIR /app
-
-# Copiar archivos necesarios para Maven
-COPY pom.xml ./
-
-# Descargar dependencias para cachear
-RUN mvn -q dependency:go-offline -B
-
-# Copiar código fuente
-COPY src ./src
-
-# Compilar JAR con limpieza completa
-RUN mvn -q clean package -DskipTests -B -U
-
-# ====================
-# Runtime Stage
+# Staging Dockerfile
 # ====================
 FROM eclipse-temurin:17-jdk-focal
 
@@ -27,8 +8,8 @@ WORKDIR /app
 # Instalar curl como root antes de cambiar de usuario
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
-# Copiar JAR desde build stage
-COPY --from=builder /app/target/Backend-*.jar app.jar
+# Copiar JAR específico de staging
+COPY Backend-0.0.1-SNAPSHOT.jar app.jar
 
 # Crear directorio de logs
 RUN mkdir -p /app/logs

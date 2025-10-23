@@ -300,3 +300,4 @@ export SERVER_PORT="8080"
 - [Prometheus Documentation](https://prometheus.io/docs/)
 - [Grafana Documentation](https://grafana.com/docs/)
 # Trigger both workflows - Mon Sep 29 12:08:42 -03 2025
+# Force clean deploy lun 20 oct 2025 20:21:03 -03

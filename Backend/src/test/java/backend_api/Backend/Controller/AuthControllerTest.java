@@ -22,6 +22,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.math.BigDecimal;
 import java.util.Optional;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -71,7 +72,7 @@ class AuthControllerTest {
         when(userRepository.existsByEmail("test@example.com")).thenReturn(false);
         when(passwordEncoder.encode("password123")).thenReturn("encodedPassword");
         when(userRepository.save(any(User.class))).thenReturn(savedUser);
-        when(jwtUtil.generateToken("test@example.com")).thenReturn("jwt-token");
+        when(jwtUtil.generateToken("test@example.com", 86400000L, List.of("USER"))).thenReturn("jwt-token");
 
         // When
         ResponseEntity<AuthResponse> response = authController.register(request);
@@ -88,7 +89,7 @@ class AuthControllerTest {
         verify(userRepository).existsByEmail("test@example.com");
         verify(passwordEncoder).encode("password123");
         verify(userRepository).save(any(User.class));
-        verify(jwtUtil).generateToken("test@example.com");
+        verify(jwtUtil).generateToken("test@example.com", 86400000L, List.of("USER"));
     }
 
     @Test
@@ -130,7 +131,7 @@ class AuthControllerTest {
 
         when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("password123", "encodedPassword")).thenReturn(true);
-        when(jwtUtil.generateToken("test@example.com")).thenReturn("jwt-token");
+        when(jwtUtil.generateToken("test@example.com", 86400000L, List.of("USER"))).thenReturn("jwt-token");
 
         // When
         ResponseEntity<AuthResponse> response = authController.login(request);
@@ -146,7 +147,7 @@ class AuthControllerTest {
 
         verify(userRepository).findByEmail("test@example.com");
         verify(passwordEncoder).matches("password123", "encodedPassword");
-        verify(jwtUtil).generateToken("test@example.com");
+        verify(jwtUtil).generateToken("test@example.com", 86400000L, List.of("USER"));
     }
 
     @Test
@@ -493,7 +494,7 @@ class AuthControllerTest {
         when(userRepository.existsByEmail("test@example.com")).thenReturn(false);
         when(passwordEncoder.encode("password123")).thenReturn("encodedPassword");
         when(userRepository.save(any(User.class))).thenReturn(savedUser);
-        when(jwtUtil.generateToken("test@example.com")).thenReturn("jwt-token");
+        when(jwtUtil.generateToken("test@example.com", 86400000L, List.of("USER"))).thenReturn("jwt-token");
 
         // When
         ResponseEntity<AuthResponse> response = authController.register(request);
@@ -506,7 +507,7 @@ class AuthControllerTest {
         verify(userRepository).existsByEmail("test@example.com");
         verify(passwordEncoder).encode("password123");
         verify(userRepository).save(any(User.class));
-        verify(jwtUtil).generateToken("test@example.com");
+        verify(jwtUtil).generateToken("test@example.com", 86400000L, List.of("USER"));
     }
 
     @Test
@@ -517,19 +518,19 @@ class AuthControllerTest {
         request.setPassword("password123");
         request.setName("Admin User");
         request.setPhone("123456789");
-        request.setRole("MERCHANT");
+        request.setRole("ADMIN");
 
         User savedUser = new User();
         savedUser.setId(1L);
         savedUser.setEmail("admin@example.com");
         savedUser.setName("Admin User");
-        savedUser.setRole(UserRole.MERCHANT);
+        savedUser.setRole(UserRole.ADMIN);
         savedUser.setSaldo_disponible(null); // Admin should not have saldo
 
         when(userRepository.existsByEmail("admin@example.com")).thenReturn(false);
         when(passwordEncoder.encode("password123")).thenReturn("encodedPassword");
         when(userRepository.save(any(User.class))).thenReturn(savedUser);
-        when(jwtUtil.generateToken("admin@example.com")).thenReturn("jwt-token");
+        when(jwtUtil.generateToken("admin@example.com", 86400000L, List.of("ADMIN"))).thenReturn("jwt-token");
 
         // When
         ResponseEntity<AuthResponse> response = authController.register(request);
@@ -537,12 +538,12 @@ class AuthControllerTest {
         // Then
         assertEquals(201, response.getStatusCode().value());
         assertNotNull(response.getBody());
-        assertEquals("MERCHANT", response.getBody().getRole());
+        assertEquals("ADMIN", response.getBody().getRole());
 
         verify(userRepository).existsByEmail("admin@example.com");
         verify(passwordEncoder).encode("password123");
         verify(userRepository).save(any(User.class));
-        verify(jwtUtil).generateToken("admin@example.com");
+        verify(jwtUtil).generateToken("admin@example.com", 86400000L, List.of("ADMIN"));
     }
 
     @Test
@@ -565,7 +566,7 @@ class AuthControllerTest {
         when(userRepository.existsByEmail("merchant@example.com")).thenReturn(false);
         when(passwordEncoder.encode("password123")).thenReturn("encodedPassword");
         when(userRepository.save(any(User.class))).thenReturn(savedUser);
-        when(jwtUtil.generateToken("merchant@example.com")).thenReturn("jwt-token");
+        when(jwtUtil.generateToken("merchant@example.com", 86400000L, List.of("MERCHANT"))).thenReturn("jwt-token");
 
         // When
         ResponseEntity<AuthResponse> response = authController.register(request);
@@ -578,7 +579,7 @@ class AuthControllerTest {
         verify(userRepository).existsByEmail("merchant@example.com");
         verify(passwordEncoder).encode("password123");
         verify(userRepository).save(any(User.class));
-        verify(jwtUtil).generateToken("merchant@example.com");
+        verify(jwtUtil).generateToken("merchant@example.com", 86400000L, List.of("MERCHANT"));
     }
 
     @Test

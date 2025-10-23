@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 
 @Entity
 @Table(name = "user_data")
@@ -32,11 +33,17 @@ public class UserData {
     @Column(name = "secondary_id")
     private String secondaryId;
     
+    @Column(name = "role")
+    private String role;
+    
     @Column(name = "created_at")
     private LocalDateTime createdAt;
     
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+    
+    @Column(name = "saldo_disponible", precision = 10, scale = 2)
+    private BigDecimal saldoDisponible;
     
     @PrePersist
     protected void onCreate() {

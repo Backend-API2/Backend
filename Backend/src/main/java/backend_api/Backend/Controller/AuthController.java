@@ -5,17 +5,29 @@ import backend_api.Backend.DTO.auth.RegisterRequest;
 import backend_api.Backend.DTO.auth.AuthResponse;
 import backend_api.Backend.Entity.user.User;
 import backend_api.Backend.Entity.user.UserRole;
+import backend_api.Backend.Entity.UserData;
 import backend_api.Backend.Repository.UserRepository;
+import backend_api.Backend.Repository.UserDataRepository;
 import backend_api.Backend.Auth.JwtUtil;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.http.HttpEntity;
+import java.util.List;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import jakarta.validation.Valid;
 import java.math.BigDecimal;
 import java.util.Random;
+import java.util.Map;
+import java.util.Optional;
+import java.util.List;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -37,10 +49,16 @@ public class AuthController {
     private UserRepository userRepository;
     
     @Autowired
+    private UserDataRepository userDataRepository;
+    
+    @Autowired
     private PasswordEncoder passwordEncoder;
     
     @Autowired
     private JwtUtil jwtUtil;
+    
+    @Autowired
+    private RestTemplate restTemplate;
 
     @Operation(
         summary = "Registrar nuevo usuario",
@@ -138,7 +156,7 @@ public class AuthController {
             User savedUser = userRepository.save(user);
             
             // Generate token with appropriate role
-            String token = jwtUtil.generateToken(savedUser.getEmail());
+            String token = jwtUtil.generateToken(savedUser.getEmail(), 86400000L, List.of(savedUser.getRole().toString()));
             
             AuthResponse response = new AuthResponse(
                 token, 
@@ -226,32 +244,114 @@ public class AuthController {
         )
         @Valid @RequestBody LoginRequest request) {
         try {
-            User user = userRepository.findByEmail(request.getEmail())
-                    .orElse(null);
+            String email = request.getEmail();
+            String password = request.getPassword();
             
-            if (user == null) {
-                return new ResponseEntity<>(HttpStatus.UNAUTHORIZED); 
+            // 1. Primero buscar en usuarios locales (users table)
+            Optional<User> localUser = userRepository.findByEmail(email);
+            if (localUser.isPresent()) {
+                User user = localUser.get();
+                if (passwordEncoder.matches(password, user.getPassword())) {
+                    String token = jwtUtil.generateToken(user.getEmail(), 86400000L, List.of(user.getRole().toString()));
+                    AuthResponse response = new AuthResponse(
+                        token, 
+                        user.getId(), 
+                        user.getEmail(), 
+                        user.getName(), 
+                        user.getRole().toString()
+                    );
+                    return new ResponseEntity<>(response, HttpStatus.OK);
+                } else {
+                    // Contraseña incorrecta para usuario local
+                    return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+                }
             }
             
-            if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-                return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+            // 2. Si no está en usuarios locales, buscar en usuarios sincronizados (user_data table)
+            Optional<UserData> syncedUser = userDataRepository.findByEmail(email);
+            if (syncedUser.isPresent()) {
+                UserData userData = syncedUser.get();
+                // Validar contraseña con el módulo de usuarios
+                if (validatePasswordWithUserModule(email, password)) {
+                    String systemRole = convertUserModuleRoleToSystemRole(userData.getRole());
+                    String token = jwtUtil.generateToken(userData.getEmail(), 86400000L, List.of(systemRole));
+                    AuthResponse response = new AuthResponse(
+                        token, 
+                        userData.getUserId(), 
+                        userData.getEmail(), 
+                        userData.getName(), 
+                        systemRole
+                    );
+                    return new ResponseEntity<>(response, HttpStatus.OK);
+                } else {
+                    // Contraseña incorrecta para usuario sincronizado
+                    return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+                }
             }
             
-            // Generate token with appropriate role
-            String token = jwtUtil.generateToken(user.getEmail());
-            
-            AuthResponse response = new AuthResponse(
-                token, 
-                user.getId(), 
-                user.getEmail(), 
-                user.getName(), 
-                user.getRole().toString()
-            );
-            
-            return new ResponseEntity<>(response, HttpStatus.OK);
+            // 3. Usuario no encontrado en ninguna tabla
+            return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
             
         } catch (Exception e) {
-            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+            // En caso de error inesperado, devolver 500 para excepciones de base de datos
+            // y 401 para otros errores de autenticación
+            if (e instanceof DataAccessException || 
+                e.getMessage() != null && (
+                    e.getMessage().toLowerCase().contains("database") ||
+                    e.getMessage().toLowerCase().contains("sql") ||
+                    e.getMessage().toLowerCase().contains("connection")
+                )) {
+                return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+            }
+            return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+        }
+    }
+    
+    private String convertUserModuleRoleToSystemRole(String userModuleRole) {
+        if (userModuleRole == null) {
+            return "USER";
+        }
+        
+        switch (userModuleRole.toUpperCase()) {
+            case "CLIENTE":
+                return "USER";
+            case "PRESTADOR":
+                return "MERCHANT";
+            case "ADMIN":
+                return "ADMIN";
+            default:
+                return "USER";
+        }
+    }
+
+    /**
+     * Valida la contraseña con el módulo de usuarios externo
+     */
+    private boolean validatePasswordWithUserModule(String email, String password) {
+        try {
+            // Solo intentar validar si tenemos los datos necesarios
+            if (email == null || password == null || email.trim().isEmpty() || password.trim().isEmpty()) {
+                return false;
+            }
+            
+            String userModuleUrl = "http://dev.desarrollo2-usuarios.shop:8081/api/users/login";
+            Map<String, String> loginRequest = Map.of(
+                "email", email,
+                "password", password
+            );
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<Map<String, String>> requestEntity = new HttpEntity<>(loginRequest, headers);
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                userModuleUrl, 
+                HttpMethod.POST, 
+                requestEntity, 
+                new org.springframework.core.ParameterizedTypeReference<Map<String, Object>>() {}
+            );
+            return response.getStatusCode().is2xxSuccessful();
+        } catch (Exception e) {
+            // En caso de cualquier error (conexión, timeout, etc.), devolver false
+            return false;
         }
     }
 

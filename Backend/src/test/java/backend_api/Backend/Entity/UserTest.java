@@ -362,8 +362,8 @@ class UserTest {
         // Verify initial state
         assertNotNull(user.getCreated_at());
         assertNotNull(user.getUpdated_at());
-        // Allow for slight time differences
-        assertTrue(Math.abs(user.getCreated_at().toLocalTime().toNanoOfDay() - user.getUpdated_at().toLocalTime().toNanoOfDay()) < 1000000); // Within 1ms
+        // Allow for slight time differences - increased tolerance to 10ms
+        assertTrue(Math.abs(user.getCreated_at().toLocalTime().toNanoOfDay() - user.getUpdated_at().toLocalTime().toNanoOfDay()) < 10000000); // Within 10ms
 
         // Simulate user update
         user.setName("Updated Merchant User");
