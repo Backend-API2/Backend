@@ -5,7 +5,9 @@ import backend_api.Backend.DTO.auth.RegisterRequest;
 import backend_api.Backend.DTO.auth.AuthResponse;
 import backend_api.Backend.Entity.user.User;
 import backend_api.Backend.Entity.user.UserRole;
+import backend_api.Backend.Entity.UserData;
 import backend_api.Backend.Repository.UserRepository;
+import backend_api.Backend.Repository.UserDataRepository;
 import backend_api.Backend.Auth.JwtUtil;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,9 +15,16 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import jakarta.validation.Valid;
 import java.math.BigDecimal;
 import java.util.Random;
+import java.util.Map;
+import java.util.Optional;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -37,10 +46,16 @@ public class AuthController {
     private UserRepository userRepository;
     
     @Autowired
+    private UserDataRepository userDataRepository;
+    
+    @Autowired
     private PasswordEncoder passwordEncoder;
     
     @Autowired
     private JwtUtil jwtUtil;
+    
+    @Autowired
+    private RestTemplate restTemplate;
 
     @Operation(
         summary = "Registrar nuevo usuario",
@@ -226,32 +241,70 @@ public class AuthController {
         )
         @Valid @RequestBody LoginRequest request) {
         try {
-            User user = userRepository.findByEmail(request.getEmail())
-                    .orElse(null);
+            String email = request.getEmail();
+            String password = request.getPassword();
             
-            if (user == null) {
-                return new ResponseEntity<>(HttpStatus.UNAUTHORIZED); 
+            Optional<User> localUser = userRepository.findByEmail(email);
+            if (localUser.isPresent()) {
+                User user = localUser.get();
+                if (passwordEncoder.matches(password, user.getPassword())) {
+                    String token = jwtUtil.generateToken(user.getEmail());
+                    AuthResponse response = new AuthResponse(
+                        token, 
+                        user.getId(), 
+                        user.getEmail(), 
+                        user.getName(), 
+                        user.getRole().toString()
+                    );
+                    return new ResponseEntity<>(response, HttpStatus.OK);
+                }
             }
             
-            if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-                return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+            Optional<UserData> syncedUser = userDataRepository.findByEmail(email);
+            if (syncedUser.isPresent()) {
+                UserData userData = syncedUser.get();
+                if (validatePasswordWithUserModule(email, password)) {
+                    String token = jwtUtil.generateToken(userData.getEmail());
+                    AuthResponse response = new AuthResponse(
+                        token, 
+                        userData.getUserId(), 
+                        userData.getEmail(), 
+                        userData.getName(), 
+                        "USER"
+                    );
+                    return new ResponseEntity<>(response, HttpStatus.OK);
+                }
             }
             
-            // Generate token with appropriate role
-            String token = jwtUtil.generateToken(user.getEmail());
-            
-            AuthResponse response = new AuthResponse(
-                token, 
-                user.getId(), 
-                user.getEmail(), 
-                user.getName(), 
-                user.getRole().toString()
-            );
-            
-            return new ResponseEntity<>(response, HttpStatus.OK);
+            return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
             
         } catch (Exception e) {
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+    
+    /**
+     * Valida la contraseña con el módulo de usuarios externo
+     */
+    private boolean validatePasswordWithUserModule(String email, String password) {
+        try {
+            String userModuleUrl = "http://dev.desarrollo2-usuarios.shop:8081/api/users/login";
+            Map<String, String> loginRequest = Map.of(
+                "email", email,
+                "password", password
+            );
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<Map<String, String>> requestEntity = new HttpEntity<>(loginRequest, headers);
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                userModuleUrl, 
+                HttpMethod.POST, 
+                requestEntity, 
+                new org.springframework.core.ParameterizedTypeReference<Map<String, Object>>() {}
+            );
+            return response.getStatusCode().is2xxSuccessful();
+        } catch (Exception e) {
+            return false;
         }
     }
 
