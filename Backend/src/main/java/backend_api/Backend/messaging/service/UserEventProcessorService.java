@@ -7,7 +7,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.Map;
+import java.util.Random;
 
 @Service
 @Slf4j
@@ -36,6 +38,11 @@ public class UserEventProcessorService {
             userData.put("phone", userCreated.getPhoneNumber());
             userData.put("role", userCreated.getRole());
             userData.put("dni", userCreated.getDni());
+            
+            // Generar sueldo aleatorio entre $10,000 y $50,000 (igual que en la tabla principal)
+            Random random = new Random();
+            double saldo = 10000 + (random.nextDouble() * 40000);
+            userData.put("saldoDisponible", BigDecimal.valueOf(saldo).setScale(2, java.math.RoundingMode.HALF_UP));
 
             dataStorageService.saveUserData(userCreated.getUserId(), userData, coreMessage.getMessageId());
             
