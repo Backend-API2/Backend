@@ -433,9 +433,11 @@ public class DataSubscriptionController {
             Optional<UserData> userDataOpt = userDataRepository.findByEmail(email);
             if (userDataOpt.isPresent()) {
                 UserData userData = userDataOpt.get();
+                String systemRole = convertUserModuleRoleToSystemRole(userData.getRole());
                 return ResponseEntity.ok(Map.of(
                     "email", userData.getEmail(),
                     "role", userData.getRole(),
+                    "systemRole", systemRole,
                     "userId", userData.getUserId(),
                     "name", userData.getName()
                 ));
