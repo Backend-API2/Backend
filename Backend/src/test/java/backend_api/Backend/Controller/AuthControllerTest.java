@@ -22,6 +22,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.math.BigDecimal;
 import java.util.Optional;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -130,7 +131,7 @@ class AuthControllerTest {
 
         when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("password123", "encodedPassword")).thenReturn(true);
-        when(jwtUtil.generateToken("test@example.com")).thenReturn("jwt-token");
+        when(jwtUtil.generateToken("test@example.com", 86400000L, List.of("USER"))).thenReturn("jwt-token");
 
         // When
         ResponseEntity<AuthResponse> response = authController.login(request);
@@ -146,7 +147,7 @@ class AuthControllerTest {
 
         verify(userRepository).findByEmail("test@example.com");
         verify(passwordEncoder).matches("password123", "encodedPassword");
-        verify(jwtUtil).generateToken("test@example.com");
+        verify(jwtUtil).generateToken("test@example.com", 86400000L, List.of("USER"));
     }
 
     @Test
