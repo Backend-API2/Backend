@@ -53,37 +53,6 @@ public class PaymentSubscriptionController {
     }
 
     
-    @PostMapping("/payment-coordination")
-    public ResponseEntity<?> subscribeToPaymentCoordination(
-            @RequestParam String subscriberTeam,
-            @RequestParam String subscriberWebhookUrl) {
-        try {
-            log.info("Nueva suscripción a payment-coordination - Team: {}, Webhook: {}", 
-                subscriberTeam, subscriberWebhookUrl);
-
-            coreHubService.subscribeToTopic(
-                "payments",
-                "payment", 
-                "coordination"
-            );
-
-            return ResponseEntity.ok(Map.of(
-                "status", "success",
-                "message", "Suscripción creada para eventos de coordinación de pago",
-                "subscriberTeam", subscriberTeam,
-                "subscriberWebhookUrl", subscriberWebhookUrl,
-                "topic", "payments.payment.coordination"
-            ));
-
-        } catch (Exception e) {
-            log.error("Error creando suscripción: {}", e.getMessage(), e);
-            return ResponseEntity.status(500).body(Map.of(
-                "status", "error",
-                "message", "Error creando suscripción a coordinación de pago",
-                "detail", e.getMessage()
-            ));
-        }
-    }
 
     
    
@@ -126,13 +95,11 @@ public class PaymentSubscriptionController {
         return ResponseEntity.ok(Map.of(
             "availableEvents", new String[]{
                 "payment-confirmed",
-                "payment-coordination", 
                 "payment-method-selected",
                 "payment-timeline-event"
             },
             "topics", new String[]{
                 "payments.payment.status_updated",
-                "payments.payment.coordination",
                 "payments.payment.method_selected",
                 "payments.payment.timeline_event"
             },
