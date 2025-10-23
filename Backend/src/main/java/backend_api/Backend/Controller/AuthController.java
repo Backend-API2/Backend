@@ -273,13 +273,14 @@ public class AuthController {
                 UserData userData = syncedUser.get();
                 // Validar contraseña con el módulo de usuarios
                 if (validatePasswordWithUserModule(email, password)) {
-                    String token = jwtUtil.generateToken(userData.getEmail());
+                    String systemRole = convertUserModuleRoleToSystemRole(userData.getRole());
+                    String token = jwtUtil.generateToken(userData.getEmail(), 86400000L, List.of(systemRole));
                     AuthResponse response = new AuthResponse(
                         token, 
                         userData.getUserId(), 
                         userData.getEmail(), 
                         userData.getName(), 
-                        "USER"
+                        systemRole
                     );
                     return new ResponseEntity<>(response, HttpStatus.OK);
                 } else {
@@ -306,6 +307,23 @@ public class AuthController {
         }
     }
     
+    private String convertUserModuleRoleToSystemRole(String userModuleRole) {
+        if (userModuleRole == null) {
+            return "USER";
+        }
+        
+        switch (userModuleRole.toUpperCase()) {
+            case "CLIENTE":
+                return "USER";
+            case "PRESTADOR":
+                return "MERCHANT";
+            case "ADMIN":
+                return "ADMIN";
+            default:
+                return "USER";
+        }
+    }
+
     /**
      * Valida la contraseña con el módulo de usuarios externo
      */

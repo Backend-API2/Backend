@@ -427,6 +427,127 @@ public class DataSubscriptionController {
         }
     }
 
+    @GetMapping("/users/{email}/role")
+    public ResponseEntity<Map<String, Object>> getUserRole(@PathVariable String email) {
+        try {
+            Optional<UserData> userDataOpt = userDataRepository.findByEmail(email);
+            if (userDataOpt.isPresent()) {
+                UserData userData = userDataOpt.get();
+                return ResponseEntity.ok(Map.of(
+                    "email", userData.getEmail(),
+                    "role", userData.getRole(),
+                    "userId", userData.getUserId(),
+                    "name", userData.getName()
+                ));
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        } catch (Exception e) {
+            log.error("Error obteniendo rol del usuario: {}", e.getMessage());
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/sync-user/{email}")
+    public ResponseEntity<?> syncUserFromModule(@PathVariable String email) {
+        try {
+            log.info("Sincronizando usuario desde módulo de usuarios: {}", email);
+            
+            // Obtener datos del usuario desde el módulo de usuarios
+            Map<String, Object> userData = getUserDataFromUserModule(email);
+            
+            if (userData == null) {
+                return ResponseEntity.status(404).body(Map.of(
+                    "status", "error",
+                    "message", "Usuario no encontrado en el módulo de usuarios"
+                ));
+            }
+            
+            // Procesar como evento de creación de usuario
+            Long userId = Long.valueOf(userData.get("id").toString());
+            String firstName = (String) userData.get("firstName");
+            String lastName = (String) userData.get("lastName");
+            String phoneNumber = (String) userData.get("phoneNumber");
+            String role = (String) userData.get("role");
+            String dni = (String) userData.get("dni");
+            
+            // Crear datos para guardar
+            Map<String, Object> userDataToSave = new java.util.HashMap<>();
+            userDataToSave.put("name", firstName + " " + lastName);
+            userDataToSave.put("email", email);
+            userDataToSave.put("phone", phoneNumber);
+            userDataToSave.put("role", role);
+            userDataToSave.put("dni", dni);
+            
+            // Generar saldo aleatorio
+            java.util.Random random = new java.util.Random();
+            double saldo = 10000 + (random.nextDouble() * 40000);
+            userDataToSave.put("saldoDisponible", java.math.BigDecimal.valueOf(saldo).setScale(2, java.math.RoundingMode.HALF_UP));
+            
+            // Guardar en base de datos
+            dataStorageService.saveUserData(userId, userDataToSave, "manual-sync-" + System.currentTimeMillis());
+            
+            log.info("Usuario sincronizado exitosamente: userId={}, email={}", userId, email);
+            
+            return ResponseEntity.ok(Map.of(
+                "status", "success",
+                "message", "Usuario sincronizado exitosamente",
+                "userId", userId,
+                "email", email,
+                "name", firstName + " " + lastName,
+                "phone", phoneNumber,
+                "role", role
+            ));
+            
+        } catch (Exception e) {
+            log.error("Error sincronizando usuario: {}", e.getMessage(), e);
+            return ResponseEntity.status(500).body(Map.of(
+                "status", "error",
+                "message", "Error sincronizando usuario: " + e.getMessage()
+            ));
+        }
+    }
+    
+    private Map<String, Object> getUserDataFromUserModule(String email) {
+        try {
+            // Hacer login para obtener datos del usuario
+            String userModuleUrl = "http://dev.desarrollo2-usuarios.shop:8081/api/users/login";
+            
+            Map<String, String> loginRequest = Map.of(
+                "email", email,
+                "password", "123456" // Contraseña por defecto para sincronización
+            );
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            
+            HttpEntity<Map<String, String>> requestEntity = new HttpEntity<>(loginRequest, headers);
+            
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                userModuleUrl, 
+                HttpMethod.POST,
+                requestEntity, 
+                new org.springframework.core.ParameterizedTypeReference<Map<String, Object>>() {}
+            );
+            
+            if (response.getStatusCode().is2xxSuccessful()) {
+                Map<String, Object> responseBody = response.getBody();
+                Map<String, Object> userInfo = (Map<String, Object>) responseBody.get("userInfo");
+                
+                if (userInfo != null) {
+                    log.info("Datos obtenidos del módulo de usuarios: {}", userInfo);
+                    return userInfo;
+                }
+            }
+            
+            return null;
+            
+        } catch (Exception e) {
+            log.error("Error obteniendo datos del módulo de usuarios: {}", e.getMessage());
+            return null;
+        }
+    }
+
     private String convertUserModuleRoleToSystemRole(String userModuleRole) {
         if (userModuleRole == null) {
             return "USER";
