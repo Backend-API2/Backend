@@ -415,29 +415,14 @@ public class AuthController {
         } catch (Exception e) {
             log.warn("No se pudo validar/obtener datos del usuario {} del módulo de usuarios: {}", email, e.getMessage());
             
-            // Si el módulo de usuarios no está disponible, crear datos de prueba
-            // basados en la estructura real de UserCreatedMessage
-            return createMockUserData(email);
+            // En caso de error, no crear datos de prueba - devolver null
+            // para que el login falle correctamente
+            return null;
         }
         
         return null;
     }
     
-    /**
-     * Crea datos de prueba basados en la estructura real de UserCreatedMessage
-     * cuando el módulo de usuarios no está disponible
-     */
-    private Map<String, Object> createMockUserData(String email) {
-        Map<String, Object> mockData = new java.util.HashMap<>();
-        mockData.put("userId", System.currentTimeMillis() % 1000000);
-        mockData.put("name", "Usuario Sincronizado");
-        mockData.put("phone", "");
-        mockData.put("role", "USER");
-        mockData.put("secondaryId", "sync_" + System.currentTimeMillis());
-        
-        log.info("Creando datos de prueba para usuario: {} - Datos: {}", email, mockData);
-        return mockData;
-    }
     
     /**
      * Crea un UserData a partir de los datos del módulo de usuarios
