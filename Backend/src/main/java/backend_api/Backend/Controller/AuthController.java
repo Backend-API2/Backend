@@ -26,6 +26,7 @@ import java.math.BigDecimal;
 import java.util.Random;
 import java.util.Map;
 import java.util.Optional;
+import java.util.List;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -250,7 +251,7 @@ public class AuthController {
             if (localUser.isPresent()) {
                 User user = localUser.get();
                 if (passwordEncoder.matches(password, user.getPassword())) {
-                    String token = jwtUtil.generateToken(user.getEmail());
+                    String token = jwtUtil.generateToken(user.getEmail(), 86400000L, List.of(user.getRole().toString()));
                     AuthResponse response = new AuthResponse(
                         token, 
                         user.getId(), 

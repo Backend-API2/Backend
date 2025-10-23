@@ -43,6 +43,7 @@ public class DataStorageServiceImpl {
             userData.setName((String) userDataMap.get("name"));
             userData.setEmail((String) userDataMap.get("email"));
             userData.setPhone((String) userDataMap.get("phone"));
+            userData.setRole((String) userDataMap.get("role"));
             userData.setSecondaryId(secondaryId);
             
             // Manejar estado de desactivación

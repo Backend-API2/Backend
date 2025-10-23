@@ -20,6 +20,7 @@ import org.springframework.web.client.RestTemplate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.ArrayList;
 
 @RestController
 @RequestMapping("/api/data/subscriptions")
@@ -354,10 +355,11 @@ public class DataSubscriptionController {
                     ));
                 }
                 
-                log.info("Usuario autenticado exitosamente: userId={}, name={}", 
-                    userData.getUserId(), userData.getName());
+                log.info("Usuario autenticado exitosamente: userId={}, name={}, role={}", 
+                    userData.getUserId(), userData.getName(), userData.getRole());
                 
-                String token = jwtUtil.generateToken(email);
+                String systemRole = convertUserModuleRoleToSystemRole(userData.getRole());
+                String token = jwtUtil.generateToken(email, 86400000L, List.of(systemRole));
                 
                 return ResponseEntity.ok(Map.of(
                     "status", "success",
@@ -422,6 +424,23 @@ public class DataSubscriptionController {
         } catch (Exception e) {
             log.error("Error validando contraseña con módulo de usuarios: {}", e.getMessage());
             return false;
+        }
+    }
+
+    private String convertUserModuleRoleToSystemRole(String userModuleRole) {
+        if (userModuleRole == null) {
+            return "USER";
+        }
+        
+        switch (userModuleRole.toUpperCase()) {
+            case "CLIENTE":
+                return "USER";
+            case "PRESTADOR":
+                return "MERCHANT";
+            case "ADMIN":
+                return "ADMIN";
+            default:
+                return "USER";
         }
     }
 

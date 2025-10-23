@@ -33,6 +33,9 @@ public class UserData {
     @Column(name = "secondary_id")
     private String secondaryId;
     
+    @Column(name = "role")
+    private String role;
+    
     @Column(name = "created_at")
     private LocalDateTime createdAt;
     
