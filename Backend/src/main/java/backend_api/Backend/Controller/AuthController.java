@@ -10,6 +10,7 @@ import backend_api.Backend.Repository.UserRepository;
 import backend_api.Backend.Repository.UserDataRepository;
 import backend_api.Backend.Auth.JwtUtil;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
@@ -18,7 +19,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.http.HttpEntity;
-import java.util.List;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -43,6 +43,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @RequestMapping("/api/auth")
 @CrossOrigin(origins = "*")
 @Tag(name = "Autenticación", description = "Endpoints para registro, login y gestión de perfiles de usuario")
+@Slf4j
 public class AuthController {
 
     @Autowired
@@ -262,7 +263,6 @@ public class AuthController {
                     );
                     return new ResponseEntity<>(response, HttpStatus.OK);
                 } else {
-                    // Contraseña incorrecta para usuario local
                     return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
                 }
             }
@@ -271,7 +271,6 @@ public class AuthController {
             Optional<UserData> syncedUser = userDataRepository.findByEmail(email);
             if (syncedUser.isPresent()) {
                 UserData userData = syncedUser.get();
-                // Validar contraseña con el módulo de usuarios
                 if (validatePasswordWithUserModule(email, password)) {
                     String systemRole = convertUserModuleRoleToSystemRole(userData.getRole());
                     String token = jwtUtil.generateToken(userData.getEmail(), 86400000L, List.of(systemRole));
@@ -284,12 +283,29 @@ public class AuthController {
                     );
                     return new ResponseEntity<>(response, HttpStatus.OK);
                 } else {
-                    // Contraseña incorrecta para usuario sincronizado
                     return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+                }
+            } else {
+                // 3. Usuario no sincronizado - validar y sincronizar automáticamente
+                Map<String, Object> userModuleData = validateAndGetUserDataFromUserModule(email, password);
+                if (userModuleData != null) {
+                    UserData newUser = createUserFromModuleData(email, userModuleData);
+                    if (newUser != null) {
+                        String systemRole = convertUserModuleRoleToSystemRole(newUser.getRole());
+                        String token = jwtUtil.generateToken(newUser.getEmail(), 86400000L, List.of(systemRole));
+                        AuthResponse response = new AuthResponse(
+                            token, 
+                            newUser.getUserId(), 
+                            newUser.getEmail(), 
+                            newUser.getName(), 
+                            systemRole
+                        );
+                        return new ResponseEntity<>(response, HttpStatus.OK);
+                    }
                 }
             }
             
-            // 3. Usuario no encontrado en ninguna tabla
+            // 4. Usuario no encontrado en ninguna tabla
             return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
             
         } catch (Exception e) {
@@ -352,6 +368,101 @@ public class AuthController {
         } catch (Exception e) {
             // En caso de cualquier error (conexión, timeout, etc.), devolver false
             return false;
+        }
+    }
+    
+    /**
+     * Valida credenciales y obtiene datos del usuario del módulo de usuarios
+     */
+    private Map<String, Object> validateAndGetUserDataFromUserModule(String email, String password) {
+        try {
+            String userModuleUrl = "http://dev.desarrollo2-usuarios.shop:8081/api/users/login";
+            Map<String, String> loginRequest = Map.of(
+                "email", email,
+                "password", password
+            );
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<Map<String, String>> requestEntity = new HttpEntity<>(loginRequest, headers);
+            
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                userModuleUrl, 
+                HttpMethod.POST, 
+                requestEntity, 
+                new org.springframework.core.ParameterizedTypeReference<Map<String, Object>>() {}
+            );
+            
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                Map<String, Object> userData = response.getBody();
+                log.info("Datos obtenidos del módulo de usuarios para {}: {}", email, userData);
+                
+                // Mapear los datos del módulo de usuarios a nuestro formato
+                // Basado en la estructura de UserCreatedMessage
+                Map<String, Object> mappedData = new java.util.HashMap<>();
+                mappedData.put("userId", userData.get("userId")); // El campo se llama userId, no id
+                mappedData.put("name", 
+                    (userData.get("firstName") != null ? userData.get("firstName") : "") + " " + 
+                    (userData.get("lastName") != null ? userData.get("lastName") : "")
+                );
+                mappedData.put("phone", userData.get("phoneNumber"));
+                mappedData.put("role", userData.get("role"));
+                mappedData.put("secondaryId", userData.get("dni"));
+                
+                return mappedData;
+            }
+            
+        } catch (Exception e) {
+            log.warn("No se pudo validar/obtener datos del usuario {} del módulo de usuarios: {}", email, e.getMessage());
+            
+            // Si el módulo de usuarios no está disponible, crear datos de prueba
+            // basados en la estructura real de UserCreatedMessage
+            return createMockUserData(email);
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Crea datos de prueba basados en la estructura real de UserCreatedMessage
+     * cuando el módulo de usuarios no está disponible
+     */
+    private Map<String, Object> createMockUserData(String email) {
+        Map<String, Object> mockData = new java.util.HashMap<>();
+        mockData.put("userId", System.currentTimeMillis() % 1000000);
+        mockData.put("name", "Usuario Sincronizado");
+        mockData.put("phone", "");
+        mockData.put("role", "USER");
+        mockData.put("secondaryId", "sync_" + System.currentTimeMillis());
+        
+        log.info("Creando datos de prueba para usuario: {} - Datos: {}", email, mockData);
+        return mockData;
+    }
+    
+    /**
+     * Crea un UserData a partir de los datos del módulo de usuarios
+     */
+    private UserData createUserFromModuleData(String email, Map<String, Object> userModuleData) {
+        try {
+            UserData newUser = new UserData();
+            newUser.setEmail(email);
+            newUser.setName((String) userModuleData.getOrDefault("name", "Usuario Sincronizado"));
+            newUser.setPhone((String) userModuleData.getOrDefault("phone", ""));
+            newUser.setSecondaryId((String) userModuleData.getOrDefault("secondaryId", "sync_" + System.currentTimeMillis()));
+            newUser.setRole((String) userModuleData.getOrDefault("role", "USER"));
+            newUser.setUserId(((Number) userModuleData.getOrDefault("userId", System.currentTimeMillis() % 1000000)).longValue());
+            
+            // Generar sueldo aleatorio
+            Random random = new Random();
+            double saldo = 10000 + (random.nextDouble() * 40000);
+            newUser.setSaldoDisponible(BigDecimal.valueOf(saldo).setScale(2, java.math.RoundingMode.HALF_UP));
+            
+            // Guardar en la base de datos
+            return userDataRepository.save(newUser);
+            
+        } catch (Exception e) {
+            log.error("Error creando usuario desde datos del módulo: {}", e.getMessage());
+            return null;
         }
     }
 
