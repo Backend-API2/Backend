@@ -11,6 +11,7 @@ import backend_api.Backend.Repository.UserDataRepository;
 import backend_api.Backend.Auth.JwtUtil;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -289,7 +290,16 @@ public class AuthController {
             return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
             
         } catch (Exception e) {
-            // En caso de error inesperado, devolver 401 para mantener consistencia con tests
+            // En caso de error inesperado, devolver 500 para excepciones de base de datos
+            // y 401 para otros errores de autenticación
+            if (e instanceof DataAccessException || 
+                e.getMessage() != null && (
+                    e.getMessage().toLowerCase().contains("database") ||
+                    e.getMessage().toLowerCase().contains("sql") ||
+                    e.getMessage().toLowerCase().contains("connection")
+                )) {
+                return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+            }
             return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
         }
     }
