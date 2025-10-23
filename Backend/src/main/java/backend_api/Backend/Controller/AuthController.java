@@ -18,6 +18,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.http.HttpEntity;
+import java.util.List;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -155,7 +156,7 @@ public class AuthController {
             User savedUser = userRepository.save(user);
             
             // Generate token with appropriate role
-            String token = jwtUtil.generateToken(savedUser.getEmail());
+            String token = jwtUtil.generateToken(savedUser.getEmail(), 86400000L, List.of(savedUser.getRole().toString()));
             
             AuthResponse response = new AuthResponse(
                 token, 
