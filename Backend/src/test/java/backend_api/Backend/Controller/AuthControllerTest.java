@@ -518,13 +518,13 @@ class AuthControllerTest {
         request.setPassword("password123");
         request.setName("Admin User");
         request.setPhone("123456789");
-        request.setRole("MERCHANT");
+        request.setRole("ADMIN");
 
         User savedUser = new User();
         savedUser.setId(1L);
         savedUser.setEmail("admin@example.com");
         savedUser.setName("Admin User");
-        savedUser.setRole(UserRole.MERCHANT);
+        savedUser.setRole(UserRole.ADMIN);
         savedUser.setSaldo_disponible(null); // Admin should not have saldo
 
         when(userRepository.existsByEmail("admin@example.com")).thenReturn(false);
@@ -538,7 +538,7 @@ class AuthControllerTest {
         // Then
         assertEquals(201, response.getStatusCode().value());
         assertNotNull(response.getBody());
-        assertEquals("MERCHANT", response.getBody().getRole());
+        assertEquals("ADMIN", response.getBody().getRole());
 
         verify(userRepository).existsByEmail("admin@example.com");
         verify(passwordEncoder).encode("password123");
