@@ -149,10 +149,13 @@ public class CoreWebhookController {
             // Procesar la solicitud de pago
             Map<String, Object> result = paymentRequestProcessorService.processPaymentRequest(message);
 
-            // Enviar ACK si es necesario
-            String subscriptionId = extractSubscriptionIdFromPaymentRequest(message);
-            if (subscriptionId != null) {
-                coreHubService.sendAck(message.getMessageId(), subscriptionId);
+            // Enviar ACK solo si el procesamiento fue exitoso
+            Boolean success = (Boolean) result.get("success");
+            if (Boolean.TRUE.equals(success)) {
+                String subscriptionId = extractSubscriptionIdFromPaymentRequest(message);
+                if (subscriptionId != null) {
+                    coreHubService.sendAck(message.getMessageId(), subscriptionId);
+                }
             }
 
             return ResponseEntity.ok(result);
