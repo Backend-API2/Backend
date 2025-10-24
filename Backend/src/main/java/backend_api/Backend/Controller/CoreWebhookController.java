@@ -6,7 +6,6 @@ import backend_api.Backend.messaging.service.CoreEventProcessorService;
 import backend_api.Backend.messaging.service.UserEventProcessorService;
 import backend_api.Backend.messaging.service.CoreHubService;
 import backend_api.Backend.messaging.service.PaymentRequestProcessorService;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;

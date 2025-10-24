@@ -119,29 +119,32 @@ public class PaymentRequestProcessorService {
         // Aquí integrarías con tu lógica de creación de pagos existente
         // Por ahora retornamos los datos estructurados
         
-        return Map.of(
-            "idCorrelacion", idCorrelacion,
-            "idUsuario", idUsuario,
-            "idPrestador", idPrestador,
-            "idSolicitud", idSolicitud,
-            "montoSubtotal", montoSubtotal,
-            "impuestos", impuestos,
-            "comisiones", comisiones,
-            "montoTotal", montoTotal,
-            "moneda", moneda,
-            "metodoPreferido", metodoPreferido,
-            "status", "PENDING",
-            "createdAt", java.time.LocalDateTime.now().toString(),
-            "userInfo", Map.of(
-                "name", userData.getName(),
-                "email", userData.getEmail(),
-                "phone", userData.getPhone()
-            ),
-            "providerInfo", Map.of(
-                "name", providerData.getName(),
-                "email", providerData.getEmail(),
-                "phone", providerData.getPhone()
-            )
-        );
+        Map<String, Object> paymentData = new java.util.HashMap<>();
+        paymentData.put("idCorrelacion", idCorrelacion);
+        paymentData.put("idUsuario", idUsuario);
+        paymentData.put("idPrestador", idPrestador);
+        paymentData.put("idSolicitud", idSolicitud);
+        paymentData.put("montoSubtotal", montoSubtotal);
+        paymentData.put("impuestos", impuestos);
+        paymentData.put("comisiones", comisiones);
+        paymentData.put("montoTotal", montoTotal);
+        paymentData.put("moneda", moneda);
+        paymentData.put("metodoPreferido", metodoPreferido);
+        paymentData.put("status", "PENDING");
+        paymentData.put("createdAt", java.time.LocalDateTime.now().toString());
+        
+        Map<String, Object> userInfo = new java.util.HashMap<>();
+        userInfo.put("name", userData.getName());
+        userInfo.put("email", userData.getEmail());
+        userInfo.put("phone", userData.getPhone());
+        paymentData.put("userInfo", userInfo);
+        
+        Map<String, Object> providerInfo = new java.util.HashMap<>();
+        providerInfo.put("name", providerData.getName());
+        providerInfo.put("email", providerData.getEmail());
+        providerInfo.put("phone", providerData.getPhone());
+        paymentData.put("providerInfo", providerInfo);
+        
+        return paymentData;
     }
 }
