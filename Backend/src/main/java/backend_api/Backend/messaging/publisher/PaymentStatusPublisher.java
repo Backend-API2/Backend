@@ -41,28 +41,6 @@ public class PaymentStatusPublisher {
         }
     }
 
-    public void publishPaymentCoordinationConfirmation(PaymentStatusUpdateMessage message) {
-        try {
-            log.info("Mensaje enviado exitosamente - PaymentId: {}, MessageId: {}",
-                message.getPaymentId(), message.getMessageId());
-
-            CoreResponseMessage coreMessage = new CoreResponseMessage();
-            coreMessage.setMessageId(message.getMessageId());
-            coreMessage.setTimestamp(Instant.now().toString());
-            coreMessage.setSource("payments");
-            coreMessage.setDestination(createDestination("payments", "payment", "coordination_confirmed"));
-            coreMessage.setPayload(createPaymentCoordinationPayload(message));
-
-            coreHubService.publishMessage(coreMessage);
-
-            log.info("Mensaje enviado exitosamente - PaymentId: {}, MessageId: {}",
-                message.getPaymentId(), message.getMessageId());
-        } catch (Exception e) {
-            log.error("Error enviando actualización de estado - PaymentId: {}, Error: {}",
-                message.getPaymentId(), e.getMessage(), e);
-            throw new RuntimeException("Error al enviar mensaje de actualización", e);
-        }
-    }
 
     private CoreResponseMessage.Destination createDestination(String teamName, String domain, String action){
         CoreResponseMessage.Destination dest = new CoreResponseMessage.Destination();
@@ -80,18 +58,6 @@ public class PaymentStatusPublisher {
         payload.put("amountTotal", message.getAmountTotal());
         payload.put("currency", message.getCurrency());
         payload.put("gatewayTxnId", message.getGatewayTxnId());
-        payload.put("updatedAt", message.getUpdatedAt());
-        return payload;
-    }
-    
-
-    private Map<String, Object> createPaymentCoordinationPayload(PaymentStatusUpdateMessage message){
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("paymentId", message.getPaymentId());
-        payload.put("matchingId", message.getMatchingId());
-        payload.put("status", message.getNewStatus());
-        payload.put("amountTotal", message.getAmountTotal());
-        payload.put("currency", message.getCurrency());
         payload.put("updatedAt", message.getUpdatedAt());
         return payload;
     }

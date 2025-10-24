@@ -1,15 +1,12 @@
 package backend_api.Backend.Service.Implementation;
 
 import backend_api.Backend.Entity.payment.Payment;
-import backend_api.Backend.Entity.payment.PaymentMethod;
 import backend_api.Backend.Entity.payment.PaymentStatus;
-import backend_api.Backend.Entity.payment.PaymentEventType;
 import backend_api.Backend.Entity.payment.types.CreditCardPayment;
 import backend_api.Backend.Repository.PaymentRepository;
 import backend_api.Backend.Service.Interface.PaymentAttemptService;
 import backend_api.Backend.Service.Interface.PaymentEventService;
 import backend_api.Backend.messaging.publisher.PaymentStatusPublisher;
-import backend_api.Backend.messaging.publisher.PaymentCoordinationPublisher;
 import backend_api.Backend.messaging.publisher.PaymentMethodSelectedPublisher;
 import backend_api.Backend.messaging.publisher.PaymentTimelineEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,8 +46,6 @@ class PaymentServiceImplTest {
     @Mock
     private PaymentStatusPublisher paymentStatusPublisher;
 
-    @Mock
-    private PaymentCoordinationPublisher paymentCoordinationPublisher;
 
     @Mock
     private PaymentMethodSelectedPublisher paymentMethodSelectedPublisher;
@@ -81,7 +76,6 @@ class PaymentServiceImplTest {
 
         // Mock publishers to avoid errors (using lenient to avoid unnecessary stubbing errors)
         lenient().doNothing().when(paymentStatusPublisher).publishPaymentStatusUpdate(any());
-        lenient().doNothing().when(paymentCoordinationPublisher).publishCoordination(any());
         lenient().doNothing().when(paymentMethodSelectedPublisher).publish(any());
         lenient().doNothing().when(paymentTimelineEventPublisher).publish(any());
     }
