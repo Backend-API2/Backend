@@ -18,6 +18,7 @@ public class CoreResponseMessage {
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", timezone = "UTC")
     private String timestamp;
 
+    @Deprecated
     private String source;
 
     private Destination destination;
@@ -29,7 +30,10 @@ public class CoreResponseMessage {
     @AllArgsConstructor
     @NoArgsConstructor
     public static class Destination {
-        private String channel;
+        private String topic;
         private String eventName;
+        
+        @Deprecated
+        private String channel;
     }
 }

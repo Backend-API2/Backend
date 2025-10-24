@@ -1,7 +1,6 @@
 package backend_api.Backend.messaging.service;
 
 import backend_api.Backend.messaging.dto.CoreResponseMessage;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -42,7 +41,23 @@ public class CoreHubService {
         headers.set("X-API-KEY", apiKey);
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        HttpEntity<CoreResponseMessage> request = new HttpEntity<>(message, headers);
+        Map<String, Object> newFormatMessage = new HashMap<>();
+        newFormatMessage.put("messageId", message.getMessageId());
+        newFormatMessage.put("timestamp", message.getTimestamp());
+        
+        Map<String, Object> destination = new HashMap<>();
+        if (message.getDestination() != null) {
+            String topic = message.getDestination().getTopic();
+            if (topic == null || topic.isEmpty()) {
+                topic = message.getDestination().getChannel();
+            }
+            destination.put("topic", topic);
+            destination.put("eventName", message.getDestination().getEventName());
+        }
+        newFormatMessage.put("destination", destination);
+        newFormatMessage.put("payload", message.getPayload());
+
+        HttpEntity<Map<String, Object>> request = new HttpEntity<>(newFormatMessage, headers);
 
         Map<String, Object> result = new HashMap<>();
 
@@ -53,6 +68,8 @@ public class CoreHubService {
                 log.info("✅ Mensaje publicado exitosamente al CORE - MessageId: {}", message.getMessageId());
                 log.info("📋 Respuesta del CORE Hub: {}", response.getBody());
                 log.info("🔗 URL del CORE Hub: {}", url);
+                log.info("📊 Formato nuevo usado: topic={}, eventName={}", 
+                    destination.get("topic"), destination.get("eventName"));
                 
                 result.put("success", true);
                 result.put("statusCode", response.getStatusCode().value());
@@ -93,20 +110,21 @@ public class CoreHubService {
         log.info("   - userWebhookUrl: {}", userWebhookUrl);
         log.info("   - webhookUrlToUse: {}", webhookUrlToUse);
     
-        Map<String, String> subscriptionData = new HashMap<>();
+        Map<String, Object> subscriptionData = new HashMap<>();
         subscriptionData.put("webhookUrl", webhookUrlToUse);
-        subscriptionData.put("squadName", teamName); // Usar nuestro teamName (payments)
-        subscriptionData.put("topic", String.format("%s.%s.%s", targetTeamName, domain, action));
+        subscriptionData.put("squadName", targetTeamName); 
+        subscriptionData.put("topic", domain); 
         subscriptionData.put("eventName", action);
+        subscriptionData.put("ack", true); 
     
         HttpHeaders headers = new HttpHeaders();
         headers.set("X-API-KEY", apiKey);
         headers.setContentType(MediaType.APPLICATION_JSON);
     
-        HttpEntity<Map<String, String>> request = new HttpEntity<>(subscriptionData, headers);
+        HttpEntity<Map<String, Object>> request = new HttpEntity<>(subscriptionData, headers);
     
         try {
-            log.info("Intentando suscribirse al tópico: {}.{}.{}", targetTeamName, domain, action);
+            log.info("Intentando suscribirse al tópico: {} con eventName: {}", domain, action);
             log.info("URL: {}", url);
             log.info("Webhook URL: {}", webhookUrlToUse);
             log.info("Payload: {}", subscriptionData);
@@ -114,28 +132,27 @@ public class CoreHubService {
             ResponseEntity<String> response = restTemplate.postForEntity(url, request, String.class);
     
             if (response.getStatusCode().is2xxSuccessful()) {
-                log.info("Suscripción exitosa al tópico: {}.{}.{}", targetTeamName, domain, action);
-                log.info("Response: {}", response.getBody());
+                log.info("✅ Suscripción exitosa al tópico: {} con eventName: {}", domain, action);
+                log.info("📋 Response: {}", response.getBody());
             } else {
-                log.error("Error en suscripción - Status: {}, Response: {}",
+                log.error("❌ Error en suscripción - Status: {}, Response: {}",
                     response.getStatusCode(), response.getBody());
                 throw new RuntimeException("Error en suscripción al CORE - Status: " + 
                     response.getStatusCode() + ", Response: " + response.getBody());
             }
     
         } catch (Exception e) {
-            log.error("Error suscribiéndose al tópico: {}", e.getMessage(), e);
+            log.error("❌ Error suscribiéndose al tópico: {}", e.getMessage(), e);
             throw new RuntimeException("Error en suscripción al CORE: " + e.getMessage(), e);
         }
     }
 
 
     public void sendAck(String messageId, String subscriptionId) {
-        String url = String.format("%s/messages/%s/ack", coreHubUrl, messageId);
+        String url = String.format("%s/messages/ack/%s", coreHubUrl, subscriptionId);
 
         Map<String, String> ackData = new HashMap<>();
-        ackData.put("msgId", messageId);
-        ackData.put("subscriptionId", subscriptionId);
+        ackData.put("messageId", messageId);
 
         HttpHeaders headers = new HttpHeaders();
         headers.set("X-API-KEY", apiKey);
@@ -144,17 +161,22 @@ public class CoreHubService {
         HttpEntity<Map<String, String>> request = new HttpEntity<>(ackData, headers);
 
         try {
+            log.info("Enviando ACK - MessageId: {}, SubscriptionId: {}", messageId, subscriptionId);
+            log.info("URL: {}", url);
+            log.info("Payload: {}", ackData);
+            
             ResponseEntity<String> response = restTemplate.postForEntity(url, request, String.class);
 
             if (response.getStatusCode().is2xxSuccessful()) {
-                log.info("ACK enviado exitosamente - MessageId: {}", messageId);
+                log.info("✅ ACK enviado exitosamente - MessageId: {}, SubscriptionId: {}", messageId, subscriptionId);
+                log.info("📋 Response: {}", response.getBody());
             } else {
-                log.error("Error enviando ACK - Status: {}, Response: {}",
+                log.error("❌ Error enviando ACK - Status: {}, Response: {}",
                     response.getStatusCode(), response.getBody());
             }
 
         } catch (Exception e) {
-            log.error("Error enviando ACK: {}", e.getMessage(), e);
+            log.error("❌ Error enviando ACK: {}", e.getMessage(), e);
         }
     }
 

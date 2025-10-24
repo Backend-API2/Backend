@@ -99,9 +99,9 @@ public class PaymentSubscriptionController {
                 "payment-timeline-event"
             },
             "topics", new String[]{
-                "payments.payment.status_updated",
-                "payments.payment.method_selected",
-                "payments.payment.timeline_event"
+                "payment.status_updated",
+                "payment.method_selected",
+                "payment.timeline_event"
             },
             "description", "Eventos disponibles para suscripción desde el módulo de pagos"
         ));

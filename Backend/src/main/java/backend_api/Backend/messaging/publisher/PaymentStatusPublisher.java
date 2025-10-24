@@ -26,8 +26,7 @@ public class PaymentStatusPublisher {
             CoreResponseMessage coreMessage = new CoreResponseMessage();
             coreMessage.setMessageId(message.getMessageId());
             coreMessage.setTimestamp(Instant.now().toString());
-            coreMessage.setSource("payments");
-            coreMessage.setDestination(createDestination("payments","payment", "status_updated"));
+            coreMessage.setDestination(createDestination("payment", "status_updated"));
             coreMessage.setPayload(createPaymentStatusPayload(message));
 
             coreHubService.publishMessage(coreMessage);
@@ -42,9 +41,9 @@ public class PaymentStatusPublisher {
     }
 
 
-    private CoreResponseMessage.Destination createDestination(String teamName, String domain, String action){
+    private CoreResponseMessage.Destination createDestination(String domain, String action){
         CoreResponseMessage.Destination dest = new CoreResponseMessage.Destination();
-        dest.setChannel(teamName + "." + domain + "." + action);
+        dest.setTopic(domain); 
         dest.setEventName(action);
         return dest;
     }

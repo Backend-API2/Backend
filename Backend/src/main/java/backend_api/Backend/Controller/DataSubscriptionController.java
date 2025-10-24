@@ -20,7 +20,6 @@ import org.springframework.web.client.RestTemplate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.ArrayList;
 
 @RestController
 @RequestMapping("/api/data/subscriptions")
@@ -78,9 +77,9 @@ public class DataSubscriptionController {
         return ResponseEntity.ok(Map.of(
             "status", "active",
             "subscriptions", new String[]{
-                "users.user.create_user",
-                "users.user.update_user",
-                "users.user.deactivate_user"
+                "user.create_user",
+                "user.update_user",
+                "user.deactivate_user"
             }
         ));
     }
@@ -254,18 +253,15 @@ public class DataSubscriptionController {
             String currency = (String) paymentData.get("currency");
             Long userId = Long.valueOf(paymentData.get("userId").toString());
             
-            // Crear mensaje para el CORE Hub
             backend_api.Backend.messaging.dto.CoreResponseMessage coreMessage = 
                 new backend_api.Backend.messaging.dto.CoreResponseMessage();
             
             coreMessage.setMessageId("payment_" + paymentId + "_" + System.currentTimeMillis());
             coreMessage.setTimestamp(java.time.Instant.now().toString().substring(0, 23) + "Z");
-            coreMessage.setSource("payments");
             
-            // Crear destino
             backend_api.Backend.messaging.dto.CoreResponseMessage.Destination destination = 
                 new backend_api.Backend.messaging.dto.CoreResponseMessage.Destination();
-            destination.setChannel("payments.payment.status_updated");
+            destination.setTopic("payment"); 
             destination.setEventName("status_updated");
             coreMessage.setDestination(destination);
             
@@ -566,5 +562,4 @@ public class DataSubscriptionController {
                 return "USER";
         }
     }
-
 }
