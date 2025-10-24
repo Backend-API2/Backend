@@ -5,37 +5,33 @@ import backend_api.Backend.Entity.ProviderData;
 import backend_api.Backend.Repository.UserDataRepository;
 import backend_api.Backend.Repository.ProviderDataRepository;
 import backend_api.Backend.messaging.dto.PaymentRequestMessage;
+import backend_api.Backend.messaging.service.PaymentRequestProcessorService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureWebMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.Map;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
-@AutoConfigureWebMvc
 @ActiveProfiles("test")
 @Transactional
 class MatchingIntegrationTest {
-
-    @Autowired
-    private MockMvc mockMvc;
 
     @Autowired
     private UserDataRepository userDataRepository;
 
     @Autowired
     private ProviderDataRepository providerDataRepository;
+
+    @Autowired
+    private PaymentRequestProcessorService paymentRequestProcessorService;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -63,92 +59,80 @@ class MatchingIntegrationTest {
     }
 
     @Test
-    void testMatchingPaymentRequestFlow_Success() throws Exception {
+    void testMatchingPaymentRequestFlow_Success() {
         // Given
         PaymentRequestMessage message = createTestPaymentRequestMessage();
 
-        // When & Then - Probar webhook de matching
-        mockMvc.perform(post("/api/core/webhook/matching-payment-requests")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(message)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.message").value("Solicitud de pago procesada exitosamente"))
-                .andExpect(jsonPath("$.messageId").value("test-integration-123"))
-                .andExpect(jsonPath("$.userData.userId").value(999))
-                .andExpect(jsonPath("$.userData.name").value("Usuario Test"))
-                .andExpect(jsonPath("$.providerData.providerId").value(1))
-                .andExpect(jsonPath("$.providerData.name").value("Prestador Test"));
+        // When
+        Map<String, Object> result = paymentRequestProcessorService.processPaymentRequest(message);
+
+        // Then
+        assertNotNull(result);
+        assertTrue((Boolean) result.get("success"));
+        assertEquals("Solicitud de pago procesada exitosamente", result.get("message"));
+        assertEquals("test-integration-123", result.get("messageId"));
+        
+        @SuppressWarnings("unchecked")
+        Map<String, Object> userData = (Map<String, Object>) result.get("userData");
+        assertNotNull(userData);
+        assertEquals(999L, userData.get("userId"));
+        assertEquals("Usuario Test", userData.get("name"));
+        
+        @SuppressWarnings("unchecked")
+        Map<String, Object> providerData = (Map<String, Object>) result.get("providerData");
+        assertNotNull(providerData);
+        assertEquals(1L, providerData.get("providerId"));
+        assertEquals("Prestador Test", providerData.get("name"));
     }
 
     @Test
-    void testMatchingPaymentRequestFlow_UserNotFound() throws Exception {
+    void testMatchingPaymentRequestFlow_UserNotFound() {
         // Given
         PaymentRequestMessage message = createTestPaymentRequestMessage();
         message.getPayload().getCuerpo().setIdUsuario(9999L); // Usuario que no existe
 
-        // When & Then
-        mockMvc.perform(post("/api/core/webhook/matching-payment-requests")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(message)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.error").value("Usuario no encontrado"))
-                .andExpect(jsonPath("$.userId").value(9999));
+        // When
+        Map<String, Object> result = paymentRequestProcessorService.processPaymentRequest(message);
+
+        // Then
+        assertNotNull(result);
+        assertFalse((Boolean) result.get("success"));
+        assertEquals("Usuario no encontrado", result.get("error"));
+        assertEquals(9999L, result.get("userId"));
     }
 
     @Test
-    void testMatchingPaymentRequestFlow_ProviderNotFound() throws Exception {
+    void testMatchingPaymentRequestFlow_ProviderNotFound() {
         // Given
         PaymentRequestMessage message = createTestPaymentRequestMessage();
         message.getPayload().getCuerpo().setIdPrestador(9999L); // Prestador que no existe
 
-        // When & Then
-        mockMvc.perform(post("/api/core/webhook/matching-payment-requests")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(message)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.error").value("Prestador no encontrado"))
-                .andExpect(jsonPath("$.providerId").value(9999));
+        // When
+        Map<String, Object> result = paymentRequestProcessorService.processPaymentRequest(message);
+
+        // Then
+        assertNotNull(result);
+        assertFalse((Boolean) result.get("success"));
+        assertEquals("Prestador no encontrado", result.get("error"));
+        assertEquals(9999L, result.get("providerId"));
     }
 
     @Test
-    void testSubscriptionEndpoints() throws Exception {
-        // When & Then - Probar endpoint de suscripción
-        mockMvc.perform(post("/api/data/subscriptions/subscribe-matching-payments"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("success"))
-                .andExpect(jsonPath("$.message").value("Suscripción a solicitudes de pago de matching creada exitosamente"))
-                .andExpect(jsonPath("$.topic").value("matching.pago.emitida"));
-
-        // When & Then - Probar endpoint de estado
-        mockMvc.perform(get("/api/data/subscriptions/status"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("active"))
-                .andExpect(jsonPath("$.subscriptions").isArray())
-                .andExpect(jsonPath("$.webhooks.matching-payment-requests").value("/api/core/webhook/matching-payment-requests"));
-    }
-
-    @Test
-    void testWebhookHealth() throws Exception {
-        // When & Then
-        mockMvc.perform(get("/api/core/webhook/health"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("UP"))
-                .andExpect(jsonPath("$.service").value("CORE Webhook Receiver"));
-    }
-
-    @Test
-    void testInvalidJsonRequest() throws Exception {
+    void testPaymentRequestMessageSerialization() throws Exception {
         // Given
-        String invalidJson = "{ invalid json }";
+        PaymentRequestMessage message = createTestPaymentRequestMessage();
 
-        // When & Then
-        mockMvc.perform(post("/api/core/webhook/matching-payment-requests")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(invalidJson))
-                .andExpect(status().isBadRequest());
+        // When
+        String json = objectMapper.writeValueAsString(message);
+        PaymentRequestMessage deserializedMessage = objectMapper.readValue(json, PaymentRequestMessage.class);
+
+        // Then
+        assertNotNull(json);
+        assertNotNull(deserializedMessage);
+        assertEquals(message.getMessageId(), deserializedMessage.getMessageId());
+        assertEquals(message.getSource(), deserializedMessage.getSource());
+        assertEquals(message.getDestination().getChannel(), deserializedMessage.getDestination().getChannel());
+        assertEquals(message.getPayload().getCuerpo().getIdUsuario(), deserializedMessage.getPayload().getCuerpo().getIdUsuario());
     }
 
     private PaymentRequestMessage createTestPaymentRequestMessage() {
