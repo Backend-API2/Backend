@@ -33,6 +33,9 @@ public class CoreHubService {
     @Value("${core.hub.user.webhook.url:https://3aadd844682e.ngrok-free.app/api/core/webhook/user-events}")
     private String userWebhookUrl;
 
+    @Value("${core.hub.matching.webhook.url:https://3aadd844682e.ngrok-free.app/api/core/webhook/matching-payment-requests}")
+    private String matchingWebhookUrl;
+
 
     public Map<String, Object> publishMessage(CoreResponseMessage message) {
         String url = coreHubUrl + "/publish";
@@ -103,6 +106,8 @@ public class CoreHubService {
         String webhookUrlToUse = webhookUrl;
         if ("users".equals(targetTeamName)) {
             webhookUrlToUse = userWebhookUrl;
+        } else if ("matching".equals(targetTeamName)) {
+            webhookUrlToUse = matchingWebhookUrl;
         }
         
         log.info("🔧 Configuración de webhooks:");

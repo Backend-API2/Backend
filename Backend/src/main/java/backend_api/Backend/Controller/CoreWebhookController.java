@@ -1,9 +1,11 @@
 package backend_api.Backend.Controller;
 
 import backend_api.Backend.messaging.dto.CoreEventMessage;
+import backend_api.Backend.messaging.dto.PaymentRequestMessage;
 import backend_api.Backend.messaging.service.CoreEventProcessorService;
 import backend_api.Backend.messaging.service.UserEventProcessorService;
 import backend_api.Backend.messaging.service.CoreHubService;
+import backend_api.Backend.messaging.service.PaymentRequestProcessorService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +28,7 @@ public class CoreWebhookController {
     private final CoreEventProcessorService coreEventProcessorService;
     private final UserEventProcessorService userEventProcessorService;
     private final CoreHubService coreHubService;
+    private final PaymentRequestProcessorService paymentRequestProcessorService;
 
   
     @PostMapping("/payment-events")
@@ -136,6 +139,39 @@ public class CoreWebhookController {
         }
     }
 
+    @PostMapping("/matching-payment-requests")
+    public ResponseEntity<Map<String, Object>> receiveMatchingPaymentRequest(@RequestBody PaymentRequestMessage message) {
+        try {
+            log.info("🔄 Webhook de solicitud de pago de matching recibido - MessageId: {}, EventName: {}, Source: {}",
+                message.getMessageId(),
+                message.getDestination().getEventName(),
+                message.getSource());
+
+            // Procesar la solicitud de pago
+            Map<String, Object> result = paymentRequestProcessorService.processPaymentRequest(message);
+
+            // Enviar ACK si es necesario
+            String subscriptionId = extractSubscriptionIdFromPaymentRequest(message);
+            if (subscriptionId != null) {
+                coreHubService.sendAck(message.getMessageId(), subscriptionId);
+            }
+
+            return ResponseEntity.ok(result);
+
+        } catch (Exception e) {
+            log.error("❌ Error procesando solicitud de pago de matching - MessageId: {}, Error: {}",
+                message.getMessageId(), e.getMessage(), e);
+
+            return ResponseEntity.status(500).body(Map.of(
+                "success", false,
+                "status", "error",
+                "messageId", message.getMessageId(),
+                "error", e.getMessage(),
+                "retryAfter", "30"
+            ));
+        }
+    }
+
     
     @GetMapping("/health")
     public ResponseEntity<Map<String, String>> webhookHealth() {
@@ -153,6 +189,19 @@ public class CoreWebhookController {
             }
         } catch (Exception e) {
             log.warn("No se pudo extraer subscriptionId: {}", e.getMessage());
+        }
+        return null;
+    }
+
+    private String extractSubscriptionIdFromPaymentRequest(PaymentRequestMessage message) {
+        try {
+            // Para PaymentRequestMessage, el subscriptionId podría estar en el payload
+            // o en el idCorrelacion que podemos usar como identificador
+            if (message.getPayload() != null && message.getPayload().getCuerpo() != null) {
+                return message.getPayload().getCuerpo().getIdCorrelacion();
+            }
+        } catch (Exception e) {
+            log.warn("No se pudo extraer subscriptionId de PaymentRequestMessage: {}", e.getMessage());
         }
         return null;
     }

@@ -72,6 +72,34 @@ public class DataSubscriptionController {
         }
     }
 
+    @PostMapping("/subscribe-matching-payments")
+    public ResponseEntity<?> subscribeToMatchingPayments() {
+        log.info("Iniciando suscripción a solicitudes de pago de matching...");
+
+        try {
+            coreHubService.subscribeToTopic(
+                "matching",                    
+                "pago",   
+                "emitida"               
+            );
+
+            log.info("Suscripción a solicitudes de pago de matching creada exitosamente");
+            return ResponseEntity.ok(Map.of(
+                "status", "success",
+                "message", "Suscripción a solicitudes de pago de matching creada exitosamente",
+                "topic", "matching.pago.emitida",
+                "webhookUrl", "https://3aadd844682e.ngrok-free.app/api/core/webhook/matching-payment-requests"
+            ));
+
+        } catch (Exception e) {
+            log.error("Error creando suscripción a matching: {}", e.getMessage());
+            return ResponseEntity.internalServerError().body(Map.of(
+                "status", "error",
+                "message", "Error creando suscripción a matching: " + e.getMessage()
+            ));
+        }
+    }
+
     @GetMapping("/status")
     public ResponseEntity<?> getSubscriptionStatus() {
         return ResponseEntity.ok(Map.of(
@@ -79,8 +107,14 @@ public class DataSubscriptionController {
             "subscriptions", new String[]{
                 "user.create_user",
                 "user.update_user",
-                "user.deactivate_user"
-            }
+                "user.deactivate_user",
+                "pago.emitida"
+            },
+            "webhooks", Map.of(
+                "user-events", "/api/core/webhook/user-events",
+                "payment-events", "/api/core/webhook/payment-events",
+                "matching-payment-requests", "/api/core/webhook/matching-payment-requests"
+            )
         ));
     }
 
