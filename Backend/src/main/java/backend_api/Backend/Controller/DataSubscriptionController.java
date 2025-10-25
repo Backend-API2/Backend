@@ -566,11 +566,14 @@ public class DataSubscriptionController {
             
             if (response.getStatusCode().is2xxSuccessful()) {
                 Map<String, Object> responseBody = response.getBody();
-                Map<String, Object> userInfo = (Map<String, Object>) responseBody.get("userInfo");
-                
-                if (userInfo != null) {
-                    log.info("Datos obtenidos del módulo de usuarios: {}", userInfo);
-                    return userInfo;
+                if (responseBody != null) {
+                    Object userInfoObj = responseBody.get("userInfo");
+                    if (userInfoObj instanceof Map) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> userInfo = (Map<String, Object>) userInfoObj;
+                        log.info("Datos obtenidos del módulo de usuarios: {}", userInfo);
+                        return userInfo;
+                    }
                 }
             }
             

@@ -2,9 +2,12 @@ package backend_api.Backend.messaging.service;
 
 import backend_api.Backend.Entity.UserData;
 import backend_api.Backend.Entity.ProviderData;
+import backend_api.Backend.Entity.payment.Payment;
 import backend_api.Backend.Repository.UserDataRepository;
 import backend_api.Backend.Repository.ProviderDataRepository;
+import backend_api.Backend.Service.Interface.PaymentService;
 import backend_api.Backend.messaging.dto.PaymentRequestMessage;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,6 +31,12 @@ class PaymentRequestProcessorServiceTest {
 
     @Mock
     private ProviderDataRepository providerDataRepository;
+
+    @Mock
+    private PaymentService paymentService;
+
+    @Mock
+    private ObjectMapper objectMapper;
 
     @InjectMocks
     private PaymentRequestProcessorService paymentRequestProcessorService;
@@ -61,6 +70,20 @@ class PaymentRequestProcessorServiceTest {
         // Given
         when(userDataRepository.findByUserId(999L)).thenReturn(Optional.of(userData));
         when(providerDataRepository.findByProviderId(1L)).thenReturn(Optional.of(providerData));
+        
+        // Mock PaymentService
+        Payment mockPayment = new Payment();
+        mockPayment.setId(1L);
+        mockPayment.setUser_id(999L);
+        mockPayment.setProvider_id(1L);
+        when(paymentService.createPayment(any(Payment.class))).thenReturn(mockPayment);
+        
+        // Mock ObjectMapper
+        try {
+            when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        } catch (Exception e) {
+            // This won't happen in tests
+        }
 
         // When
         Map<String, Object> result = paymentRequestProcessorService.processPaymentRequest(message);
@@ -74,6 +97,7 @@ class PaymentRequestProcessorServiceTest {
         // Verificar que se buscó en los repositorios
         verify(userDataRepository).findByUserId(999L);
         verify(providerDataRepository).findByProviderId(1L);
+        verify(paymentService).createPayment(any(Payment.class));
     }
 
     @Test
@@ -135,6 +159,20 @@ class PaymentRequestProcessorServiceTest {
         // Given
         when(userDataRepository.findByUserId(999L)).thenReturn(Optional.of(userData));
         when(providerDataRepository.findByProviderId(1L)).thenReturn(Optional.of(providerData));
+        
+        // Mock PaymentService
+        Payment mockPayment = new Payment();
+        mockPayment.setId(1L);
+        mockPayment.setUser_id(999L);
+        mockPayment.setProvider_id(1L);
+        when(paymentService.createPayment(any(Payment.class))).thenReturn(mockPayment);
+        
+        // Mock ObjectMapper
+        try {
+            when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        } catch (Exception e) {
+            // This won't happen in tests
+        }
 
         // When
         Map<String, Object> result = paymentRequestProcessorService.processPaymentRequest(message);

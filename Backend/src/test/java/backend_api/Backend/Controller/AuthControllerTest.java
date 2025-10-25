@@ -7,6 +7,7 @@ import backend_api.Backend.DTO.auth.RegisterRequest;
 import backend_api.Backend.Entity.user.User;
 import backend_api.Backend.Entity.user.UserRole;
 import backend_api.Backend.Repository.UserRepository;
+import backend_api.Backend.Repository.UserDataRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,6 +34,9 @@ class AuthControllerTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private UserDataRepository userDataRepository;
 
     @Mock
     private PasswordEncoder passwordEncoder;
@@ -129,6 +133,8 @@ class AuthControllerTest {
         user.setName("Test User");
         user.setRole(UserRole.USER);
 
+        // Mock userDataRepository first (new priority)
+        when(userDataRepository.findByEmail("test@example.com")).thenReturn(Optional.empty());
         when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("password123", "encodedPassword")).thenReturn(true);
         when(jwtUtil.generateToken("test@example.com", 86400000L, List.of("USER"))).thenReturn("jwt-token");
@@ -145,6 +151,7 @@ class AuthControllerTest {
         assertEquals("Test User", response.getBody().getName());
         assertEquals("USER", response.getBody().getRole());
 
+        verify(userDataRepository).findByEmail("test@example.com");
         verify(userRepository).findByEmail("test@example.com");
         verify(passwordEncoder).matches("password123", "encodedPassword");
         verify(jwtUtil).generateToken("test@example.com", 86400000L, List.of("USER"));
@@ -157,6 +164,7 @@ class AuthControllerTest {
         request.setEmail("nonexistent@example.com");
         request.setPassword("password123");
 
+        when(userDataRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
         when(userRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
 
         // When
@@ -184,6 +192,7 @@ class AuthControllerTest {
         user.setRole(UserRole.USER);
 
         when(jwtUtil.getSubject(token)).thenReturn("test@example.com");
+        when(userDataRepository.findByEmail("test@example.com")).thenReturn(Optional.empty());
         when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
 
         // When
@@ -198,6 +207,7 @@ class AuthControllerTest {
         assertNull(response.getBody().getPassword()); // Password should be null
 
         verify(jwtUtil).getSubject(token);
+        verify(userDataRepository).findByEmail("test@example.com");
         verify(userRepository).findByEmail("test@example.com");
     }
 
@@ -354,6 +364,7 @@ class AuthControllerTest {
         // Then
         assertEquals(401, response.getStatusCode().value());
         assertNull(response.getBody());
+        verify(userDataRepository).findByEmail("test@example.com");
         verify(userRepository).findByEmail("test@example.com");
     }
 
@@ -364,6 +375,7 @@ class AuthControllerTest {
         request.setEmail("test@example.com");
         request.setPassword("password123");
 
+        when(userDataRepository.findByEmail("test@example.com")).thenReturn(Optional.empty());
         when(userRepository.findByEmail("test@example.com")).thenThrow(new RuntimeException("Database error"));
 
         // When
@@ -372,6 +384,7 @@ class AuthControllerTest {
         // Then
         assertEquals(500, response.getStatusCode().value());
         assertNull(response.getBody());
+        verify(userDataRepository).findByEmail("test@example.com");
         verify(userRepository).findByEmail("test@example.com");
     }
 
@@ -383,6 +396,7 @@ class AuthControllerTest {
         String email = "nonexistent@example.com";
 
         when(jwtUtil.getSubject(token)).thenReturn(email);
+        when(userDataRepository.findByEmail(email)).thenReturn(Optional.empty());
         when(userRepository.findByEmail(email)).thenReturn(Optional.empty());
 
         // When
@@ -459,6 +473,7 @@ class AuthControllerTest {
         user.setName("Test User");
         user.setRole(UserRole.USER);
 
+        when(userDataRepository.findByEmail("test@example.com")).thenReturn(Optional.empty());
         when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("wrongpassword", "encodedPassword")).thenReturn(false);
 
@@ -469,6 +484,7 @@ class AuthControllerTest {
         assertEquals(401, response.getStatusCode().value());
         assertNull(response.getBody());
 
+        verify(userDataRepository).findByEmail("test@example.com");
         verify(userRepository).findByEmail("test@example.com");
         verify(passwordEncoder).matches("wrongpassword", "encodedPassword");
         verify(jwtUtil, never()).generateToken(anyString());
@@ -590,6 +606,7 @@ class AuthControllerTest {
         String email = "nonexistent@example.com";
 
         when(jwtUtil.getSubject(token)).thenReturn(email);
+        when(userDataRepository.findByEmail(email)).thenReturn(Optional.empty());
         when(userRepository.findByEmail(email)).thenReturn(Optional.empty());
 
         // When
