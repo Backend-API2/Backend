@@ -370,7 +370,11 @@ public class DataSubscriptionController {
             
             log.info("Validando usuario usando datos sincronizados: {}", email);
             
-            Optional<UserData> userDataOpt = userDataRepository.findByEmail(email);
+            // Manejar duplicados temporalmente - tomar el más reciente
+            List<UserData> userDataList = userDataRepository.findAllByEmail(email);
+            Optional<UserData> userDataOpt = userDataList.isEmpty() ? 
+                Optional.empty() : 
+                Optional.of(userDataList.get(0)); // Tomar el primero (más reciente por orden de creación)
             
             if (userDataOpt.isPresent()) {
                 UserData userData = userDataOpt.get();
@@ -460,7 +464,11 @@ public class DataSubscriptionController {
     @GetMapping("/users/{email}/role")
     public ResponseEntity<Map<String, Object>> getUserRole(@PathVariable String email) {
         try {
-            Optional<UserData> userDataOpt = userDataRepository.findByEmail(email);
+            // Manejar duplicados temporalmente - tomar el más reciente
+            List<UserData> userDataList = userDataRepository.findAllByEmail(email);
+            Optional<UserData> userDataOpt = userDataList.isEmpty() ? 
+                Optional.empty() : 
+                Optional.of(userDataList.get(0)); // Tomar el primero (más reciente por orden de creación)
             if (userDataOpt.isPresent()) {
                 UserData userData = userDataOpt.get();
                 String systemRole = convertUserModuleRoleToSystemRole(userData.getRole());

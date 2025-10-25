@@ -2,6 +2,8 @@ package backend_api.Backend.messaging.service;
 
 import backend_api.Backend.messaging.dto.*;
 import backend_api.Backend.Service.Implementation.DataStorageServiceImpl;
+import backend_api.Backend.Repository.ProviderDataRepository;
+import backend_api.Backend.Entity.ProviderData;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +20,7 @@ public class UserEventProcessorService {
 
     private final ObjectMapper objectMapper;
     private final DataStorageServiceImpl dataStorageService;
+    private final ProviderDataRepository providerDataRepository;
 
     public void processUserCreatedFromCore(CoreEventMessage coreMessage) {
         log.info("Procesando evento de usuario creado del CORE - MessageId: {}", coreMessage.getMessageId());
@@ -37,22 +40,31 @@ public class UserEventProcessorService {
             log.info("Usuario creado - UserId: {}, Email: {}, Role: {}",
                 userId, email, role);
 
-            Map<String, Object> userData = new java.util.HashMap<>();
-            userData.put("name", (firstName != null ? firstName : "") + 
-                               " " + (lastName != null ? lastName : ""));
-            userData.put("email", email);
-            userData.put("phone", phoneNumber);
-            userData.put("role", role);
-            userData.put("dni", dni);
-            
-            // Generar sueldo aleatorio entre $10,000 y $50,000 (igual que en la tabla principal)
-            Random random = new Random();
-            double saldo = 10000 + (random.nextDouble() * 40000);
-            userData.put("saldoDisponible", BigDecimal.valueOf(saldo).setScale(2, java.math.RoundingMode.HALF_UP));
+            // Separar lógica según el rol
+            if ("PRESTADOR".equals(role)) {
+                // Guardar PRESTADOR en provider_data
+                saveProviderData(userId, email, firstName, lastName, phoneNumber, dni);
+                log.info("Prestador guardado en provider_data - ProviderId: {}, Email: {}", userId, email);
+            } else {
+                // Guardar CLIENTE y ADMIN en user_data
+                Map<String, Object> userData = new java.util.HashMap<>();
+                userData.put("name", (firstName != null ? firstName : "") + 
+                                   " " + (lastName != null ? lastName : ""));
+                userData.put("email", email);
+                userData.put("phone", phoneNumber);
+                userData.put("role", role);
+                userData.put("dni", dni);
+                
+                // Generar sueldo aleatorio entre $10,000 y $50,000 (solo para CLIENTE)
+                if ("CLIENTE".equals(role)) {
+                    Random random = new Random();
+                    double saldo = 10000 + (random.nextDouble() * 40000);
+                    userData.put("saldoDisponible", BigDecimal.valueOf(saldo).setScale(2, java.math.RoundingMode.HALF_UP));
+                }
 
-            dataStorageService.saveUserData(userId, userData, coreMessage.getMessageId());
-            
-            log.info("Usuario guardado exitosamente en BD - UserId: {}, Saldo: {}", userId, saldo);
+                dataStorageService.saveUserData(userId, userData, coreMessage.getMessageId());
+                log.info("Usuario guardado en user_data - UserId: {}, Role: {}", userId, role);
+            }
 
         } catch (Exception e) {
             log.error("Error procesando usuario creado - MessageId: {}, Error: {}",
@@ -156,5 +168,32 @@ public class UserEventProcessorService {
     private String extractString(Map<String, Object> payload, String key) {
         Object value = payload.get(key);
         return value != null ? value.toString() : null;
+    }
+
+    /**
+     * Guarda datos de prestador en provider_data
+     */
+    private void saveProviderData(Long providerId, String email, String firstName, String lastName, 
+                                 String phoneNumber, String dni) {
+        try {
+            ProviderData providerData = new ProviderData();
+            providerData.setProviderId(providerId);
+            providerData.setEmail(email);
+            providerData.setName((firstName != null ? firstName : "") + 
+                               " " + (lastName != null ? lastName : ""));
+            providerData.setPhone(phoneNumber);
+            providerData.setSecondaryId(dni);
+            providerData.setCreatedAt(java.time.LocalDateTime.now());
+            providerData.setUpdatedAt(java.time.LocalDateTime.now());
+            
+            providerDataRepository.save(providerData);
+            log.info("ProviderData guardado exitosamente - ProviderId: {}, Name: {}", 
+                providerId, providerData.getName());
+                
+        } catch (Exception e) {
+            log.error("Error guardando ProviderData - ProviderId: {}, Error: {}", 
+                providerId, e.getMessage(), e);
+            throw new RuntimeException("Error guardando datos de prestador", e);
+        }
     }
 }

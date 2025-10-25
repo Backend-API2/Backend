@@ -4,8 +4,10 @@ import backend_api.Backend.Auth.JwtUtil;
 import backend_api.Backend.Entity.user.User;
 import backend_api.Backend.Entity.user.UserRole;
 import backend_api.Backend.Entity.UserData;
+import backend_api.Backend.Entity.ProviderData;
 import backend_api.Backend.Repository.UserRepository;
 import backend_api.Backend.Repository.UserDataRepository;
+import backend_api.Backend.Repository.ProviderDataRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -18,6 +20,7 @@ public class AuthenticationService {
     private final JwtUtil jwtUtil;
     private final UserRepository userRepository;
     private final UserDataRepository userDataRepository;
+    private final ProviderDataRepository providerDataRepository;
 
     public User getUserFromToken(String authHeader) {
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
@@ -46,7 +49,21 @@ public class AuthenticationService {
             return user;
         }
 
-        // Si no está en UserData, buscar en User (tabla local)
+        // Buscar en ProviderData (prestadores sincronizados)
+        Optional<ProviderData> providerDataOpt = providerDataRepository.findByEmail(email);
+        if (providerDataOpt.isPresent()) {
+            ProviderData providerData = providerDataOpt.get();
+            // Convertir ProviderData a User para mantener compatibilidad
+            User user = new User();
+            user.setId(providerData.getProviderId());
+            user.setEmail(providerData.getEmail());
+            user.setName(providerData.getName());
+            user.setPhone(providerData.getPhone());
+            user.setRole(UserRole.MERCHANT);
+            return user;
+        }
+
+        // Si no está en UserData ni ProviderData, buscar en User (tabla local)
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new SecurityException("Usuario no encontrado para el token proporcionado"));
     }

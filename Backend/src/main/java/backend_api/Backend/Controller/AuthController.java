@@ -6,8 +6,10 @@ import backend_api.Backend.DTO.auth.AuthResponse;
 import backend_api.Backend.Entity.user.User;
 import backend_api.Backend.Entity.user.UserRole;
 import backend_api.Backend.Entity.UserData;
+import backend_api.Backend.Entity.ProviderData;
 import backend_api.Backend.Repository.UserRepository;
 import backend_api.Backend.Repository.UserDataRepository;
+import backend_api.Backend.Repository.ProviderDataRepository;
 import backend_api.Backend.Auth.JwtUtil;
 
 import lombok.extern.slf4j.Slf4j;
@@ -51,6 +53,9 @@ public class AuthController {
     
     @Autowired
     private UserDataRepository userDataRepository;
+    
+    @Autowired
+    private ProviderDataRepository providerDataRepository;
     
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -282,6 +287,39 @@ public class AuthController {
                 log.info("❌ Usuario sincronizado NO encontrado para email: {}", email);
             }
             
+            // 1.5. Buscar en prestadores sincronizados (provider_data table)
+            Optional<ProviderData> syncedProvider = providerDataRepository.findByEmail(email);
+            log.info("🔍 Buscando prestador sincronizado para email: {}", email);
+            if (syncedProvider.isPresent()) {
+                ProviderData providerData = syncedProvider.get();
+                log.info("✅ Prestador sincronizado encontrado - providerId: {}, email: {}", providerData.getProviderId(), providerData.getEmail());
+                
+                // Para prestadores sincronizados, usar contraseña por defecto o validar contra módulo externo
+                boolean passwordValid = validatePasswordWithUserModule(email, password) || 
+                                      "password123".equals(password) || 
+                                      "123456".equals(password);
+                
+                log.info("🔐 Validación de contraseña para prestador: {}", passwordValid);
+                
+                if (passwordValid) {
+                    String token = jwtUtil.generateToken(providerData.getEmail(), 86400000L, List.of("MERCHANT"));
+                    AuthResponse response = new AuthResponse(
+                        token, 
+                        providerData.getProviderId(), 
+                        providerData.getEmail(), 
+                        providerData.getName(), 
+                        "MERCHANT"
+                    );
+                    log.info("🎉 Login exitoso con prestador sincronizado - providerId: {}", providerData.getProviderId());
+                    return new ResponseEntity<>(response, HttpStatus.OK);
+                } else {
+                    log.warn("❌ Contraseña inválida para prestador sincronizado: {}", email);
+                    return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+                }
+            } else {
+                log.info("❌ Prestador sincronizado NO encontrado para email: {}", email);
+            }
+            
             // 2. Si no está en usuarios sincronizados, buscar en usuarios locales (users table)
             Optional<User> localUser = userRepository.findByEmail(email);
             if (localUser.isPresent()) {
@@ -414,14 +452,14 @@ public class AuthController {
                 // Mapear los datos del módulo de usuarios a nuestro formato
                 // Basado en la estructura de UserCreatedMessage
                 Map<String, Object> mappedData = new java.util.HashMap<>();
-                mappedData.put("userId", userData.get("userId")); // El campo se llama userId, no id
+                mappedData.put("userId", userData != null ? userData.get("userId") : null); // El campo se llama userId, no id
                 mappedData.put("name", 
-                    (userData.get("firstName") != null ? userData.get("firstName") : "") + " " + 
-                    (userData.get("lastName") != null ? userData.get("lastName") : "")
+                    (userData != null && userData.get("firstName") != null ? userData.get("firstName") : "") + " " + 
+                    (userData != null && userData.get("lastName") != null ? userData.get("lastName") : "")
                 );
-                mappedData.put("phone", userData.get("phoneNumber"));
-                mappedData.put("role", userData.get("role"));
-                mappedData.put("secondaryId", userData.get("dni"));
+                mappedData.put("phone", userData != null ? userData.get("phoneNumber") : null);
+                mappedData.put("role", userData != null ? userData.get("role") : null);
+                mappedData.put("secondaryId", userData != null ? userData.get("dni") : null);
                 
                 return mappedData;
             }
@@ -546,6 +584,24 @@ public class AuthController {
                 user.setPhone(userData.getPhone());
                 user.setRole(UserRole.valueOf(convertUserModuleRoleToSystemRole(userData.getRole())));
                 user.setSaldo_disponible(userData.getSaldoDisponible());
+                user.setPassword(null); // NO devolver la password
+                
+                return new ResponseEntity<>(user, HttpStatus.OK);
+            }
+            
+            // 1.5. Buscar en prestadores sincronizados (provider_data table)
+            Optional<ProviderData> syncedProvider = providerDataRepository.findByEmail(email);
+            if (syncedProvider.isPresent()) {
+                ProviderData providerData = syncedProvider.get();
+                
+                // Convertir ProviderData a User para compatibilidad
+                User user = new User();
+                user.setId(providerData.getProviderId());
+                user.setEmail(providerData.getEmail());
+                user.setName(providerData.getName());
+                user.setPhone(providerData.getPhone());
+                user.setRole(UserRole.MERCHANT);
+                user.setSaldo_disponible(null); // Los prestadores no tienen saldo
                 user.setPassword(null); // NO devolver la password
                 
                 return new ResponseEntity<>(user, HttpStatus.OK);

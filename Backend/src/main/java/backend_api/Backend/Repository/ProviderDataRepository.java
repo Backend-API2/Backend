@@ -8,5 +8,7 @@ import java.util.Optional;
 @Repository
 public interface ProviderDataRepository extends JpaRepository<ProviderData, Long> {
     Optional<ProviderData> findByProviderId(Long providerId);
+    Optional<ProviderData> findByEmail(String email);
     boolean existsByProviderId(Long providerId);
+    boolean existsByEmail(String email);
 }

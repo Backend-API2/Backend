@@ -8,6 +8,7 @@ import backend_api.Backend.Entity.user.User;
 import backend_api.Backend.Entity.user.UserRole;
 import backend_api.Backend.Repository.UserRepository;
 import backend_api.Backend.Repository.UserDataRepository;
+import backend_api.Backend.Repository.ProviderDataRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,7 +16,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
@@ -37,6 +37,9 @@ class AuthControllerTest {
 
     @Mock
     private UserDataRepository userDataRepository;
+
+    @Mock
+    private ProviderDataRepository providerDataRepository;
 
     @Mock
     private PasswordEncoder passwordEncoder;
@@ -135,6 +138,9 @@ class AuthControllerTest {
 
         // Mock userDataRepository first (new priority)
         when(userDataRepository.findByEmail("test@example.com")).thenReturn(Optional.empty());
+        // Mock providerDataRepository second
+        when(providerDataRepository.findByEmail("test@example.com")).thenReturn(Optional.empty());
+        // Mock userRepository third (local users)
         when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("password123", "encodedPassword")).thenReturn(true);
         when(jwtUtil.generateToken("test@example.com", 86400000L, List.of("USER"))).thenReturn("jwt-token");
@@ -165,6 +171,7 @@ class AuthControllerTest {
         request.setPassword("password123");
 
         when(userDataRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
+        when(providerDataRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
         when(userRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
 
         // When
@@ -193,6 +200,7 @@ class AuthControllerTest {
 
         when(jwtUtil.getSubject(token)).thenReturn("test@example.com");
         when(userDataRepository.findByEmail("test@example.com")).thenReturn(Optional.empty());
+        when(providerDataRepository.findByEmail("test@example.com")).thenReturn(Optional.empty());
         when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
 
         // When
@@ -342,12 +350,18 @@ class AuthControllerTest {
         request.setEmail("invalid-email");
         request.setPassword("password123");
 
+        when(userDataRepository.findByEmail("invalid-email")).thenReturn(Optional.empty());
+        when(providerDataRepository.findByEmail("invalid-email")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("invalid-email")).thenReturn(Optional.empty());
+
         // When
         ResponseEntity<AuthResponse> response = authController.login(request);
 
         // Then
         assertEquals(401, response.getStatusCode().value());
         assertNull(response.getBody());
+        verify(userDataRepository).findByEmail("invalid-email");
+        verify(providerDataRepository).findByEmail("invalid-email");
         verify(userRepository).findByEmail("invalid-email");
     }
 
@@ -358,6 +372,10 @@ class AuthControllerTest {
         request.setEmail("test@example.com");
         request.setPassword("12345"); // Less than 6 characters
 
+        when(userDataRepository.findByEmail("test@example.com")).thenReturn(Optional.empty());
+        when(providerDataRepository.findByEmail("test@example.com")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.empty());
+
         // When
         ResponseEntity<AuthResponse> response = authController.login(request);
 
@@ -365,6 +383,7 @@ class AuthControllerTest {
         assertEquals(401, response.getStatusCode().value());
         assertNull(response.getBody());
         verify(userDataRepository).findByEmail("test@example.com");
+        verify(providerDataRepository).findByEmail("test@example.com");
         verify(userRepository).findByEmail("test@example.com");
     }
 
@@ -376,6 +395,7 @@ class AuthControllerTest {
         request.setPassword("password123");
 
         when(userDataRepository.findByEmail("test@example.com")).thenReturn(Optional.empty());
+        when(providerDataRepository.findByEmail("test@example.com")).thenReturn(Optional.empty());
         when(userRepository.findByEmail("test@example.com")).thenThrow(new RuntimeException("Database error"));
 
         // When
@@ -397,6 +417,7 @@ class AuthControllerTest {
 
         when(jwtUtil.getSubject(token)).thenReturn(email);
         when(userDataRepository.findByEmail(email)).thenReturn(Optional.empty());
+        when(providerDataRepository.findByEmail(email)).thenReturn(Optional.empty());
         when(userRepository.findByEmail(email)).thenReturn(Optional.empty());
 
         // When
@@ -418,6 +439,8 @@ class AuthControllerTest {
         String email = "test@example.com";
 
         when(jwtUtil.getSubject(token)).thenReturn(email);
+        when(userDataRepository.findByEmail(email)).thenReturn(Optional.empty());
+        when(providerDataRepository.findByEmail(email)).thenReturn(Optional.empty());
         when(userRepository.findByEmail(email)).thenThrow(new RuntimeException("Database error"));
 
         // When
@@ -475,6 +498,7 @@ class AuthControllerTest {
         user.setRole(UserRole.USER);
 
         when(userDataRepository.findByEmail("test@example.com")).thenReturn(Optional.empty());
+        when(providerDataRepository.findByEmail("test@example.com")).thenReturn(Optional.empty());
         when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("wrongpassword", "encodedPassword")).thenReturn(false);
 
@@ -608,6 +632,7 @@ class AuthControllerTest {
 
         when(jwtUtil.getSubject(token)).thenReturn(email);
         when(userDataRepository.findByEmail(email)).thenReturn(Optional.empty());
+        when(providerDataRepository.findByEmail(email)).thenReturn(Optional.empty());
         when(userRepository.findByEmail(email)).thenReturn(Optional.empty());
 
         // When
