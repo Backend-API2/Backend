@@ -23,30 +23,36 @@ public class UserEventProcessorService {
         log.info("Procesando evento de usuario creado del CORE - MessageId: {}", coreMessage.getMessageId());
 
         try {
-            UserCreatedMessage userCreated = objectMapper.convertValue(
-                coreMessage.getPayload(),
-                UserCreatedMessage.class
-            );
+            Map<String, Object> payload = coreMessage.getPayload();
+            
+            // Extraer datos del payload manualmente
+            Long userId = extractLong(payload, "id");
+            String email = extractString(payload, "email");
+            String firstName = extractString(payload, "firstName");
+            String lastName = extractString(payload, "lastName");
+            String phoneNumber = extractString(payload, "phoneNumber");
+            String role = extractString(payload, "role");
+            String dni = extractString(payload, "dni");
 
             log.info("Usuario creado - UserId: {}, Email: {}, Role: {}",
-                userCreated.getUserId(), userCreated.getEmail(), userCreated.getRole());
+                userId, email, role);
 
             Map<String, Object> userData = new java.util.HashMap<>();
-            userData.put("name", (userCreated.getFirstName() != null ? userCreated.getFirstName() : "") + 
-                               " " + (userCreated.getLastName() != null ? userCreated.getLastName() : ""));
-            userData.put("email", userCreated.getEmail());
-            userData.put("phone", userCreated.getPhoneNumber());
-            userData.put("role", userCreated.getRole());
-            userData.put("dni", userCreated.getDni());
+            userData.put("name", (firstName != null ? firstName : "") + 
+                               " " + (lastName != null ? lastName : ""));
+            userData.put("email", email);
+            userData.put("phone", phoneNumber);
+            userData.put("role", role);
+            userData.put("dni", dni);
             
             // Generar sueldo aleatorio entre $10,000 y $50,000 (igual que en la tabla principal)
             Random random = new Random();
             double saldo = 10000 + (random.nextDouble() * 40000);
             userData.put("saldoDisponible", BigDecimal.valueOf(saldo).setScale(2, java.math.RoundingMode.HALF_UP));
 
-            dataStorageService.saveUserData(userCreated.getUserId(), userData, coreMessage.getMessageId());
+            dataStorageService.saveUserData(userId, userData, coreMessage.getMessageId());
             
-            log.info("Usuario guardado exitosamente en BD - UserId: {}", userCreated.getUserId());
+            log.info("Usuario guardado exitosamente en BD - UserId: {}, Saldo: {}", userId, saldo);
 
         } catch (Exception e) {
             log.error("Error procesando usuario creado - MessageId: {}, Error: {}",
@@ -129,5 +135,26 @@ public class UserEventProcessorService {
                 coreMessage.getMessageId(), e.getMessage(), e);
             throw new RuntimeException("Error al procesar usuario desactivado", e);
         }
+    }
+
+    private Long extractLong(Map<String, Object> payload, String key) {
+        Object value = payload.get(key);
+        if (value == null) return null;
+        if (value instanceof Number) {
+            return ((Number) value).longValue();
+        }
+        if (value instanceof String) {
+            try {
+                return Long.parseLong((String) value);
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private String extractString(Map<String, Object> payload, String key) {
+        Object value = payload.get(key);
+        return value != null ? value.toString() : null;
     }
 }

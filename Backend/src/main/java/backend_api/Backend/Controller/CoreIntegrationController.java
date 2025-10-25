@@ -53,45 +53,4 @@ public class CoreIntegrationController {
             ));
         }
     }
-
-    
-
-    
-    @PostMapping("/send-ids")
-    public ResponseEntity<?> sendIdsToCore(
-            @RequestParam Long solicitudId,
-            @RequestParam Long userId,
-            @RequestParam Long providerId) {
-        try {
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("solicitudId", solicitudId);
-            payload.put("userId", userId);
-            payload.put("providerId", providerId);
-
-            CoreResponseMessage message = CoreResponseMessage.builder()
-                .messageId(UUID.randomUUID().toString())
-                .timestamp(Instant.now().toString())
-                .destination(CoreResponseMessage.Destination.builder()
-                    .topic("id") 
-                    .eventName("extracted")
-                    .build())
-                .payload(payload)
-                .build();
-
-            Map<String, Object> coreHubResponse = coreHubService.publishMessage(message);
-
-            return ResponseEntity.ok(Map.of(
-                "status", "success",
-                "messageId", message.getMessageId(),
-                "payload", payload,
-                "coreHubResponse", coreHubResponse
-            ));
-
-        } catch (Exception e) {
-            return ResponseEntity.status(500).body(Map.of(
-                "status", "error",
-                "message", e.getMessage()
-            ));
-        }
-    }
 }

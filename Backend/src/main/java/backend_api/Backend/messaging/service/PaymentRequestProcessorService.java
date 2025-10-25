@@ -2,9 +2,13 @@ package backend_api.Backend.messaging.service;
 
 import backend_api.Backend.Entity.UserData;
 import backend_api.Backend.Entity.ProviderData;
+import backend_api.Backend.Entity.payment.Payment;
+import backend_api.Backend.Entity.payment.PaymentStatus;
 import backend_api.Backend.Repository.UserDataRepository;
 import backend_api.Backend.Repository.ProviderDataRepository;
+import backend_api.Backend.Service.Interface.PaymentService;
 import backend_api.Backend.messaging.dto.PaymentRequestMessage;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -20,6 +24,8 @@ public class PaymentRequestProcessorService {
 
     private final UserDataRepository userDataRepository;
     private final ProviderDataRepository providerDataRepository;
+    private final PaymentService paymentService;
+    private final ObjectMapper objectMapper;
 
     public Map<String, Object> processPaymentRequest(PaymentRequestMessage message) {
         try {
@@ -116,9 +122,45 @@ public class PaymentRequestProcessorService {
             BigDecimal montoSubtotal, BigDecimal impuestos, BigDecimal comisiones, BigDecimal montoTotal,
             String moneda, String metodoPreferido, UserData userData, ProviderData providerData) {
         
-        // Aquí integrarías con tu lógica de creación de pagos existente
-        // Por ahora retornamos los datos estructurados
+        log.info("💾 Creando pago en base de datos - Usuario: {}, Prestador: {}, Monto: {}", 
+            idUsuario, idPrestador, montoTotal);
         
+        // Crear entidad Payment
+        Payment payment = new Payment();
+        payment.setUser_id(idUsuario);
+        payment.setProvider_id(idPrestador);
+        payment.setSolicitud_id(idSolicitud);
+        payment.setAmount_subtotal(montoSubtotal);
+        payment.setAmount_total(montoTotal);
+        payment.setTaxes(impuestos);
+        payment.setFees(comisiones);
+        payment.setCurrency(moneda);
+        payment.setStatus(PaymentStatus.PENDING_PAYMENT);
+        payment.setCreated_at(java.time.LocalDateTime.now());
+        payment.setUpdated_at(java.time.LocalDateTime.now());
+        
+        // Crear metadata
+        Map<String, Object> metadata = new java.util.HashMap<>();
+        metadata.put("idCorrelacion", idCorrelacion);
+        metadata.put("metodoPreferido", metodoPreferido);
+        metadata.put("userName", userData.getName());
+        metadata.put("userEmail", userData.getEmail());
+        metadata.put("providerName", providerData.getName());
+        metadata.put("providerEmail", providerData.getEmail());
+        
+        try {
+            payment.setMetadata(objectMapper.writeValueAsString(metadata));
+        } catch (Exception e) {
+            log.error("Error serializando metadata: {}", e.getMessage());
+            payment.setMetadata("{}");
+        }
+        
+        // Guardar en base de datos
+        Payment savedPayment = paymentService.createPayment(payment);
+        log.info("✅ Pago guardado exitosamente - ID: {}, Usuario: {}, Prestador: {}", 
+            savedPayment.getId(), savedPayment.getUser_id(), savedPayment.getProvider_id());
+        
+        // Retornar datos para respuesta
         Map<String, Object> paymentData = new java.util.HashMap<>();
         paymentData.put("idCorrelacion", idCorrelacion);
         paymentData.put("idUsuario", idUsuario);
@@ -131,7 +173,7 @@ public class PaymentRequestProcessorService {
         paymentData.put("moneda", moneda);
         paymentData.put("metodoPreferido", metodoPreferido);
         paymentData.put("status", "PENDING");
-        paymentData.put("createdAt", java.time.LocalDateTime.now().toString());
+        paymentData.put("createdAt", savedPayment.getCreated_at().toString());
         
         Map<String, Object> userInfo = new java.util.HashMap<>();
         userInfo.put("name", userData.getName());

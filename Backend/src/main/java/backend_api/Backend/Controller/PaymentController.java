@@ -1,5 +1,6 @@
 package backend_api.Backend.Controller;
 
+import lombok.extern.slf4j.Slf4j;
 import backend_api.Backend.Entity.payment.Payment;
 import backend_api.Backend.Entity.payment.PaymentStatus;
 import backend_api.Backend.Entity.payment.PaymentMethod;
@@ -39,6 +40,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/payments")
 @CrossOrigin(origins = "*")
@@ -391,12 +393,17 @@ public class PaymentController {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
             }
 
+            log.info("🔍 Buscando pagos para usuario - ID: {}, Email: {}, Role: {}", 
+                user.getId(), user.getEmail(), user.getRole().name());
+
             List<Payment> payments;
 
             if (user.getRole().name().equals("MERCHANT")) {
                 payments = paymentService.getPaymentsByProviderId(user.getId());
+                log.info("📊 Pagos encontrados para MERCHANT (providerId: {}): {}", user.getId(), payments.size());
             } else {
                 payments = paymentService.getPaymentsByUserId(user.getId());
+                log.info("📊 Pagos encontrados para USER (userId: {}): {}", user.getId(), payments.size());
             }
 
             List<PaymentResponse> responses = responseMapperService.mapPaymentsToResponses(payments, user.getRole().name());

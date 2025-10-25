@@ -144,6 +144,8 @@ public class DataSubscriptionController {
                     userMap.put("email", user.getEmail());
                     userMap.put("phone", user.getPhone() != null ? user.getPhone() : "");
                     userMap.put("secondaryId", user.getSecondaryId() != null ? user.getSecondaryId() : "");
+                    userMap.put("role", user.getRole());
+                    userMap.put("saldoDisponible", user.getSaldoDisponible());
                     userMap.put("createdAt", user.getCreatedAt());
                     userMap.put("updatedAt", user.getUpdatedAt());
                     return userMap;
