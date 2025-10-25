@@ -109,6 +109,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/payments/webhook/**").permitAll()
                         .requestMatchers("/api/invoices/webhook/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/payments/methods").permitAll()
+                        .requestMatchers("/api/providers/subscriptions/**").permitAll()
                         
                         // Payment endpoints - requieren autenticación
                         .requestMatchers(HttpMethod.POST, "/api/payments").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
