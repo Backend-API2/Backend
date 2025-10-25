@@ -6,6 +6,7 @@ import backend_api.Backend.messaging.service.CoreEventProcessorService;
 import backend_api.Backend.messaging.service.UserEventProcessorService;
 import backend_api.Backend.messaging.service.CoreHubService;
 import backend_api.Backend.messaging.service.PaymentRequestProcessorService;
+import backend_api.Backend.messaging.service.ProviderEventProcessorService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -28,6 +29,8 @@ public class CoreWebhookController {
     private final UserEventProcessorService userEventProcessorService;
     private final CoreHubService coreHubService;
     private final PaymentRequestProcessorService paymentRequestProcessorService;
+    private final ProviderEventProcessorService providerEventProcessorService;
+
 
   
     @PostMapping("/payment-events")
@@ -134,6 +137,39 @@ public class CoreWebhookController {
                 "messageId", message.getMessageId(),
                 "error", e.getMessage(),
                 "retryAfter","30"
+            ));
+        }
+    }
+
+    @PostMapping("/provider-events")
+    public ResponseEntity<Map<String, String>> receiveProviderEvent(@RequestBody CoreEventMessage message) {
+        try {
+            log.info("Webhook de prestadores recibido del CORE - MessageId: {}, EventName: {}, Channel: {}",
+                    message.getMessageId(),
+                    message.getDestination() != null ? message.getDestination().getEventName() : "null",
+                    message.getDestination() != null ? message.getDestination().getChannel() : "null");
+
+            String subscriptionId = extractSubscriptionId(message);
+
+            providerEventProcessorService.processProviderFromCore(message);
+
+            if (subscriptionId != null) {
+                coreHubService.sendAck(message.getMessageId(), subscriptionId);
+            }
+
+            return ResponseEntity.ok(Map.of(
+                    "status", "processed",
+                    "messageId", message.getMessageId()
+            ));
+        } catch (Exception e) {
+            log.error("Error procesando webhook de prestadores - MessageId: {}, Error: {}",
+                    message.getMessageId(), e.getMessage(), e);
+
+            return ResponseEntity.status(500).body(Map.of(
+                    "status", "error",
+                    "messageId", message.getMessageId(),
+                    "error", e.getMessage(),
+                    "retryAfter","30"
             ));
         }
     }

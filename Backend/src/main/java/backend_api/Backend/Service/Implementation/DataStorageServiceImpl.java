@@ -43,14 +43,7 @@ public class DataStorageServiceImpl {
             userData.setName((String) userDataMap.get("name"));
             userData.setEmail((String) userDataMap.get("email"));
             userData.setPhone((String) userDataMap.get("phone"));
-            userData.setRole((String) userDataMap.get("role"));
             userData.setSecondaryId(secondaryId);
-            
-            // Guardar saldo disponible si viene en el mapa
-            if (userDataMap.containsKey("saldoDisponible")) {
-                userData.setSaldoDisponible((java.math.BigDecimal) userDataMap.get("saldoDisponible"));
-                log.info("Saldo disponible guardado: userId={}, saldo={}", userId, userData.getSaldoDisponible());
-            }
             
             // Manejar estado de desactivación
             if (userDataMap.containsKey("status")) {

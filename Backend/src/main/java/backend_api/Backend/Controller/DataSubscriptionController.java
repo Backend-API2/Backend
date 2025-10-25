@@ -15,6 +15,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
+import backend_api.Backend.Repository.ProviderDataRepository;
 
 import java.util.List;
 import java.util.Map;
@@ -31,6 +32,7 @@ public class DataSubscriptionController {
     private final RestTemplate restTemplate;
     private final JwtUtil jwtUtil;
     private final DataStorageServiceImpl dataStorageService;
+    private final ProviderDataRepository providerDataRepository;
 
     @PostMapping("/subscribe-all")
     public ResponseEntity<?> subscribeToAllDataEvents() {
@@ -161,6 +163,54 @@ public class DataSubscriptionController {
             return ResponseEntity.status(500).body(Map.of(
                 "status", "error",
                 "message", "Error consultando usuarios: " + e.getMessage()
+            ));
+        }
+    }
+
+    @GetMapping("/providers")
+    public ResponseEntity<?> getStoredProviders() {
+        try {
+            var providers = providerDataRepository.findAll();
+
+            var response = providers.stream()
+                    .map(p -> {
+                        Map<String, Object> providerMap = new java.util.HashMap<>();
+                        providerMap.put("providerId", p.getProviderId());
+                        providerMap.put("name", java.util.Optional.ofNullable(p.getName()).orElse(""));
+                        providerMap.put("email", java.util.Optional.ofNullable(p.getEmail()).orElse(""));
+                        providerMap.put("phone", java.util.Optional.ofNullable(p.getPhone()).orElse(""));
+                        providerMap.put("secondaryId", java.util.Optional.ofNullable(p.getSecondaryId()).orElse(""));
+                        providerMap.put("active", java.util.Optional.ofNullable(p.getActive()).orElse(Boolean.TRUE));
+                        providerMap.put("photo", java.util.Optional.ofNullable(p.getPhoto()).orElse(""));
+
+                        Map<String, Object> address = new java.util.HashMap<>();
+                        address.put("state", java.util.Optional.ofNullable(p.getState()).orElse(""));
+                        address.put("city", java.util.Optional.ofNullable(p.getCity()).orElse(""));
+                        address.put("street", java.util.Optional.ofNullable(p.getStreet()).orElse(""));
+                        address.put("number", java.util.Optional.ofNullable(p.getNumber()).orElse(""));
+                        address.put("floor", java.util.Optional.ofNullable(p.getFloor()).orElse(""));
+                        address.put("apartment", java.util.Optional.ofNullable(p.getApartment()).orElse(""));
+                        providerMap.put("address", address);
+
+                        providerMap.put("habilidades", java.util.Optional.ofNullable(p.getSkills()).orElse(java.util.List.of()));
+                        providerMap.put("zonas", java.util.Optional.ofNullable(p.getZones()).orElse(java.util.List.of()));
+                        providerMap.put("createdAt", p.getCreatedAt());
+                        providerMap.put("updatedAt", p.getUpdatedAt());
+
+                        return providerMap;
+                    })
+                    .collect(java.util.stream.Collectors.toList());
+
+            return ResponseEntity.ok(java.util.Map.of(
+                    "status", "success",
+                    "count", providers.size(),
+                    "providers", response
+            ));
+        } catch (Exception e) {
+            log.error("Error consultando providers: {}", e.getMessage(), e);
+            return ResponseEntity.status(500).body(java.util.Map.of(
+                    "status", "error",
+                    "message", "Error consultando providers: " + e.getMessage()
             ));
         }
     }
