@@ -6,7 +6,6 @@ import backend_api.Backend.Entity.UserData;
 import backend_api.Backend.Repository.UserDataRepository;
 import backend_api.Backend.Service.Implementation.DataStorageServiceImpl;
 import backend_api.Backend.messaging.service.CoreHubService;
-import backend_api.Backend.messaging.service.UserEventProcessorService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpEntity;
@@ -32,7 +31,6 @@ public class DataSubscriptionController {
     private final RestTemplate restTemplate;
     private final JwtUtil jwtUtil;
     private final DataStorageServiceImpl dataStorageService;
-    private final UserEventProcessorService userEventProcessorService;
 
     @PostMapping("/subscribe-all")
     public ResponseEntity<?> subscribeToAllDataEvents() {

@@ -76,6 +76,7 @@ class PaymentRequestProcessorServiceTest {
         mockPayment.setId(1L);
         mockPayment.setUser_id(999L);
         mockPayment.setProvider_id(1L);
+        mockPayment.setCreated_at(java.time.LocalDateTime.now());
         when(paymentService.createPayment(any(Payment.class))).thenReturn(mockPayment);
         
         // Mock ObjectMapper
@@ -165,6 +166,7 @@ class PaymentRequestProcessorServiceTest {
         mockPayment.setId(1L);
         mockPayment.setUser_id(999L);
         mockPayment.setProvider_id(1L);
+        mockPayment.setCreated_at(java.time.LocalDateTime.now());
         when(paymentService.createPayment(any(Payment.class))).thenReturn(mockPayment);
         
         // Mock ObjectMapper

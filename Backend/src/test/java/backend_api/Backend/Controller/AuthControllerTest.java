@@ -406,6 +406,7 @@ class AuthControllerTest {
         assertEquals(404, response.getStatusCode().value());
         assertNull(response.getBody());
         verify(jwtUtil).getSubject(token);
+        verify(userDataRepository).findByEmail(email);
         verify(userRepository).findByEmail(email);
     }
 
@@ -617,6 +618,7 @@ class AuthControllerTest {
         assertNull(response.getBody());
 
         verify(jwtUtil).getSubject(token);
+        verify(userDataRepository).findByEmail(email);
         verify(userRepository).findByEmail(email);
     }
 

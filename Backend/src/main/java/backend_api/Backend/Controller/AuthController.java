@@ -533,8 +533,26 @@ public class AuthController {
                 return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
             }
             
-            User user = userRepository.findByEmail(email)
-                    .orElse(null);
+            // 1. Primero buscar en usuarios sincronizados (user_data table) - PRIORIDAD
+            Optional<UserData> syncedUser = userDataRepository.findByEmail(email);
+            if (syncedUser.isPresent()) {
+                UserData userData = syncedUser.get();
+                
+                // Convertir UserData a User para compatibilidad
+                User user = new User();
+                user.setId(userData.getUserId());
+                user.setEmail(userData.getEmail());
+                user.setName(userData.getName());
+                user.setPhone(userData.getPhone());
+                user.setRole(UserRole.valueOf(convertUserModuleRoleToSystemRole(userData.getRole())));
+                user.setSaldo_disponible(userData.getSaldoDisponible());
+                user.setPassword(null); // NO devolver la password
+                
+                return new ResponseEntity<>(user, HttpStatus.OK);
+            }
+            
+            // 2. Si no está en usuarios sincronizados, buscar en usuarios locales (users table)
+            User user = userRepository.findByEmail(email).orElse(null);
             
             if (user == null) {
                 return new ResponseEntity<>(HttpStatus.NOT_FOUND);
