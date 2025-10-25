@@ -98,6 +98,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                requestURI.startsWith("/api/payments/webhook/") ||
                requestURI.startsWith("/api/invoices/webhook/") ||
                requestURI.equals("/api/payments/methods") ||
+               requestURI.startsWith("/api/providers/subscriptions/")||
                requestURI.equals("/api/core/integration/status");
     }
 }
