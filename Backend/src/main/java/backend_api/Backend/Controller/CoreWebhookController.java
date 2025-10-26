@@ -7,6 +7,7 @@ import backend_api.Backend.messaging.service.UserEventProcessorService;
 import backend_api.Backend.messaging.service.CoreHubService;
 import backend_api.Backend.messaging.service.PaymentRequestProcessorService;
 import backend_api.Backend.messaging.service.ProviderEventProcessorService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -179,9 +180,14 @@ public class CoreWebhookController {
     }
 
     @PostMapping("/matching-payment-requests")
-    public ResponseEntity<Map<String, Object>> receiveMatchingPaymentRequest(@RequestBody PaymentRequestMessage message) {
+    public ResponseEntity<Map<String, Object>> receiveMatchingPaymentRequest(@RequestBody java.util.Map<String, Object> rawMessage) {
         try {
-            log.info("🔄 Webhook de solicitud de pago de matching recibido - MessageId: {}, EventName: {}, Topic: {}",
+            log.info("🔄 Webhook de solicitud de pago de matching recibido - RawMessage: {}", rawMessage);
+
+            // Convertir el mensaje recibido del CORE Hub
+            PaymentRequestMessage message = convertCoreMessageToPaymentRequest(rawMessage);
+            
+            log.info("🔄 Webhook procesado - MessageId: {}, EventName: {}, Topic: {}",
                 message.getMessageId(),
                 message.getDestination() != null ? message.getDestination().getEventName() : "null",
                 message.getDestination() != null ? message.getDestination().getTopic() : "null");
@@ -201,17 +207,130 @@ public class CoreWebhookController {
             return ResponseEntity.ok(result);
 
         } catch (Exception e) {
-            log.error("❌ Error procesando solicitud de pago de matching - MessageId: {}, Error: {}",
-                message.getMessageId(), e.getMessage(), e);
+            log.error("❌ Error procesando solicitud de pago de matching - Error: {}",
+                e.getMessage(), e);
 
             return ResponseEntity.status(500).body(Map.of(
                 "success", false,
                 "status", "error",
-                "messageId", message.getMessageId(),
                 "error", e.getMessage(),
                 "retryAfter", "30"
             ));
         }
+    }
+    
+    private PaymentRequestMessage convertCoreMessageToPaymentRequest(Object rawMessage) {
+        log.info("📝 Convertiendo mensaje del CORE Hub a PaymentRequestMessage...");
+        
+        if (rawMessage == null) {
+            throw new IllegalArgumentException("El mensaje no puede ser null");
+        }
+        
+        // Si ya es PaymentRequestMessage, devolverlo directamente (para compatibilidad con tests)
+        if (rawMessage instanceof PaymentRequestMessage) {
+            log.info("✅ El mensaje ya es PaymentRequestMessage, devolviendo directamente");
+            return (PaymentRequestMessage) rawMessage;
+        }
+        
+        // Si es un Map, intentar convertirlo directamente a PaymentRequestMessage primero (para tests)
+        if (rawMessage instanceof java.util.Map) {
+            try {
+                ObjectMapper mapper = new ObjectMapper();
+                // Intentar convertir a PaymentRequestMessage primero
+                PaymentRequestMessage directMessage = mapper.convertValue(rawMessage, PaymentRequestMessage.class);
+                if (directMessage.getPayload() != null) {
+                    log.info("✅ Convertido directamente a PaymentRequestMessage desde Map");
+                    return directMessage;
+                }
+            } catch (Exception e) {
+                log.debug("No se pudo convertir directamente a PaymentRequestMessage: {}", e.getMessage());
+            }
+        }
+        
+        // Mapear a CoreEventMessage
+        CoreEventMessage coreMessage = null;
+        if (rawMessage instanceof CoreEventMessage) {
+            coreMessage = (CoreEventMessage) rawMessage;
+        } else if (rawMessage instanceof java.util.Map) {
+            // Convertir Map a CoreEventMessage usando Jackson
+            try {
+                ObjectMapper mapper = new ObjectMapper();
+                coreMessage = mapper.convertValue(rawMessage, CoreEventMessage.class);
+            } catch (Exception e) {
+                log.error("Error convirtiendo Map a CoreEventMessage: {}", e.getMessage());
+                throw new RuntimeException("Formato de mensaje no válido", e);
+            }
+        } else {
+            log.warn("Tipo de mensaje no soportado: {}", rawMessage.getClass());
+            throw new IllegalArgumentException("Tipo de mensaje no soportado: " + rawMessage.getClass());
+        }
+        
+        log.info("📋 CoreEventMessage recibido - MessageId: {}, Topic: {}, EventName: {}",
+            coreMessage.getMessageId(),
+            coreMessage.getDestination() != null ? coreMessage.getDestination().getTopic() : "null",
+            coreMessage.getDestination() != null ? coreMessage.getDestination().getEventName() : "null");
+        
+        // Extraer datos del payload
+        Map<String, Object> corePayload = coreMessage.getPayload();
+        if (corePayload == null) {
+            throw new IllegalArgumentException("El payload no puede ser null");
+        }
+        
+        log.info("📋 Payload del CORE: {}", corePayload);
+        
+        // El CORE Hub envuelve el payload que publicaste
+        // Extraer el objeto "pago" del payload
+        @SuppressWarnings("unchecked")
+        Map<String, Object> pagoData = (Map<String, Object>) corePayload.get("pago");
+        
+        if (pagoData == null) {
+            log.error("❌ No se encontró el objeto 'pago' en el payload");
+            throw new IllegalArgumentException("El payload debe contener un objeto 'pago'");
+        }
+        
+        log.info("📋 Datos del pago extraídos: {}", pagoData);
+        
+        // Convertir a PaymentRequestMessage
+        PaymentRequestMessage message = new PaymentRequestMessage();
+        message.setMessageId(coreMessage.getMessageId());
+        message.setTimestamp(coreMessage.getTimestamp() != null ? coreMessage.getTimestamp().toString() : java.time.LocalDateTime.now().toString());
+        
+        // Destination
+        PaymentRequestMessage.Destination destination = new PaymentRequestMessage.Destination();
+        if (coreMessage.getDestination() != null) {
+            destination.setTopic(coreMessage.getDestination().getTopic());
+            destination.setEventName(coreMessage.getDestination().getEventName());
+        }
+        message.setDestination(destination);
+        
+        // Payload con el objeto pago
+        PaymentRequestMessage.Payload payload = new PaymentRequestMessage.Payload();
+        payload.setGeneratedAt(corePayload.get("generatedAt") != null ? corePayload.get("generatedAt").toString() : null);
+        
+        PaymentRequestMessage.Pago pago = new PaymentRequestMessage.Pago();
+        pago.setIdCorrelacion((String) pagoData.get("idCorrelacion"));
+        pago.setIdUsuario(pagoData.get("idUsuario") != null ? ((Number) pagoData.get("idUsuario")).longValue() : null);
+        pago.setIdPrestador(pagoData.get("idPrestador") != null ? ((Number) pagoData.get("idPrestador")).longValue() : null);
+        pago.setIdSolicitud(pagoData.get("idSolicitud") != null ? ((Number) pagoData.get("idSolicitud")).longValue() : null);
+        
+        if (pagoData.get("montoSubtotal") != null) {
+            pago.setMontoSubtotal(new java.math.BigDecimal(pagoData.get("montoSubtotal").toString()));
+        }
+        if (pagoData.get("impuestos") != null) {
+            pago.setImpuestos(new java.math.BigDecimal(pagoData.get("impuestos").toString()));
+        }
+        if (pagoData.get("comisiones") != null) {
+            pago.setComisiones(new java.math.BigDecimal(pagoData.get("comisiones").toString()));
+        }
+        pago.setMoneda((String) pagoData.get("moneda"));
+        pago.setMetodoPreferido((String) pagoData.get("metodoPreferido"));
+        
+        payload.setPago(pago);
+        message.setPayload(payload);
+        
+        log.info("✅ Mensaje convertido exitosamente - MessageId: {}", message.getMessageId());
+        
+        return message;
     }
 
     
