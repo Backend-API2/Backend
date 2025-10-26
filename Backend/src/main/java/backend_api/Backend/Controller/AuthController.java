@@ -452,14 +452,24 @@ public class AuthController {
                 // Mapear los datos del módulo de usuarios a nuestro formato
                 // Basado en la estructura de UserCreatedMessage
                 Map<String, Object> mappedData = new java.util.HashMap<>();
-                mappedData.put("userId", userData != null ? userData.get("userId") : null); // El campo se llama userId, no id
+                
+                // Obtener userInfo del response body
+                Object userInfoObj = userData != null ? userData.get("userInfo") : null;
+                Map<String, Object> userInfo = null;
+                if (userInfoObj instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> userInfoMap = (Map<String, Object>) userInfoObj;
+                    userInfo = userInfoMap;
+                }
+                
+                mappedData.put("userId", userInfo != null ? userInfo.get("id") : null); // El campo se llama id en userInfo
                 mappedData.put("name", 
-                    (userData != null && userData.get("firstName") != null ? userData.get("firstName") : "") + " " + 
-                    (userData != null && userData.get("lastName") != null ? userData.get("lastName") : "")
+                    (userInfo != null && userInfo.get("firstName") != null ? userInfo.get("firstName") : "") + " " + 
+                    (userInfo != null && userInfo.get("lastName") != null ? userInfo.get("lastName") : "")
                 );
-                mappedData.put("phone", userData != null ? userData.get("phoneNumber") : null);
-                mappedData.put("role", userData != null ? userData.get("role") : null);
-                mappedData.put("secondaryId", userData != null ? userData.get("dni") : null);
+                mappedData.put("phone", userInfo != null ? userInfo.get("phoneNumber") : null);
+                mappedData.put("role", userInfo != null ? userInfo.get("role") : null);
+                mappedData.put("secondaryId", userInfo != null ? userInfo.get("dni") : null);
                 
                 return mappedData;
             }
