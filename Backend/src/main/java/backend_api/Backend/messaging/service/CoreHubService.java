@@ -51,10 +51,7 @@ public class CoreHubService {
         Map<String, Object> destination = new HashMap<>();
         if (message.getDestination() != null) {
             String topic = message.getDestination().getTopic();
-            if (topic == null || topic.isEmpty()) {
-                topic = message.getDestination().getChannel();
-            }
-            destination.put("topic", topic);
+            destination.put("topic", topic != null ? topic : "");
             destination.put("eventName", message.getDestination().getEventName());
         }
         newFormatMessage.put("destination", destination);
