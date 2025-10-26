@@ -181,6 +181,17 @@ public class CoreWebhookController {
 
     @PostMapping("/matching-payment-requests")
     public ResponseEntity<Map<String, Object>> receiveMatchingPaymentRequest(@RequestBody java.util.Map<String, Object> rawMessage) {
+        // Extraer messageId al inicio para usarlo en caso de error
+        String messageId = "unknown";
+        try {
+            Object mid = rawMessage.get("messageId");
+            if (mid != null) {
+                messageId = mid.toString();
+            }
+        } catch (Exception ignore) {
+            // Ignorar error al extraer messageId
+        }
+        
         try {
             log.info("🔄 Webhook de solicitud de pago de matching recibido - RawMessage: {}", rawMessage);
 
@@ -207,12 +218,13 @@ public class CoreWebhookController {
             return ResponseEntity.ok(result);
 
         } catch (Exception e) {
-            log.error("❌ Error procesando solicitud de pago de matching - Error: {}",
-                e.getMessage(), e);
+            log.error("❌ Error procesando solicitud de pago de matching - MessageId: {}, Error: {}",
+                messageId, e.getMessage(), e);
 
             return ResponseEntity.status(500).body(Map.of(
                 "success", false,
                 "status", "error",
+                "messageId", messageId,
                 "error", e.getMessage(),
                 "retryAfter", "30"
             ));
