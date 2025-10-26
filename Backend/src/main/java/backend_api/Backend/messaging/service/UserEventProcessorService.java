@@ -29,7 +29,12 @@ public class UserEventProcessorService {
             Map<String, Object> payload = coreMessage.getPayload();
             
             // Extraer datos del payload manualmente
-            Long userId = extractLong(payload, "id");
+            // Según la documentación de CORE, el campo correcto es "userId"
+            Long userId = extractLong(payload, "userId");
+            if (userId == null) {
+                // Fallback para compatibilidad con versiones anteriores
+                userId = extractLong(payload, "id");
+            }
             String email = extractString(payload, "email");
             String firstName = extractString(payload, "firstName");
             String lastName = extractString(payload, "lastName");
@@ -205,6 +210,10 @@ public class UserEventProcessorService {
             
             // Extraer datos del payload manualmente
             Long userId = extractLong(payload, "userId");
+            if (userId == null) {
+                // Fallback para compatibilidad con versiones anteriores
+                userId = extractLong(payload, "id");
+            }
             String message = extractString(payload, "message");
             
             log.info("Usuario rechazado - UserId: {}, Message: {}", userId, message);

@@ -35,8 +35,37 @@ public class PaymentRequestProcessorService {
         try {
             log.info("🔄 Procesando solicitud de pago de matching - MessageId: {}", message.getMessageId());
             
-            // Extraer datos del mensaje
-            PaymentRequestMessage.Cuerpo cuerpo = message.getPayload().getCuerpo();
+            // Extraer datos del mensaje - soporta ambos formatos
+            PaymentRequestMessage.Cuerpo cuerpo = null;
+            PaymentRequestMessage.Pago pago = message.getPayload() != null ? message.getPayload().getPago() : null;
+            
+            // Si viene el nuevo formato con "pago"
+            if (pago != null) {
+                // Mapear del formato Pago al formato Cuerpo
+                cuerpo = new PaymentRequestMessage.Cuerpo();
+                cuerpo.setIdCorrelacion(pago.getIdCorrelacion());
+                cuerpo.setIdUsuario(pago.getIdUsuario());
+                cuerpo.setIdPrestador(pago.getIdPrestador());
+                cuerpo.setIdSolicitud(pago.getIdSolicitud());
+                cuerpo.setMontoSubtotal(pago.getMontoSubtotal());
+                cuerpo.setImpuestos(pago.getImpuestos());
+                cuerpo.setComisiones(pago.getComisiones());
+                cuerpo.setMoneda(pago.getMoneda());
+                cuerpo.setMetodoPreferido(pago.getMetodoPreferido());
+            } else if (message.getPayload() != null && message.getPayload().getCuerpo() != null) {
+                // Formato antiguo con "cuerpo"
+                cuerpo = message.getPayload().getCuerpo();
+            }
+            
+            if (cuerpo == null) {
+                log.error("❌ No se pudo extraer datos del payload");
+                return Map.of(
+                    "success", false,
+                    "error", "Formato de payload no válido",
+                    "messageId", message.getMessageId()
+                );
+            }
+            
             String idCorrelacion = cuerpo.getIdCorrelacion();
             Long idUsuario = cuerpo.getIdUsuario();
             Long idPrestador = cuerpo.getIdPrestador();

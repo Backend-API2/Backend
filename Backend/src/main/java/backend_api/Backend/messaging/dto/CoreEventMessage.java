@@ -18,6 +18,7 @@ public class CoreEventMessage {
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss[.SSS][XXX]")
     private LocalDateTime timestamp;
 
+    @Deprecated
     private String source;
 
     private Destination destination;
@@ -28,7 +29,10 @@ public class CoreEventMessage {
     @AllArgsConstructor
     @NoArgsConstructor
     public static class Destination {
-        private String channel;
+        private String topic;
         private String eventName;
+        
+        @Deprecated
+        private String channel;
     }
 }

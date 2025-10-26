@@ -36,10 +36,10 @@ public class CoreWebhookController {
     @PostMapping("/payment-events")
     public ResponseEntity<Map<String, String>> receivePaymentEvent(@RequestBody CoreEventMessage message) {
         try {
-            log.info("Webhook recibido del CORE - MessageId: {}, EventName: {}, Source: {}",
+            log.info("Webhook recibido del CORE - MessageId: {}, EventName: {}, Topic: {}",
                 message.getMessageId(),
-                message.getDestination().getEventName(),
-                message.getSource());
+                message.getDestination() != null ? message.getDestination().getEventName() : "null",
+                message.getDestination() != null ? message.getDestination().getTopic() : "null");
 
             String subscriptionId = extractSubscriptionId(message);
 
@@ -93,10 +93,10 @@ public class CoreWebhookController {
     @PostMapping("/user-events")
     public ResponseEntity<Map<String, String>> receiveUserEvent(@RequestBody CoreEventMessage message) {
         try {
-            log.info("Webhook de usuarios recibido del CORE - MessageId: {}, EventName: {}, Source: {}",
+            log.info("Webhook de usuarios recibido del CORE - MessageId: {}, EventName: {}, Topic: {}",
                 message.getMessageId(),
-                message.getDestination().getEventName(),
-                message.getSource());
+                message.getDestination() != null ? message.getDestination().getEventName() : "null",
+                message.getDestination() != null ? message.getDestination().getTopic() : "null");
 
             String subscriptionId = extractSubscriptionId(message);
 
@@ -148,7 +148,7 @@ public class CoreWebhookController {
     @PostMapping("/provider-events")
     public ResponseEntity<Map<String, String>> receiveProviderEvent(@RequestBody CoreEventMessage message) {
         try {
-            log.info("Webhook de prestadores recibido del CORE - MessageId: {}, EventName: {}, Channel: {}",
+            log.info("Webhook de prestadores recibido del CORE - MessageId: {}, EventName: {}, Topic: {}",
                     message.getMessageId(),
                     message.getDestination() != null ? message.getDestination().getEventName() : "null",
                     message.getDestination() != null ? message.getDestination().getChannel() : "null");
@@ -181,10 +181,10 @@ public class CoreWebhookController {
     @PostMapping("/matching-payment-requests")
     public ResponseEntity<Map<String, Object>> receiveMatchingPaymentRequest(@RequestBody PaymentRequestMessage message) {
         try {
-            log.info("🔄 Webhook de solicitud de pago de matching recibido - MessageId: {}, EventName: {}, Source: {}",
+            log.info("🔄 Webhook de solicitud de pago de matching recibido - MessageId: {}, EventName: {}, Topic: {}",
                 message.getMessageId(),
-                message.getDestination().getEventName(),
-                message.getSource());
+                message.getDestination() != null ? message.getDestination().getEventName() : "null",
+                message.getDestination() != null ? message.getDestination().getTopic() : "null");
 
             // Procesar la solicitud de pago
             Map<String, Object> result = paymentRequestProcessorService.processPaymentRequest(message);
@@ -237,9 +237,14 @@ public class CoreWebhookController {
 
     private String extractSubscriptionIdFromPaymentRequest(PaymentRequestMessage message) {
         try {
-            // Para PaymentRequestMessage, el subscriptionId podría estar en el payload
-            // o en el idCorrelacion que podemos usar como identificador
-            if (message.getPayload() != null && message.getPayload().getCuerpo() != null) {
+            // Primero intentar extraer subscriptionId del payload (formato CORE)
+            if (message.getPayload() != null && message.getPayload().getPago() != null) {
+                PaymentRequestMessage.Pago pago = message.getPayload().getPago();
+                // El subscriptionId NO viene en el objeto pago, lo obtenemos del contexto de la suscripción
+                // Para ahora, vamos a usar el idCorrelacion como identificador temporal
+                return pago.getIdCorrelacion();
+            } else if (message.getPayload() != null && message.getPayload().getCuerpo() != null) {
+                // Formato antiguo
                 return message.getPayload().getCuerpo().getIdCorrelacion();
             }
         } catch (Exception e) {
