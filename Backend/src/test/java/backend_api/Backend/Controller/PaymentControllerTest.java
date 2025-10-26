@@ -828,20 +828,20 @@ class PaymentControllerTest {
         String authHeader = "Bearer valid-token";
         List<Payment> payments = Arrays.asList(testPayment);
         when(authenticationService.getUserFromToken(authHeader)).thenReturn(testUser);
-        when(paymentService.getPaymentsByUserId(1L)).thenReturn(payments);
+        when(paymentService.getPaymentsByUserId(1L, 0, 50)).thenReturn(payments);
         
         PaymentResponse expectedResponse = new PaymentResponse();
         expectedResponse.setId(testPayment.getId());
         when(responseMapperService.mapPaymentsToResponses(payments, "USER")).thenReturn(Arrays.asList(expectedResponse));
 
         // When
-        ResponseEntity<List<PaymentResponse>> response = paymentController.getMyPayments(authHeader, 0, 10);
+        ResponseEntity<List<PaymentResponse>> response = paymentController.getMyPayments(authHeader, 0, 50);
 
         // Then
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(1, response.getBody().size());
-        verify(paymentService).getPaymentsByUserId(1L);
+        verify(paymentService).getPaymentsByUserId(1L, 0, 50);
     }
 
     @Test
@@ -850,20 +850,20 @@ class PaymentControllerTest {
         String authHeader = "Bearer valid-token";
         List<Payment> payments = Arrays.asList(testPayment);
         when(authenticationService.getUserFromToken(authHeader)).thenReturn(merchantUser);
-        when(paymentService.getPaymentsByProviderId(2L)).thenReturn(payments);
+        when(paymentService.getPaymentsByProviderId(2L, 0, 50)).thenReturn(payments);
         
         PaymentResponse expectedResponse = new PaymentResponse();
         expectedResponse.setId(testPayment.getId());
         when(responseMapperService.mapPaymentsToResponses(payments, "MERCHANT")).thenReturn(Arrays.asList(expectedResponse));
 
         // When
-        ResponseEntity<List<PaymentResponse>> response = paymentController.getMyPayments(authHeader, 0, 10);
+        ResponseEntity<List<PaymentResponse>> response = paymentController.getMyPayments(authHeader, 0, 50);
 
         // Then
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(1, response.getBody().size());
-        verify(paymentService).getPaymentsByProviderId(2L);
+        verify(paymentService).getPaymentsByProviderId(2L, 0, 50);
     }
 
     @Test

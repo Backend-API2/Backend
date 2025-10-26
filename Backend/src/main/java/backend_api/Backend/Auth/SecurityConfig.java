@@ -72,7 +72,7 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/actuator/health").permitAll()
-                .anyRequest().hasRole(ROLE_ADMIN));
+                .anyRequest().permitAll()); // Permitir acceso a todos los endpoints de actuator temporalmente
 
         return http.build();
     }
@@ -90,7 +90,7 @@ public class SecurityConfig {
 
                         .requestMatchers("/api/auth/register").permitAll()
                         .requestMatchers("/api/auth/login").permitAll()
-                        .requestMatchers("/api/auth/profile").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
+                        .requestMatchers("/api/auth/profile").hasAnyRole(ROLE_USER, ROLE_MERCHANT, ROLE_ADMIN)
                         // Asegurar acceso público a Actuator también en la cadena principal
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/health").permitAll()
@@ -113,7 +113,7 @@ public class SecurityConfig {
                         
                         // Payment endpoints - requieren autenticación
                         .requestMatchers(HttpMethod.POST, "/api/payments").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
-                        .requestMatchers(HttpMethod.GET, "/api/payments/all").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.GET, "/api/payments/all").hasAnyRole(ROLE_USER, ROLE_MERCHANT, ROLE_ADMIN)
                         .requestMatchers(HttpMethod.GET, "/api/payments/{id}").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
                         .requestMatchers(HttpMethod.GET, "/api/payments/user/{userId}").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
                         .requestMatchers(HttpMethod.GET, "/api/payments/provider/{providerId}").hasAnyRole(ROLE_MERCHANT)
@@ -138,10 +138,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/payments/search/user").hasAnyRole(ROLE_MERCHANT)
                         .requestMatchers(HttpMethod.POST, "/api/payments/search/amount").hasAnyRole(ROLE_MERCHANT)
 
-                        .requestMatchers(HttpMethod.GET, "/api/payments/my-payments").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
-                        .requestMatchers(HttpMethod.GET, "/api/payments/my-payments/status/*").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
-                        .requestMatchers(HttpMethod.GET, "/api/payments/my-total").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
-                        .requestMatchers(HttpMethod.POST, "/api/payments/my-search").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.GET, "/api/payments/my-payments").hasAnyRole(ROLE_USER, ROLE_MERCHANT, ROLE_ADMIN)
+                        .requestMatchers(HttpMethod.GET, "/api/payments/my-payments/status/*").hasAnyRole(ROLE_USER, ROLE_MERCHANT, ROLE_ADMIN)
+                        .requestMatchers(HttpMethod.GET, "/api/payments/my-total").hasAnyRole(ROLE_USER, ROLE_MERCHANT, ROLE_ADMIN)
+                        .requestMatchers(HttpMethod.POST, "/api/payments/my-search").hasAnyRole(ROLE_USER, ROLE_MERCHANT, ROLE_ADMIN)
 
                         // Invoice endpoints - según rol (cuando se implementen)
                         .requestMatchers(HttpMethod.POST, "/api/invoices").hasAnyRole(ROLE_MERCHANT)

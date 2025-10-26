@@ -55,6 +55,27 @@ public class PaymentServiceImpl implements PaymentService{
         return paymentRepository.findAll();
     }
 
+    @Override
+    public List<Payment> getAllPayments(int page, int size) {
+        Pageable pageable = Pageable.ofSize(size).withPage(page);
+        // Usar findAllOptimized que tiene JOIN FETCH para evitar N+1 queries
+        Page<Payment> paymentPage = paymentRepository.findAllOptimized(pageable);
+        return paymentPage.getContent();
+    }
+
+    @Override
+    public List<Payment> getPaymentsByUserId(Long userId, int page, int size) {
+        Pageable pageable = Pageable.ofSize(size).withPage(page);
+        Page<Payment> paymentPage = paymentRepository.findByUserId(userId, pageable);
+        return paymentPage.getContent();
+    }
+
+    @Override
+    public List<Payment> getPaymentsByProviderId(Long providerId, int page, int size) {
+        Pageable pageable = Pageable.ofSize(size).withPage(page);
+        Page<Payment> paymentPage = paymentRepository.findByProviderId(providerId, pageable);
+        return paymentPage.getContent();
+    }
 
     @Override
     public List<Payment> getPaymentsByUserId(Long userId) {
@@ -156,6 +177,11 @@ public class PaymentServiceImpl implements PaymentService{
     @Override
     public BigDecimal getTotalAmountByProviderId(Long providerId){
         return paymentRepository.getTotalAmountByProviderId(providerId);
+    }
+    
+    @Override
+    public BigDecimal getTotalAmountAllApprovedPayments(){
+        return paymentRepository.getTotalAmountAllApprovedPayments();
     }
         
     @Override

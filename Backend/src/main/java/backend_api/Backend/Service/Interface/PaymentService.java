@@ -18,6 +18,11 @@ public interface PaymentService {
     Optional<Payment> getPaymentById(Long id);
 
     List<Payment> getAllPayments();
+    
+    // Métodos con paginación
+    List<Payment> getAllPayments(int page, int size);
+    List<Payment> getPaymentsByUserId(Long userId, int page, int size);
+    List<Payment> getPaymentsByProviderId(Long providerId, int page, int size);
 
 
     List<Payment> getPaymentsByUserId(Long userId);
@@ -53,6 +58,8 @@ public interface PaymentService {
     BigDecimal getTotalAmountByUserId (Long userId);
     
     BigDecimal getTotalAmountByProviderId (Long providerId);
+    
+    BigDecimal getTotalAmountAllApprovedPayments();
     
     
     List<Payment> findByUserNameContaining(String userName);

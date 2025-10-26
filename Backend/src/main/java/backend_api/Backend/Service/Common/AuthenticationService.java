@@ -79,7 +79,7 @@ public class AuthenticationService {
             case "PRESTADOR":
                 return UserRole.MERCHANT;
             case "ADMIN":
-                return UserRole.USER; // Mapear ADMIN a USER por ahora
+                return UserRole.ADMIN; // Ahora ADMIN mapea correctamente a ADMIN
             default:
                 return UserRole.USER;
         }

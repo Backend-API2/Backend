@@ -5,7 +5,14 @@ import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-@Table(name = "payments")
+@Table(name = "payments", indexes = {
+    @Index(name = "idx_payments_user_id", columnList = "user_id"),
+    @Index(name = "idx_payments_provider_id", columnList = "provider_id"),
+    @Index(name = "idx_payments_status", columnList = "status"),
+    @Index(name = "idx_payments_created_at", columnList = "created_at"),
+    @Index(name = "idx_payments_user_created", columnList = "user_id,created_at"),
+    @Index(name = "idx_payments_provider_created", columnList = "provider_id,created_at")
+})
 @Data
 @Entity
 public class Payment {

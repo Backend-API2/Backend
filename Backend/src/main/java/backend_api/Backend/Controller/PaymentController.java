@@ -386,23 +386,27 @@ public class PaymentController {
     public ResponseEntity<List<PaymentResponse>> getMyPayments(
             @RequestHeader("Authorization") String authHeader,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "50") int size) { // Aumentado a 50 por defecto
         try {
             User user = authenticationService.getUserFromToken(authHeader);
             if (user == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
             }
 
-            log.info("🔍 Buscando pagos para usuario - ID: {}, Email: {}, Role: {}", 
-                user.getId(), user.getEmail(), user.getRole().name());
+            log.info("🔍 Buscando pagos para usuario - ID: {}, Email: {}, Role: {}, page: {}, size: {}", 
+                user.getId(), user.getEmail(), user.getRole().name(), page, size);
 
             List<Payment> payments;
 
-            if (user.getRole().name().equals("MERCHANT")) {
-                payments = paymentService.getPaymentsByProviderId(user.getId());
+            if (user.getRole().name().equals("ADMIN")) {
+                // Para ADMIN, traer todos los pagos con paginación
+                payments = paymentService.getAllPayments(page, size);
+                log.info("📊 Pagos encontrados para ADMIN: {} (mostrando página {})", payments.size(), page);
+            } else if (user.getRole().name().equals("MERCHANT")) {
+                payments = paymentService.getPaymentsByProviderId(user.getId(), page, size);
                 log.info("📊 Pagos encontrados para MERCHANT (providerId: {}): {}", user.getId(), payments.size());
             } else {
-                payments = paymentService.getPaymentsByUserId(user.getId());
+                payments = paymentService.getPaymentsByUserId(user.getId(), page, size);
                 log.info("📊 Pagos encontrados para USER (userId: {}): {}", user.getId(), payments.size());
             }
 
@@ -431,7 +435,9 @@ public class PaymentController {
 
             List<Payment> payments;
 
-            if (user.getRole().name().equals("MERCHANT")) {
+            if (user.getRole().name().equals("ADMIN")) {
+                payments = paymentService.getPaymentsByStatus(status);
+            } else if (user.getRole().name().equals("MERCHANT")) {
                 payments = paymentService.getPaymentsByProviderAndStatus(user.getId(), status);
             } else {
                 payments = paymentService.getPaymentsByUserAndStatus(user.getId(), status);
@@ -459,7 +465,9 @@ public class PaymentController {
 
             BigDecimal total;
 
-            if (user.getRole().name().equals("MERCHANT")) {
+            if (user.getRole().name().equals("ADMIN")) {
+                total = paymentService.getTotalAmountAllApprovedPayments();
+            } else if (user.getRole().name().equals("MERCHANT")) {
                 total = paymentService.getTotalAmountByProviderId(user.getId());
             } else {
                 total = paymentService.getTotalAmountByUserId(user.getId());
@@ -515,7 +523,9 @@ public class PaymentController {
             
             List<Payment> userPayments;
             
-            if (user.getRole().name().equals("MERCHANT")) {
+            if (user.getRole().name().equals("ADMIN")) {
+                userPayments = paymentService.getAllPayments();
+            } else if (user.getRole().name().equals("MERCHANT")) {
                 userPayments = paymentService.getPaymentsByProviderId(user.getId());
             } else {
                 userPayments = paymentService.getPaymentsByUserId(user.getId());

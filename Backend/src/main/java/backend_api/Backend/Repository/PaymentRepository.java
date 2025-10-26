@@ -27,6 +27,16 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     @Query("SELECT p FROM Payment p WHERE p.provider_id = :providerId")
     List<Payment> findByProviderId(@Param("providerId") Long providerId);
+    
+    // Métodos con paginación y JOIN FETCH para optimizar queries
+    @Query("SELECT DISTINCT p FROM Payment p LEFT JOIN FETCH p.method WHERE p.user_id = :userId ORDER BY p.created_at DESC")
+    Page<Payment> findByUserId(@Param("userId") Long userId, Pageable pageable);
+    
+    @Query("SELECT DISTINCT p FROM Payment p LEFT JOIN FETCH p.method WHERE p.provider_id = :providerId ORDER BY p.created_at DESC")
+    Page<Payment> findByProviderId(@Param("providerId") Long providerId, Pageable pageable);
+    
+    @Query("SELECT DISTINCT p FROM Payment p LEFT JOIN FETCH p.method ORDER BY p.created_at DESC")
+    Page<Payment> findAllOptimized(Pageable pageable);
 
     List<Payment> findByStatus(PaymentStatus status);
 
@@ -105,5 +115,9 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     // Total amount por provider_id (pagos APPROVED)
     @Query("SELECT COALESCE(SUM(p.amount_total), 0) FROM Payment p WHERE p.provider_id = :providerId AND p.status = 'APPROVED'")
     BigDecimal getTotalAmountByProviderId(@Param("providerId") Long providerId);
+    
+    // Total amount de todos los pagos APPROVED (para ADMIN)
+    @Query("SELECT COALESCE(SUM(p.amount_total), 0) FROM Payment p WHERE p.status = 'APPROVED'")
+    BigDecimal getTotalAmountAllApprovedPayments();
     
 }

@@ -32,25 +32,36 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
         
-        // Saltar el filtro para endpoints públicos
         String requestURI = request.getRequestURI();
+        logger.info("🎯 JWT FILTER EJECUTÁNDOSE para: {}", requestURI);
+        
+        // Saltar el filtro para endpoints públicos
         if (isPublicEndpoint(requestURI)) {
+            logger.trace("🔓 Endpoint público: {} - sin autenticación", requestURI);
             filterChain.doFilter(request, response);
             return;
         }
         
         try {
             String authHeader = request.getHeader("Authorization");
+            
+            logger.info("🔐 Procesando request autenticado: {}", requestURI);
 
             if (StringUtils.hasText(authHeader) && authHeader.startsWith("Bearer ")) {
                 String jwtToken = authHeader.substring(7);
+                
+                logger.info("🔑 Validando token JWT para: {}", requestURI);
 
                 if (jwtUtil.isTokenValid(jwtToken)) {
                     String email = jwtUtil.getSubject(jwtToken);
                     
-                    if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                    logger.info("✅ Token válido, email extraído: {}", email);
+                    
+                    if (email != null) {
                         try {
                             List<String> roles = jwtUtil.getRoles(jwtToken);
+                            
+                            logger.info("📋 Roles extraídos del token para {}: {}", email, roles);
                             
                             List<SimpleGrantedAuthority> authorities = roles.stream()
                                     .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
@@ -64,23 +75,39 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                             );
                             
                             SecurityContextHolder.getContext().setAuthentication(authenticationToken);
-
-                            logger.debug("Autenticacion exitosa para el usuario: {} con roles: {}", email, roles);
+                            
+                            logger.info("==================== AUTENTICACIÓN ADMIN ====================");
+                            logger.info("✅ Usuario: {}", email);
+                            logger.info("✅ Roles del token: {}", roles);
+                            authorities.forEach(auth -> {
+                                logger.info("✅ Authority creada: {}", auth.getAuthority());
+                            });
+                            logger.info("================================================================");
 
                         } catch (Exception e) {
-                            logger.warn("Error procesando el token JWT para el usuario: {}, error: {}", email, e.getMessage());
+                            logger.error("❌ Error procesando el token JWT para el usuario: {}, error: {}", 
+                                email != null ? email : "unknown", e.getMessage(), e);
                             // Clear any partial authentication
                             SecurityContextHolder.clearContext();
                         }
+                    } else {
+                        if (email == null) {
+                            logger.warn("⚠️ Email es null del token");
+                        }
+                        if (SecurityContextHolder.getContext().getAuthentication() != null) {
+                            logger.info("ℹ️ Ya existe autenticación en contexto");
+                        }
                     }
                 } else {
-                    logger.debug("Token JWT inválido o expirado");
+                    logger.warn("❌ Token JWT inválido o expirado para: {}", requestURI);
                     // Clear any existing authentication
                     SecurityContextHolder.clearContext();
                 }
+            } else {
+                logger.warn("⚠️ No hay token válido en el header Authorization para: {}", requestURI);
             }
         } catch (Exception e) {
-            logger.error("No se puede establecer la autenticación del usuario: {}", e.getMessage());
+            logger.error("❌ Excepción procesando autenticación para {}: {}", requestURI, e.getMessage(), e);
         }
 
         filterChain.doFilter(request, response);

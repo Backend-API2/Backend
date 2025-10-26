@@ -13,4 +13,7 @@ public interface UserDataRepository extends JpaRepository<UserData, Long> {
     List<UserData> findAllByEmail(String email);
     boolean existsByUserId(Long userId);
     boolean existsByEmail(String email);
+    
+    // Método optimizado para batch queries
+    List<UserData> findByUserIdIn(Iterable<Long> userIds);
 }

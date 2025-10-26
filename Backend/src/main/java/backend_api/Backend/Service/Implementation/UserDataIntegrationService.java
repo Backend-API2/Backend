@@ -8,7 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.Optional;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -50,6 +50,45 @@ public class UserDataIntegrationService {
         
         log.warn("No se encontraron datos para userId: {}", userId);
         return null;
+    }
+    
+    // Método optimizado para obtener múltiples usuarios de una vez
+    public Map<Long, UserInfo> getUserInfoBatch(Set<Long> userIds) {
+        Map<Long, UserInfo> resultMap = new HashMap<>();
+        
+        // Batch query para UserData
+        List<UserData> userDataList = userDataRepository.findByUserIdIn(userIds);
+        for (UserData userData : userDataList) {
+            log.info("Usando datos del módulo de usuarios para userId: {}", userData.getUserId());
+            resultMap.put(userData.getUserId(), UserInfo.builder()
+                    .userId(userData.getUserId())
+                    .name(userData.getName())
+                    .email(userData.getEmail())
+                    .phone(userData.getPhone())
+                    .source("USER_MODULE")
+                    .build());
+        }
+        
+        // Los que no están en UserData, buscarlos en User (batch)
+        Set<Long> remainingIds = userIds.stream()
+                .filter(id -> !resultMap.containsKey(id))
+                .collect(java.util.stream.Collectors.toSet());
+        
+        if (!remainingIds.isEmpty()) {
+            List<User> userList = userRepository.findAllById(remainingIds);
+            for (User user : userList) {
+                log.info("Usando datos locales para userId: {}", user.getId());
+                resultMap.put(user.getId(), UserInfo.builder()
+                        .userId(user.getId())
+                        .name(user.getName())
+                        .email(user.getEmail())
+                        .phone(user.getPhone())
+                        .source("LOCAL")
+                        .build());
+            }
+        }
+        
+        return resultMap;
     }
 
     public boolean hasUserModuleData(Long userId) {
