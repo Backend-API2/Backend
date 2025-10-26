@@ -42,7 +42,8 @@ class DataSubscriptionControllerMatchingTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("success"))
                 .andExpect(jsonPath("$.message").value("Suscripción a solicitudes de pago de matching creada exitosamente"))
-                .andExpect(jsonPath("$.topic").value("matching.pago.emitida"))
+                .andExpect(jsonPath("$.topic").value("pago"))
+                .andExpect(jsonPath("$.eventName").value("emitida"))
                 .andExpect(jsonPath("$.webhookUrl").value("https://3aadd844682e.ngrok-free.app/api/core/webhook/matching-payment-requests"));
 
         verify(coreHubService).subscribeToTopic("matching", "pago", "emitida");

@@ -103,16 +103,20 @@ public class CoreWebhookController {
             String eventName = message.getDestination().getEventName();
 
             switch (eventName) {
-                case "create_user":
+                case "user_created":
                     userEventProcessorService.processUserCreatedFromCore(message);
                     break;
 
-                case "update_user":
+                case "user_updated":
                     userEventProcessorService.processUserUpdatedFromCore(message);
                     break;
 
-                case "deactivate_user":
+                case "user_deactivated":
                     userEventProcessorService.processUserDeactivatedFromCore(message);
+                    break;
+                    
+                case "user_rejected":
+                    userEventProcessorService.processUserRejectedFromCore(message);
                     break;
 
                 default:

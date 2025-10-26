@@ -196,4 +196,33 @@ public class UserEventProcessorService {
             throw new RuntimeException("Error guardando datos de prestador", e);
         }
     }
+
+    public void processUserRejectedFromCore(CoreEventMessage coreMessage) {
+        log.info("Procesando evento de usuario rechazado del CORE - MessageId: {}", coreMessage.getMessageId());
+
+        try {
+            Map<String, Object> payload = coreMessage.getPayload();
+            
+            // Extraer datos del payload manualmente
+            Long userId = extractLong(payload, "userId");
+            String message = extractString(payload, "message");
+            
+            log.info("Usuario rechazado - UserId: {}, Message: {}", userId, message);
+
+            // Actualizar datos del usuario con estado de rechazo
+            Map<String, Object> userData = new java.util.HashMap<>();
+            userData.put("status", "REJECTED");
+            userData.put("rejectionReason", message);
+            userData.put("rejectedAt", java.time.LocalDateTime.now().toString());
+
+            dataStorageService.saveUserData(userId, userData, coreMessage.getMessageId());
+            
+            log.info("Usuario rechazado procesado exitosamente en BD - UserId: {}", userId);
+
+        } catch (Exception e) {
+            log.error("Error procesando usuario rechazado - MessageId: {}, Error: {}",
+                coreMessage.getMessageId(), e.getMessage(), e);
+            throw new RuntimeException("Error al procesar usuario rechazado", e);
+        }
+    }
 }

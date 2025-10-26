@@ -42,19 +42,25 @@ public class DataSubscriptionController {
             coreHubService.subscribeToTopic(
                 "users",                    
                 "user",   
-                "create_user"               
+                "user_created"               
             );
 
             coreHubService.subscribeToTopic(
                 "users",                    
                 "user",   
-                "update_user"               
+                "user_updated"               
             );
 
             coreHubService.subscribeToTopic(
                 "users",                       
                 "user",   
-                "deactivate_user"               
+                "user_deactivated"               
+            );
+            
+            coreHubService.subscribeToTopic(
+                "users",                       
+                "user",   
+                "user_rejected"               
             );
 
             log.info("Suscripciones a eventos de usuarios creadas exitosamente");
@@ -87,7 +93,8 @@ public class DataSubscriptionController {
             return ResponseEntity.ok(Map.of(
                 "status", "success",
                 "message", "Suscripción a solicitudes de pago de matching creada exitosamente",
-                "topic", "matching.pago.emitida",
+                "topic", "pago",
+                "eventName", "emitida",
                 "webhookUrl", "https://3aadd844682e.ngrok-free.app/api/core/webhook/matching-payment-requests"
             ));
 
@@ -105,9 +112,10 @@ public class DataSubscriptionController {
         return ResponseEntity.ok(Map.of(
             "status", "active",
             "subscriptions", new String[]{
-                "user.create_user",
-                "user.update_user",
-                "user.deactivate_user",
+                "user.user_created",
+                "user.user_updated",
+                "user.user_deactivated",
+                "user.user_rejected",
                 "pago.emitida"
             },
             "webhooks", Map.of(
