@@ -8,14 +8,17 @@ import backend_api.Backend.Repository.UserDataRepository;
 import backend_api.Backend.Repository.ProviderDataRepository;
 import backend_api.Backend.Service.Interface.PaymentService;
 import backend_api.Backend.messaging.dto.PaymentRequestMessage;
+import backend_api.Backend.messaging.dto.CoreResponseMessage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @Slf4j
@@ -26,6 +29,7 @@ public class PaymentRequestProcessorService {
     private final ProviderDataRepository providerDataRepository;
     private final PaymentService paymentService;
     private final ObjectMapper objectMapper;
+    private final CoreHubService coreHubService;
 
     public Map<String, Object> processPaymentRequest(PaymentRequestMessage message) {
         try {
@@ -81,13 +85,22 @@ public class PaymentRequestProcessorService {
             BigDecimal montoTotal = montoSubtotal.add(impuestos).add(comisiones);
 
             // Crear pago (aquí integrarías con tu lógica de creación de pagos)
-            Map<String, Object> paymentData = createPayment(
+            Payment savedPayment = createPayment(
                 idCorrelacion, idUsuario, idPrestador, idSolicitud,
                 montoSubtotal, impuestos, comisiones, montoTotal, moneda, metodoPreferido,
                 userData, providerData
             );
 
+            // Enviar evento de pago creado al CORE
+            sendPaymentCreatedEvent(savedPayment, idSolicitud, message.getMessageId());
+
             log.info("✅ Solicitud de pago procesada exitosamente - MessageId: {}", message.getMessageId());
+
+            Map<String, Object> paymentData = buildPaymentResponseData(
+                idCorrelacion, idUsuario, idPrestador, idSolicitud,
+                montoSubtotal, impuestos, comisiones, montoTotal, moneda, metodoPreferido,
+                savedPayment, userData, providerData
+            );
 
             return Map.of(
                 "success", true,
@@ -117,7 +130,7 @@ public class PaymentRequestProcessorService {
         }
     }
 
-    private Map<String, Object> createPayment(
+    private Payment createPayment(
             String idCorrelacion, Long idUsuario, Long idPrestador, Long idSolicitud,
             BigDecimal montoSubtotal, BigDecimal impuestos, BigDecimal comisiones, BigDecimal montoTotal,
             String moneda, String metodoPreferido, UserData userData, ProviderData providerData) {
@@ -160,8 +173,16 @@ public class PaymentRequestProcessorService {
         log.info("✅ Pago guardado exitosamente - ID: {}, Usuario: {}, Prestador: {}", 
             savedPayment.getId(), savedPayment.getUser_id(), savedPayment.getProvider_id());
         
-        // Retornar datos para respuesta
+        return savedPayment;
+    }
+
+    private Map<String, Object> buildPaymentResponseData(
+            String idCorrelacion, Long idUsuario, Long idPrestador, Long idSolicitud,
+            BigDecimal montoSubtotal, BigDecimal impuestos, BigDecimal comisiones, BigDecimal montoTotal,
+            String moneda, String metodoPreferido, Payment savedPayment, UserData userData, ProviderData providerData) {
+        
         Map<String, Object> paymentData = new java.util.HashMap<>();
+        paymentData.put("paymentId", savedPayment.getId());
         paymentData.put("idCorrelacion", idCorrelacion);
         paymentData.put("idUsuario", idUsuario);
         paymentData.put("idPrestador", idPrestador);
@@ -188,5 +209,48 @@ public class PaymentRequestProcessorService {
         paymentData.put("providerInfo", providerInfo);
         
         return paymentData;
+    }
+
+    private void sendPaymentCreatedEvent(Payment payment, Long solicitudId, String originalMessageId) {
+        try {
+            log.info("📤 Enviando evento de pago creado al CORE - PaymentId: {}, SolicitudId: {}", 
+                payment.getId(), solicitudId);
+
+            Map<String, Object> payload = new java.util.HashMap<>();
+            payload.put("paymentId", payment.getId());
+            payload.put("solicitudId", solicitudId);
+            payload.put("status", payment.getStatus().toString());
+            payload.put("amount", payment.getAmount_total());
+            payload.put("currency", payment.getCurrency());
+            payload.put("userId", payment.getUser_id());
+            payload.put("providerId", payment.getProvider_id());
+            payload.put("originalMessageId", originalMessageId);
+
+            CoreResponseMessage confirmation = CoreResponseMessage.builder()
+                .messageId(UUID.randomUUID().toString())
+                .timestamp(Instant.now().toString())
+                .destination(CoreResponseMessage.Destination.builder()
+                    .topic("payment")
+                    .eventName("created")
+                    .build())
+                .payload(payload)
+                .build();
+
+            // Enviar al CORE y obtener la respuesta
+            Map<String, Object> coreResponse = coreHubService.publishMessage(confirmation);
+            
+            Boolean success = (Boolean) coreResponse.get("success");
+            if (Boolean.TRUE.equals(success)) {
+                log.info("✅ Evento de pago creado enviado exitosamente al CORE - PaymentId: {}", payment.getId());
+                log.info("📋 Respuesta del CORE: {}", coreResponse.get("response"));
+                log.info("📊 Status Code: {}", coreResponse.get("statusCode"));
+            } else {
+                log.error("❌ Error enviando evento al CORE - PaymentId: {}, Error: {}", 
+                    payment.getId(), coreResponse.get("error"));
+            }
+        } catch (Exception e) {
+            log.error("❌ Error enviando evento de pago creado al CORE - PaymentId: {}, Error: {}", 
+                payment.getId(), e.getMessage(), e);
+        }
     }
 }
