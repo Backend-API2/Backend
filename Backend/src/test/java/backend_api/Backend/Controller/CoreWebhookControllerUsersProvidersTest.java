@@ -116,8 +116,8 @@ class CoreWebhookControllerUsersProvidersTest {
         msg.setTimestamp(LocalDateTime.of(2025, 1, 1, 10, 0, 0));
 
         CoreEventMessage.Destination dest = new CoreEventMessage.Destination();
-        dest.setChannel("users.user.create_user");
-        dest.setEventName("create_user");
+        dest.setChannel("user");
+        dest.setEventName("user_created");
         msg.setDestination(dest);
 
         msg.setPayload(Map.of(
