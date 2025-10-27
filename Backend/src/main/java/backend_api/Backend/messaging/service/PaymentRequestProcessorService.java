@@ -35,29 +35,49 @@ public class PaymentRequestProcessorService {
         try {
             log.info("🔄 Procesando solicitud de pago de matching - MessageId: {}", message.getMessageId());
             
-            // Extraer datos del mensaje - soporta ambos formatos
-            PaymentRequestMessage.Cuerpo cuerpo = null;
-            PaymentRequestMessage.Pago pago = message.getPayload() != null ? message.getPayload().getPago() : null;
+            // Extraer datos del mensaje
+            // Manejar tanto el formato viejo (payload.cuerpo) como el nuevo (payload.pago)
+            String idCorrelacion;
+            Long idUsuario;
+            Long idPrestador;
+            Long idSolicitud;
+            BigDecimal montoSubtotal;
+            BigDecimal impuestos;
+            BigDecimal comisiones;
+            String moneda;
+            String metodoPreferido;
+            String descripcion;
+            String descripcionSolicitud;
             
-            // Si viene el nuevo formato con "pago"
-            if (pago != null) {
-                // Mapear del formato Pago al formato Cuerpo
-                cuerpo = new PaymentRequestMessage.Cuerpo();
-                cuerpo.setIdCorrelacion(pago.getIdCorrelacion());
-                cuerpo.setIdUsuario(pago.getIdUsuario());
-                cuerpo.setIdPrestador(pago.getIdPrestador());
-                cuerpo.setIdSolicitud(pago.getIdSolicitud());
-                cuerpo.setMontoSubtotal(pago.getMontoSubtotal());
-                cuerpo.setImpuestos(pago.getImpuestos());
-                cuerpo.setComisiones(pago.getComisiones());
-                cuerpo.setMoneda(pago.getMoneda());
-                cuerpo.setMetodoPreferido(pago.getMetodoPreferido());
-            } else if (message.getPayload() != null && message.getPayload().getCuerpo() != null) {
-                // Formato antiguo con "cuerpo"
-                cuerpo = message.getPayload().getCuerpo();
-            }
-            
-            if (cuerpo == null) {
+            if (message.getPayload().getPago() != null) {
+                // Nuevo formato: usar payload.pago
+                PaymentRequestMessage.Pago pago = message.getPayload().getPago();
+                idCorrelacion = pago.getIdCorrelacion();
+                idUsuario = pago.getIdUsuario();
+                idPrestador = pago.getIdPrestador();
+                idSolicitud = pago.getIdSolicitud();
+                montoSubtotal = pago.getMontoSubtotal();
+                impuestos = pago.getImpuestos();
+                comisiones = pago.getComisiones();
+                moneda = pago.getMoneda();
+                metodoPreferido = pago.getMetodoPreferido();
+                descripcion = pago.getDescripcion();
+                descripcionSolicitud = pago.getDescripcionSolicitud();
+            } else if (message.getPayload().getCuerpo() != null) {
+                // Formato viejo: usar payload.cuerpo
+                PaymentRequestMessage.Cuerpo cuerpo = message.getPayload().getCuerpo();
+                idCorrelacion = cuerpo.getIdCorrelacion();
+                idUsuario = cuerpo.getIdUsuario();
+                idPrestador = cuerpo.getIdPrestador();
+                idSolicitud = cuerpo.getIdSolicitud();
+                montoSubtotal = cuerpo.getMontoSubtotal();
+                impuestos = cuerpo.getImpuestos();
+                comisiones = cuerpo.getComisiones();
+                moneda = cuerpo.getMoneda();
+                metodoPreferido = cuerpo.getMetodoPreferido();
+                descripcion = cuerpo.getDescripcion();
+                descripcionSolicitud = cuerpo.getDescripcionSolicitud();
+            } else {
                 log.error("❌ No se pudo extraer datos del payload");
                 return Map.of(
                     "success", false,
@@ -65,50 +85,34 @@ public class PaymentRequestProcessorService {
                     "messageId", message.getMessageId()
                 );
             }
-            
-            String idCorrelacion = cuerpo.getIdCorrelacion();
-            Long idUsuario = cuerpo.getIdUsuario();
-            Long idPrestador = cuerpo.getIdPrestador();
-            Long idSolicitud = cuerpo.getIdSolicitud();
-            BigDecimal montoSubtotal = cuerpo.getMontoSubtotal();
-            BigDecimal impuestos = cuerpo.getImpuestos();
-            BigDecimal comisiones = cuerpo.getComisiones();
-            String moneda = cuerpo.getMoneda();
-            String metodoPreferido = cuerpo.getMetodoPreferido();
 
             log.info("📋 Datos extraídos - Usuario: {}, Prestador: {}, Solicitud: {}, Monto: {} {}", 
                 idUsuario, idPrestador, idSolicitud, montoSubtotal, moneda);
+            log.info("📝 Descripción: {}, Descripción Solicitud: {}", descripcion, descripcionSolicitud);
 
-            // Buscar datos del usuario
-            Optional<UserData> userDataOpt = userDataRepository.findByUserId(idUsuario);
-            if (userDataOpt.isEmpty()) {
-                log.error("❌ Usuario no encontrado - ID: {}", idUsuario);
-                return Map.of(
-                    "success", false,
-                    "error", "Usuario no encontrado",
-                    "userId", idUsuario,
-                    "messageId", message.getMessageId()
-                );
+            // Buscar datos del usuario (si existe)
+            UserData userData = null;
+            if (idUsuario != null) {
+                Optional<UserData> userDataOpt = userDataRepository.findByUserId(idUsuario);
+                if (userDataOpt.isPresent()) {
+                    userData = userDataOpt.get();
+                    log.info("✅ Usuario encontrado - Name: {}, Email: {}", userData.getName(), userData.getEmail());
+                } else {
+                    log.warn("⚠️ Usuario no encontrado en BD - ID: {}", idUsuario);
+                }
             }
 
-            // Buscar datos del prestador
-            Optional<ProviderData> providerDataOpt = providerDataRepository.findByProviderId(idPrestador);
-            if (providerDataOpt.isEmpty()) {
-                log.error("❌ Prestador no encontrado - ID: {}", idPrestador);
-                return Map.of(
-                    "success", false,
-                    "error", "Prestador no encontrado",
-                    "providerId", idPrestador,
-                    "messageId", message.getMessageId()
-                );
+            // Buscar datos del prestador (si existe)
+            ProviderData providerData = null;
+            if (idPrestador != null) {
+                Optional<ProviderData> providerDataOpt = providerDataRepository.findByProviderId(idPrestador);
+                if (providerDataOpt.isPresent()) {
+                    providerData = providerDataOpt.get();
+                    log.info("✅ Prestador encontrado - Name: {}, Email: {}", providerData.getName(), providerData.getEmail());
+                } else {
+                    log.warn("⚠️ Prestador no encontrado en BD - ID: {}", idPrestador);
+                }
             }
-
-            UserData userData = userDataOpt.get();
-            ProviderData providerData = providerDataOpt.get();
-
-            log.info("✅ Datos encontrados - Usuario: {} {}, Prestador: {} {}", 
-                userData.getName(), userData.getEmail(), 
-                providerData.getName(), providerData.getEmail());
 
             // Calcular monto total
             BigDecimal montoTotal = montoSubtotal.add(impuestos).add(comisiones);
@@ -117,6 +121,7 @@ public class PaymentRequestProcessorService {
             Payment savedPayment = createPayment(
                 idCorrelacion, idUsuario, idPrestador, idSolicitud,
                 montoSubtotal, impuestos, comisiones, montoTotal, moneda, metodoPreferido,
+                descripcion, descripcionSolicitud,
                 userData, providerData
             );
 
@@ -125,28 +130,54 @@ public class PaymentRequestProcessorService {
 
             log.info("✅ Solicitud de pago procesada exitosamente - MessageId: {}", message.getMessageId());
 
-            Map<String, Object> paymentData = buildPaymentResponseData(
-                idCorrelacion, idUsuario, idPrestador, idSolicitud,
-                montoSubtotal, impuestos, comisiones, montoTotal, moneda, metodoPreferido,
-                savedPayment, userData, providerData
-            );
-
-            return Map.of(
-                "success", true,
-                "message", "Solicitud de pago procesada exitosamente",
-                "messageId", message.getMessageId(),
-                "paymentData", paymentData,
-                "userData", Map.of(
+            // Preparar respuesta
+            Map<String, Object> responseMap = new java.util.HashMap<>();
+            responseMap.put("success", true);
+            responseMap.put("message", "Solicitud de pago procesada exitosamente");
+            responseMap.put("messageId", message.getMessageId());
+            
+            // Preparar paymentData
+            Map<String, Object> paymentData = new java.util.HashMap<>();
+            paymentData.put("idCorrelacion", idCorrelacion);
+            paymentData.put("idUsuario", idUsuario);
+            paymentData.put("idPrestador", idPrestador);
+            paymentData.put("idSolicitud", idSolicitud);
+            paymentData.put("montoSubtotal", montoSubtotal);
+            paymentData.put("impuestos", impuestos);
+            paymentData.put("comisiones", comisiones);
+            paymentData.put("montoTotal", montoTotal);
+            paymentData.put("moneda", moneda);
+            paymentData.put("metodoPreferido", metodoPreferido);
+            paymentData.put("descripcion", descripcion);
+            paymentData.put("descripcionSolicitud", descripcionSolicitud);
+            paymentData.put("paymentId", savedPayment.getId());
+            paymentData.put("status", savedPayment.getStatus());
+            
+            responseMap.put("paymentData", paymentData);
+            
+            // Agregar datos de usuario si existen
+            if (userData != null) {
+                responseMap.put("userData", Map.of(
                     "userId", userData.getUserId(),
                     "name", userData.getName(),
                     "email", userData.getEmail()
-                ),
-                "providerData", Map.of(
+                ));
+            } else {
+                responseMap.put("userData", null);
+            }
+            
+            // Agregar datos de prestador si existen
+            if (providerData != null) {
+                responseMap.put("providerData", Map.of(
                     "providerId", providerData.getProviderId(),
                     "name", providerData.getName(),
                     "email", providerData.getEmail()
-                )
-            );
+                ));
+            } else {
+                responseMap.put("providerData", null);
+            }
+
+            return responseMap;
 
         } catch (Exception e) {
             log.error("❌ Error procesando solicitud de pago - MessageId: {}, Error: {}", 
@@ -162,7 +193,8 @@ public class PaymentRequestProcessorService {
     private Payment createPayment(
             String idCorrelacion, Long idUsuario, Long idPrestador, Long idSolicitud,
             BigDecimal montoSubtotal, BigDecimal impuestos, BigDecimal comisiones, BigDecimal montoTotal,
-            String moneda, String metodoPreferido, UserData userData, ProviderData providerData) {
+            String moneda, String metodoPreferido, String descripcion, String descripcionSolicitud,
+            UserData userData, ProviderData providerData) {
         
         log.info("💾 Creando pago en base de datos - Usuario: {}, Prestador: {}, Monto: {}", 
             idUsuario, idPrestador, montoTotal);
@@ -185,10 +217,14 @@ public class PaymentRequestProcessorService {
         Map<String, Object> metadata = new java.util.HashMap<>();
         metadata.put("idCorrelacion", idCorrelacion);
         metadata.put("metodoPreferido", metodoPreferido);
-        metadata.put("userName", userData.getName());
-        metadata.put("userEmail", userData.getEmail());
-        metadata.put("providerName", providerData.getName());
-        metadata.put("providerEmail", providerData.getEmail());
+        if (userData != null) {
+            metadata.put("userName", userData.getName());
+            metadata.put("userEmail", userData.getEmail());
+        }
+        if (providerData != null) {
+            metadata.put("providerName", providerData.getName());
+            metadata.put("providerEmail", providerData.getEmail());
+        }
         
         try {
             payment.setMetadata(objectMapper.writeValueAsString(metadata));
@@ -199,6 +235,9 @@ public class PaymentRequestProcessorService {
         
         // Guardar en base de datos
         Payment savedPayment = paymentService.createPayment(payment);
+        if (savedPayment == null) {
+            throw new RuntimeException("No se pudo guardar el pago en la base de datos");
+        }
         log.info("✅ Pago guardado exitosamente - ID: {}, Usuario: {}, Prestador: {}", 
             savedPayment.getId(), savedPayment.getUser_id(), savedPayment.getProvider_id());
         
@@ -208,7 +247,8 @@ public class PaymentRequestProcessorService {
     private Map<String, Object> buildPaymentResponseData(
             String idCorrelacion, Long idUsuario, Long idPrestador, Long idSolicitud,
             BigDecimal montoSubtotal, BigDecimal impuestos, BigDecimal comisiones, BigDecimal montoTotal,
-            String moneda, String metodoPreferido, Payment savedPayment, UserData userData, ProviderData providerData) {
+            String moneda, String metodoPreferido, String descripcion, String descripcionSolicitud,
+            Payment savedPayment, UserData userData, ProviderData providerData) {
         
         Map<String, Object> paymentData = new java.util.HashMap<>();
         paymentData.put("paymentId", savedPayment.getId());
@@ -222,20 +262,32 @@ public class PaymentRequestProcessorService {
         paymentData.put("montoTotal", montoTotal);
         paymentData.put("moneda", moneda);
         paymentData.put("metodoPreferido", metodoPreferido);
+        paymentData.put("descripcion", descripcion);
+        paymentData.put("descripcionSolicitud", descripcionSolicitud);
         paymentData.put("status", "PENDING");
         paymentData.put("createdAt", savedPayment.getCreated_at().toString());
         
-        Map<String, Object> userInfo = new java.util.HashMap<>();
-        userInfo.put("name", userData.getName());
-        userInfo.put("email", userData.getEmail());
-        userInfo.put("phone", userData.getPhone());
-        paymentData.put("userInfo", userInfo);
+        // Agregar información del usuario si existe
+        if (userData != null) {
+            Map<String, Object> userInfo = new java.util.HashMap<>();
+            userInfo.put("name", userData.getName());
+            userInfo.put("email", userData.getEmail());
+            userInfo.put("phone", userData.getPhone());
+            paymentData.put("userInfo", userInfo);
+        } else {
+            paymentData.put("userInfo", null);
+        }
         
-        Map<String, Object> providerInfo = new java.util.HashMap<>();
-        providerInfo.put("name", providerData.getName());
-        providerInfo.put("email", providerData.getEmail());
-        providerInfo.put("phone", providerData.getPhone());
-        paymentData.put("providerInfo", providerInfo);
+        // Agregar información del prestador si existe
+        if (providerData != null) {
+            Map<String, Object> providerInfo = new java.util.HashMap<>();
+            providerInfo.put("name", providerData.getName());
+            providerInfo.put("email", providerData.getEmail());
+            providerInfo.put("phone", providerData.getPhone());
+            paymentData.put("providerInfo", providerInfo);
+        } else {
+            paymentData.put("providerInfo", null);
+        }
         
         return paymentData;
     }
@@ -248,7 +300,7 @@ public class PaymentRequestProcessorService {
             Map<String, Object> payload = new java.util.HashMap<>();
             payload.put("paymentId", payment.getId());
             payload.put("solicitudId", solicitudId);
-            payload.put("status", payment.getStatus().toString());
+            payload.put("status", payment.getStatus() != null ? payment.getStatus().toString() : "UNKNOWN");
             payload.put("amount", payment.getAmount_total());
             payload.put("currency", payment.getCurrency());
             payload.put("userId", payment.getUser_id());

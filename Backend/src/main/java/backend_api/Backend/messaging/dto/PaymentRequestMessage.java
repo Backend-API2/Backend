@@ -39,9 +39,8 @@ public class PaymentRequestMessage {
         private String topico;
         private String evento;
         private Cuerpo cuerpo;
-        
-        // Nuevo formato de matching
         private String generatedAt;
+        // Nuevo formato: el objeto "pago" viene dentro de payload
         private Pago pago;
     }
 
@@ -58,6 +57,8 @@ public class PaymentRequestMessage {
         private BigDecimal comisiones;
         private String moneda;
         private String metodoPreferido;
+        private String descripcion;
+        private String descripcionSolicitud;
     }
 
     @Data
@@ -79,5 +80,7 @@ public class PaymentRequestMessage {
         private BigDecimal comisiones;
         private String moneda;
         private String metodoPreferido;
+        private String descripcion;
+        private String descripcionSolicitud;
     }
 }

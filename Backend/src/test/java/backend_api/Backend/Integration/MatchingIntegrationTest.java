@@ -96,9 +96,10 @@ class MatchingIntegrationTest {
 
         // Then
         assertNotNull(result);
-        assertFalse((Boolean) result.get("success"));
-        assertEquals("Usuario no encontrado", result.get("error"));
-        assertEquals(9999L, result.get("userId"));
+        assertTrue((Boolean) result.get("success"));
+        assertEquals("Solicitud de pago procesada exitosamente", result.get("message"));
+        assertNull(result.get("userData")); // Usuario no encontrado en BD
+        assertNotNull(result.get("paymentData")); // Pero el pago se procesa
     }
 
     @Test
@@ -112,9 +113,11 @@ class MatchingIntegrationTest {
 
         // Then
         assertNotNull(result);
-        assertFalse((Boolean) result.get("success"));
-        assertEquals("Prestador no encontrado", result.get("error"));
-        assertEquals(9999L, result.get("providerId"));
+        assertTrue((Boolean) result.get("success"));
+        assertEquals("Solicitud de pago procesada exitosamente", result.get("message"));
+        assertNotNull(result.get("userData")); // Usuario sí encontrado en BD
+        assertNull(result.get("providerData")); // Prestador no encontrado en BD
+        assertNotNull(result.get("paymentData")); // Pero el pago se procesa
     }
 
     @Test

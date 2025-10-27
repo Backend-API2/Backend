@@ -105,19 +105,36 @@ class PaymentRequestProcessorServiceTest {
     void testProcessPaymentRequest_UserNotFound() {
         // Given
         when(userDataRepository.findByUserId(999L)).thenReturn(Optional.empty());
+        when(providerDataRepository.findByProviderId(1L)).thenReturn(Optional.of(providerData));
+        
+        // Mock PaymentService
+        Payment mockPayment = new Payment();
+        mockPayment.setId(1L);
+        mockPayment.setUser_id(999L);
+        mockPayment.setProvider_id(1L);
+        mockPayment.setCreated_at(java.time.LocalDateTime.now());
+        when(paymentService.createPayment(any(Payment.class))).thenReturn(mockPayment);
+        
+        // Mock ObjectMapper
+        try {
+            when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        } catch (Exception e) {
+            // This won't happen in tests
+        }
 
         // When
         Map<String, Object> result = paymentRequestProcessorService.processPaymentRequest(message);
 
         // Then
         assertNotNull(result);
-        assertFalse((Boolean) result.get("success"));
-        assertEquals("Usuario no encontrado", result.get("error"));
-        assertEquals(999L, result.get("userId"));
+        assertTrue((Boolean) result.get("success"));
+        assertEquals("Solicitud de pago procesada exitosamente", result.get("message"));
+        assertNull(result.get("userData")); // Usuario no encontrado
+        assertNotNull(result.get("providerData")); // Prestador sí encontrado
         assertEquals("test-message-123", result.get("messageId"));
         
         verify(userDataRepository).findByUserId(999L);
-        verify(providerDataRepository, never()).findByProviderId(anyLong());
+        verify(providerDataRepository).findByProviderId(1L);
     }
 
     @Test
@@ -125,15 +142,31 @@ class PaymentRequestProcessorServiceTest {
         // Given
         when(userDataRepository.findByUserId(999L)).thenReturn(Optional.of(userData));
         when(providerDataRepository.findByProviderId(1L)).thenReturn(Optional.empty());
+        
+        // Mock PaymentService
+        Payment mockPayment = new Payment();
+        mockPayment.setId(1L);
+        mockPayment.setUser_id(999L);
+        mockPayment.setProvider_id(1L);
+        mockPayment.setCreated_at(java.time.LocalDateTime.now());
+        when(paymentService.createPayment(any(Payment.class))).thenReturn(mockPayment);
+        
+        // Mock ObjectMapper
+        try {
+            when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        } catch (Exception e) {
+            // This won't happen in tests
+        }
 
         // When
         Map<String, Object> result = paymentRequestProcessorService.processPaymentRequest(message);
 
         // Then
         assertNotNull(result);
-        assertFalse((Boolean) result.get("success"));
-        assertEquals("Prestador no encontrado", result.get("error"));
-        assertEquals(1L, result.get("providerId"));
+        assertTrue((Boolean) result.get("success"));
+        assertEquals("Solicitud de pago procesada exitosamente", result.get("message"));
+        assertNotNull(result.get("userData")); // Usuario sí encontrado
+        assertNull(result.get("providerData")); // Prestador no encontrado
         assertEquals("test-message-123", result.get("messageId"));
         
         verify(userDataRepository).findByUserId(999L);
