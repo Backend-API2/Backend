@@ -94,7 +94,8 @@ public class DataSubscriptionController {
                 "status", "success",
                 "message", "Suscripción a solicitudes de pago de matching creada exitosamente",
                 "topic", "pago",
-                "eventName", "emitida"
+                "eventName", "emitida",
+                "webhookUrl", "https://3aadd844682e.ngrok-free.app/api/core/webhook/matching-payment-requests"
             ));
 
         } catch (Exception e) {

@@ -92,8 +92,51 @@ public class CoreWebhookController {
 
    
     @PostMapping("/user-events")
-    public ResponseEntity<Map<String, String>> receiveUserEvent(@RequestBody CoreEventMessage message) {
+    public ResponseEntity<Map<String, String>> receiveUserEvent(@RequestBody Map<String, Object> rawMessage) {
+        CoreEventMessage message = null;
         try {
+            // Convertir el mensaje raw a CoreEventMessage
+            if (rawMessage instanceof CoreEventMessage) {
+                message = (CoreEventMessage) rawMessage;
+            } else {
+                Map<String, Object> map = rawMessage;
+                message = new CoreEventMessage();
+                message.setMessageId((String) map.get("messageId"));
+
+                // El timestamp viene como String, convertirlo
+                Object timestamp = map.get("timestamp");
+                if (timestamp != null) {
+                    try {
+                        message.setTimestamp(java.time.LocalDateTime.parse(timestamp.toString()));
+                    } catch (Exception e) {
+                        log.warn("No se pudo parsear timestamp: {}", timestamp);
+                    }
+                }
+
+                // Destination
+                Object destObj = map.get("destination");
+                if (destObj instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> dest = (Map<String, Object>) destObj;
+                    CoreEventMessage.Destination destination = new CoreEventMessage.Destination();
+                    destination.setTopic((String) dest.get("topic"));
+                    destination.setEventName((String) dest.get("eventName"));
+                    message.setDestination(destination);
+                }
+
+                // Payload
+                Object payloadObj = map.get("payload");
+                if (payloadObj instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> payload = (Map<String, Object>) payloadObj;
+                    message.setPayload(payload);
+                }
+            }
+            
+            if (message == null) {
+                throw new IllegalArgumentException("No se pudo crear el mensaje");
+            }
+            
             log.info("Webhook de usuarios recibido del CORE - MessageId: {}, EventName: {}, Topic: {}",
                 message.getMessageId(),
                 message.getDestination() != null ? message.getDestination().getEventName() : "null",
@@ -134,12 +177,13 @@ public class CoreWebhookController {
             ));
 
         } catch (Exception e) {
+            String messageId = message != null ? message.getMessageId() : "unknown";
             log.error("Error procesando webhook de usuarios del CORE - MessageId: {}, Error: {}",
-                message.getMessageId(), e.getMessage(), e);
+                messageId, e.getMessage(), e);
 
             return ResponseEntity.status(500).body(Map.of(
                 "status", "error",
-                "messageId", message.getMessageId(),
+                "messageId", messageId,
                 "error", e.getMessage(),
                 "retryAfter","30"
             ));

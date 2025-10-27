@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Map;
 import java.util.Optional;
+import java.math.BigDecimal;
 
 @Service
 @RequiredArgsConstructor
@@ -44,6 +45,21 @@ public class DataStorageServiceImpl {
             userData.setEmail((String) userDataMap.get("email"));
             userData.setPhone((String) userDataMap.get("phone"));
             userData.setSecondaryId(secondaryId);
+            
+            // Actualizar role si está presente
+            if (userDataMap.containsKey("role")) {
+                userData.setRole((String) userDataMap.get("role"));
+            }
+            
+            // Actualizar saldoDisponible si está presente
+            if (userDataMap.containsKey("saldoDisponible")) {
+                Object saldo = userDataMap.get("saldoDisponible");
+                if (saldo instanceof BigDecimal) {
+                    userData.setSaldoDisponible((BigDecimal) saldo);
+                } else if (saldo instanceof Number) {
+                    userData.setSaldoDisponible(BigDecimal.valueOf(((Number) saldo).doubleValue()));
+                }
+            }
             
             // Manejar estado de desactivación
             if (userDataMap.containsKey("status")) {
