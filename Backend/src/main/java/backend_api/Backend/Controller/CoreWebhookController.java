@@ -264,10 +264,42 @@ public class CoreWebhookController {
         if (rawMessage instanceof CoreEventMessage) {
             coreMessage = (CoreEventMessage) rawMessage;
         } else if (rawMessage instanceof java.util.Map) {
-            // Convertir Map a CoreEventMessage usando Jackson
+            // Convertir Map a CoreEventMessage manualmente para evitar problemas con LocalDateTime
             try {
-                ObjectMapper mapper = new ObjectMapper();
-                coreMessage = mapper.convertValue(rawMessage, CoreEventMessage.class);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> map = (Map<String, Object>) rawMessage;
+                coreMessage = new CoreEventMessage();
+                coreMessage.setMessageId((String) map.get("messageId"));
+                
+                // El timestamp viene como String, convertirlo si es necesario
+                Object timestamp = map.get("timestamp");
+                if (timestamp != null) {
+                    try {
+                        coreMessage.setTimestamp(java.time.LocalDateTime.parse(timestamp.toString()));
+                    } catch (Exception e) {
+                        log.warn("No se pudo parsear timestamp: {}", timestamp);
+                    }
+                }
+                
+                // Destination
+                Object destObj = map.get("destination");
+                if (destObj instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> dest = (Map<String, Object>) destObj;
+                    CoreEventMessage.Destination destination = new CoreEventMessage.Destination();
+                    destination.setTopic((String) dest.get("topic"));
+                    destination.setEventName((String) dest.get("eventName"));
+                    coreMessage.setDestination(destination);
+                }
+                
+                // Payload
+                Object payloadObj = map.get("payload");
+                if (payloadObj instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> payload = (Map<String, Object>) payloadObj;
+                    coreMessage.setPayload(payload);
+                }
+                
             } catch (Exception e) {
                 log.error("Error convirtiendo Map a CoreEventMessage: {}", e.getMessage());
                 throw new RuntimeException("Formato de mensaje no válido", e);
