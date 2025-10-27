@@ -10,6 +10,7 @@ import java.util.Optional;
 public interface UserDataRepository extends JpaRepository<UserData, Long> {
     Optional<UserData> findByUserId(Long userId);
     Optional<UserData> findByEmail(String email);
+    Optional<UserData> findFirstByEmail(String email); // Usar este para evitar NonUniqueResultException
     List<UserData> findAllByEmail(String email);
     boolean existsByUserId(Long userId);
     boolean existsByEmail(String email);
