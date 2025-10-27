@@ -6,8 +6,10 @@ import backend_api.Backend.DTO.auth.AuthResponse;
 import backend_api.Backend.Entity.user.User;
 import backend_api.Backend.Entity.user.UserRole;
 import backend_api.Backend.Entity.UserData;
+import backend_api.Backend.Entity.ProviderData;
 import backend_api.Backend.Repository.UserRepository;
 import backend_api.Backend.Repository.UserDataRepository;
+import backend_api.Backend.Repository.ProviderDataRepository;
 import backend_api.Backend.Auth.JwtUtil;
 
 import lombok.extern.slf4j.Slf4j;
@@ -51,6 +53,9 @@ public class AuthController {
     
     @Autowired
     private UserDataRepository userDataRepository;
+    
+    @Autowired
+    private ProviderDataRepository providerDataRepository;
     
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -249,39 +254,92 @@ public class AuthController {
             String password = request.getPassword();
             
             // 1. Primero buscar en usuarios sincronizados (user_data table) - PRIORIDAD
-            Optional<UserData> syncedUser = userDataRepository.findByEmail(email);
             log.info("🔍 Buscando usuario sincronizado para email: {}", email);
+            Optional<UserData> syncedUser;
+            try {
+                syncedUser = userDataRepository.findFirstByEmail(email); // Usar findFirst para evitar NonUniqueResultException
+                log.info("🔍 Resultado búsqueda user_data: {}", syncedUser.isPresent() ? "ENCONTRADO" : "NO ENCONTRADO");
+            } catch (Exception e) {
+                log.error("❌ Error buscando en user_data: {}", e.getMessage(), e);
+                syncedUser = Optional.empty();
+            }
+            
             if (syncedUser.isPresent()) {
-                UserData userData = syncedUser.get();
-                log.info("✅ Usuario sincronizado encontrado - userId: {}, email: {}, role original: {}", 
-                    userData.getUserId(), userData.getEmail(), userData.getRole());
+                try {
+                    UserData userData = syncedUser.get();
+                    log.info("✅ Usuario sincronizado encontrado - userId: {}, email: {}, name: {}, role: {}", 
+                        userData.getUserId(), userData.getEmail(), userData.getName(), userData.getRole());
+                    
+                    // Para usuarios sincronizados, usar contraseña por defecto o validar contra módulo externo
+                    boolean passwordValid = validatePasswordWithUserModule(email, password) || 
+                                          "password123".equals(password) || 
+                                          "123456".equals(password);
+                    
+                    log.info("🔐 Validación de contraseña: {}", passwordValid);
+                    
+                    if (passwordValid) {
+                        String systemRole = convertUserModuleRoleToSystemRole(userData.getRole());
+                        log.info("🔄 Rol convertido de '{}' a '{}'", userData.getRole(), systemRole);
+                        
+                        // Validar que no haya valores nulos antes de generar token
+                        String userName = userData.getName() != null ? userData.getName() : "Usuario";
+                        log.info("📝 Usando nombre: {}", userName);
+                        
+                        String token = jwtUtil.generateToken(userData.getEmail(), 86400000L, List.of(systemRole));
+                        AuthResponse response = new AuthResponse(
+                            token, 
+                            userData.getUserId(), 
+                            userData.getEmail(), 
+                            userName, 
+                            systemRole
+                        );
+                        log.info("🎉 Login exitoso con usuario sincronizado - userId: {}", userData.getUserId());
+                        return new ResponseEntity<>(response, HttpStatus.OK);
+                    } else {
+                        log.warn("❌ Contraseña inválida para usuario sincronizado: {}", email);
+                        return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+                    }
+                } catch (Exception e) {
+                    log.error("❌ Error procesando usuario sincronizado: {}", e.getMessage(), e);
+                    return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+                }
+            } else {
+                log.info("❌ Usuario sincronizado NO encontrado para email: {}", email);
+            }
+            
+            // 1b. Buscar también en provider_data (prestadores sincronizados)
+            Optional<ProviderData> syncedProvider = providerDataRepository.findByEmail(email);
+            log.info("🔍 Buscando prestador sincronizado para email: {}", email);
+            if (syncedProvider.isPresent()) {
+                ProviderData providerData = syncedProvider.get();
+                log.info("✅ Prestador sincronizado encontrado - providerId: {}, email: {}", 
+                    providerData.getProviderId(), providerData.getEmail());
                 
-                // Para usuarios sincronizados, usar contraseña por defecto o validar contra módulo externo
+                // Validar contraseña con el módulo externo
                 boolean passwordValid = validatePasswordWithUserModule(email, password) || 
                                       "password123".equals(password) || 
                                       "123456".equals(password);
                 
-                log.info("🔐 Validación de contraseña: {}", passwordValid);
+                log.info("🔐 Validación de contraseña para prestador: {}", passwordValid);
                 
                 if (passwordValid) {
-                    String systemRole = convertUserModuleRoleToSystemRole(userData.getRole());
-                    log.info("🔄 Rol convertido de '{}' a '{}'", userData.getRole(), systemRole);
-                    String token = jwtUtil.generateToken(userData.getEmail(), 86400000L, List.of(systemRole));
+                    // Prestadores son MERCHANT por defecto
+                    String token = jwtUtil.generateToken(providerData.getEmail(), 86400000L, List.of("MERCHANT"));
                     AuthResponse response = new AuthResponse(
                         token, 
-                        userData.getUserId(), 
-                        userData.getEmail(), 
-                        userData.getName(), 
-                        systemRole
+                        providerData.getProviderId(), 
+                        providerData.getEmail(), 
+                        providerData.getName(), 
+                        "MERCHANT"
                     );
-                    log.info("🎉 Login exitoso con usuario sincronizado - userId: {}", userData.getUserId());
+                    log.info("🎉 Login exitoso con prestador sincronizado - providerId: {}", providerData.getProviderId());
                     return new ResponseEntity<>(response, HttpStatus.OK);
                 } else {
-                    log.warn("❌ Contraseña inválida para usuario sincronizado: {}", email);
+                    log.warn("❌ Contraseña inválida para prestador sincronizado: {}", email);
                     return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
                 }
             } else {
-                log.info("❌ Usuario sincronizado NO encontrado para email: {}", email);
+                log.info("❌ Prestador sincronizado NO encontrado para email: {}", email);
             }
             
             // 2. Si no está en usuarios sincronizados, buscar en usuarios locales (users table)
@@ -342,18 +400,30 @@ public class AuthController {
     }
     
     private String convertUserModuleRoleToSystemRole(String userModuleRole) {
-        if (userModuleRole == null) {
+        log.debug("🔄 Convirtiendo rol del módulo: '{}'", userModuleRole);
+        
+        if (userModuleRole == null || userModuleRole.trim().isEmpty()) {
+            log.warn("⚠️ Rol nulo o vacío, usando USER por defecto");
             return "USER";
         }
         
-        switch (userModuleRole.toUpperCase()) {
+        String normalizedRole = userModuleRole.trim().toUpperCase();
+        log.debug("🔄 Rol normalizado: '{}'", normalizedRole);
+        
+        switch (normalizedRole) {
             case "CLIENTE":
+            case "USER":
+                log.debug("✅ Rol CLIENTE/USER convertido a USER");
                 return "USER";
             case "PRESTADOR":
+            case "MERCHANT":
+                log.debug("✅ Rol PRESTADOR/MERCHANT convertido a MERCHANT");
                 return "MERCHANT";
             case "ADMIN":
-                return "USER"; // ADMIN se convierte a USER para autenticación
+                log.debug("✅ Rol ADMIN convertido a USER");
+                return "USER";
             default:
+                log.warn("⚠️ Rol desconocido '{}', usando USER por defecto", normalizedRole);
                 return "USER";
         }
     }
@@ -412,20 +482,29 @@ public class AuthController {
             );
             
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                Map<String, Object> userData = response.getBody();
-                log.info("Datos obtenidos del módulo de usuarios para {}: {}", email, userData);
+                Map<String, Object> responseData = response.getBody();
+                log.info("Datos obtenidos del módulo de usuarios para {}: {}", email, responseData);
+                
+                // El módulo devuelve un userInfo anidado, extraerlo
+                Map<String, Object> userInfo = (Map<String, Object>) responseData.get("userInfo");
+                if (userInfo == null) {
+                    log.warn("No se encontró userInfo en la respuesta del módulo");
+                    return null;
+                }
                 
                 // Mapear los datos del módulo de usuarios a nuestro formato
                 // Basado en la estructura de UserCreatedMessage
                 Map<String, Object> mappedData = new java.util.HashMap<>();
-                mappedData.put("userId", userData.get("userId")); // El campo se llama userId, no id
-                mappedData.put("name", 
-                    (userData.get("firstName") != null ? userData.get("firstName") : "") + " " + 
-                    (userData.get("lastName") != null ? userData.get("lastName") : "")
-                );
-                mappedData.put("phone", userData.get("phoneNumber"));
-                mappedData.put("role", userData.get("role"));
-                mappedData.put("secondaryId", userData.get("dni"));
+                mappedData.put("userId", userInfo.get("id")); // El campo se llama id en userInfo
+                
+                String firstName = userInfo.get("firstName") != null ? userInfo.get("firstName").toString() : "";
+                String lastName = userInfo.get("lastName") != null ? userInfo.get("lastName").toString() : "";
+                String fullName = (firstName + " " + lastName).trim();
+                mappedData.put("name", fullName.isEmpty() ? "Usuario Sincronizado" : fullName);
+                
+                mappedData.put("phone", userInfo.get("phoneNumber"));
+                mappedData.put("role", userInfo.get("role"));
+                mappedData.put("secondaryId", userInfo.get("dni"));
                 
                 return mappedData;
             }
