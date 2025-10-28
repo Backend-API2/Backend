@@ -167,7 +167,7 @@ public class UserSubscriptionController {
         return ResponseEntity.ok(Map.of(
             "status", "active",
             "service", "User Event Subscriptions",
-            "webhookUrl", "http://dev.desarrollo2-usuarios.shop:8081/api/core/webhook/user-events",
+            "webhookUrl", "http://dev.desarrollo2-usuarios.shop:8082/api/core/webhook/user-events",
             "subscriptions", new String[]{
                 "user.user_created",
                 "user.user_updated", 

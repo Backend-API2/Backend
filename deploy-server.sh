@@ -30,7 +30,7 @@ echo "🚀 Iniciando nuevo contenedor..."
 docker run -d \
   --name backend-prod \
   --restart unless-stopped \
-  -p 8081:8080 \
+  -p 8082:8080 \
   -e SPRING_PROFILES_ACTIVE=prod \
   -v /home/appuser/app/logs:/home/appuser/app/logs \
   backend-api:latest
@@ -46,7 +46,7 @@ docker ps | grep backend-prod
 # Verificar health check
 echo "🏥 Verificando health check..."
 for i in {1..10}; do
-    if curl -f -s http://localhost:8081/actuator/health >/dev/null 2>&1; then
+    if curl -f -s http://localhost:8082/actuator/health >/dev/null 2>&1; then
         echo "✅ Backend funcionando correctamente!"
         break
     fi
@@ -60,4 +60,4 @@ for i in {1..10}; do
 done
 
 echo "🎉 Despliegue completado exitosamente!"
-echo "Backend disponible en: http://localhost:8081"
+echo "Backend disponible en: http://localhost:8082"

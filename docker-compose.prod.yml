@@ -20,7 +20,7 @@ services:
       context: .
       dockerfile: Backend/Dockerfile.prod
     ports:
-      - '8081:8080' # Puerto externo 8081 para producción
+      - '8082:8080' # Puerto externo 8082 para producción
     environment:
       - SPRING_PROFILES_ACTIVE=prod
       - DB_URL=${DB_URL:-jdbc:mysql://database-1.chaw6oq8ujma.us-east-2.rds.amazonaws.com:3306/base_api?allowPublicKeyRetrieval=true&useSSL=true&requireSSL=true&serverTimezone=UTC&createDatabaseIfNotExist=true&connectTimeout=60000&socketTimeout=60000&autoReconnect=true&failOverReadOnly=false&maxReconnects=10}
