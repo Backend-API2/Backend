@@ -487,7 +487,7 @@ public class DataSubscriptionController {
     private boolean validatePasswordWithUserModule(String email, String password) {
         try {
             // URL del módulo de usuarios
-            String userModuleUrl = "http://dev.desarrollo2-usuarios.shop:8081/api/users/login";
+            String userModuleUrl = "http://dev.desarrollo2-usuarios.shop:8082/api/users/login";
             
             // Crear request body
             Map<String, String> loginRequest = Map.of(
@@ -609,7 +609,7 @@ public class DataSubscriptionController {
     private Map<String, Object> getUserDataFromUserModule(String email) {
         try {
             // Hacer login para obtener datos del usuario
-            String userModuleUrl = "http://dev.desarrollo2-usuarios.shop:8081/api/users/login";
+            String userModuleUrl = "http://dev.desarrollo2-usuarios.shop:8082/api/users/login";
             
             Map<String, String> loginRequest = Map.of(
                 "email", email,

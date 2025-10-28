@@ -5,11 +5,7 @@ import backend_api.Backend.Entity.payment.PaymentMethod;
 import backend_api.Backend.Entity.payment.PaymentStatus;
 import backend_api.Backend.Entity.user.User;
 import backend_api.Backend.Repository.UserRepository;
-import backend_api.Backend.Repository.UserDataRepository;
-import backend_api.Backend.Repository.ProviderDataRepository;
 import backend_api.Backend.Service.Implementation.UserDataIntegrationService;
-import backend_api.Backend.Entity.UserData;
-import backend_api.Backend.Entity.ProviderData;
 import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -141,61 +137,6 @@ public class PaymentResponse {
 
         } catch (Exception e) {
             System.err.println("Error obteniendo datos reales para payment " + payment.getId() + ": " + e.getMessage());
-        }
-
-        return response;
-    }
-    
-    /**
-     * Método mejorado que busca primero en user_data/provider_data y luego en users
-     */
-    public static PaymentResponse fromEntityWithUnifiedNames(
-            Payment payment, 
-            UserRepository userRepository,
-            UserDataRepository userDataRepository,
-            ProviderDataRepository providerDataRepository,
-            String currentUserRole) {
-        
-        PaymentResponse response = fromEntity(payment);
-
-        try {
-            // Buscar nombre del usuario - primero en user_data, luego en users
-            if (payment.getUser_id() != null) {
-                Optional<UserData> userDataOpt = userDataRepository.findByUserId(payment.getUser_id());
-                if (userDataOpt.isPresent() && userDataOpt.get().getName() != null) {
-                    response.setUser_name(userDataOpt.get().getName());
-                } else {
-                    // Fallback a users
-                    Optional<User> userOpt = userRepository.findById(payment.getUser_id());
-                    if (userOpt.isPresent()) {
-                        response.setUser_name(userOpt.get().getName());
-                    }
-                }
-            }
-
-            // Buscar nombre del prestador - primero en provider_data, luego en users
-            if (payment.getProvider_id() != null) {
-                Optional<ProviderData> providerDataOpt = providerDataRepository.findByProviderId(payment.getProvider_id());
-                if (providerDataOpt.isPresent() && providerDataOpt.get().getName() != null) {
-                    response.setProvider_name(providerDataOpt.get().getName());
-                } else {
-                    // Fallback a users
-                    Optional<User> providerOpt = userRepository.findById(payment.getProvider_id());
-                    if (providerOpt.isPresent()) {
-                        response.setProvider_name(providerOpt.get().getName());
-                    }
-                }
-            }
-
-            // Ocultar nombre según el rol
-            if ("MERCHANT".equals(currentUserRole)) {
-                response.setProvider_name(null);
-            } else {
-                response.setUser_name(null);
-            }
-
-        } catch (Exception e) {
-            System.err.println("Error obteniendo nombres unificados para payment " + payment.getId() + ": " + e.getMessage());
         }
 
         return response;

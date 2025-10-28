@@ -27,13 +27,13 @@ public class CoreHubService {
     @Value("${core.hub.team.name:payments}")
     private String teamName;
 
-    @Value("${core.hub.webhook.url:http://18.189.28.131:8081/api/core/webhook/payment-events}")
+    @Value("${core.hub.webhook.url:http://18.119.150.122:8082/api/core/webhook/payment-events}")
     private String webhookUrl;
 
-    @Value("${core.hub.user.webhook.url:http://18.189.28.131:8081/api/core/webhook/user-events}")
+    @Value("${core.hub.user.webhook.url:http://18.119.150.122:8082/api/core/webhook/user-events}")
     private String userWebhookUrl;
 
-    @Value("${core.hub.matching.webhook.url:http://18.189.28.131:8081/api/core/webhook/matching-payment-requests}")
+    @Value("${core.hub.matching.webhook.url:http://18.119.150.122:8082/api/core/webhook/matching-payment-requests}")
     private String matchingWebhookUrl;
 
 

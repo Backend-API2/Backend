@@ -438,7 +438,7 @@ public class AuthController {
                 return false;
             }
             
-            String userModuleUrl = "http://dev.desarrollo2-usuarios.shop:8081/api/users/login";
+            String userModuleUrl = "http://dev.desarrollo2-usuarios.shop:8082/api/users/login";
             Map<String, String> loginRequest = Map.of(
                 "email", email,
                 "password", password
@@ -464,7 +464,7 @@ public class AuthController {
      */
     private Map<String, Object> validateAndGetUserDataFromUserModule(String email, String password) {
         try {
-            String userModuleUrl = "http://dev.desarrollo2-usuarios.shop:8081/api/users/login";
+            String userModuleUrl = "http://dev.desarrollo2-usuarios.shop:8082/api/users/login";
             Map<String, String> loginRequest = Map.of(
                 "email", email,
                 "password", password
