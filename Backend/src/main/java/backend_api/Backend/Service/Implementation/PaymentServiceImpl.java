@@ -9,7 +9,13 @@ import backend_api.Backend.Service.Interface.PaymentService;
 import backend_api.Backend.Service.Interface.PaymentEventService;
 import backend_api.Backend.Service.Interface.PaymentAttemptService;
 import backend_api.Backend.messaging.publisher.PaymentStatusPublisher;
+import backend_api.Backend.messaging.publisher.PaymentMethodSelectedPublisher;
 import backend_api.Backend.messaging.dto.PaymentStatusUpdateMessage;
+import backend_api.Backend.messaging.dto.PaymentMethodSelectedMessage;
+import backend_api.Backend.Entity.payment.types.PaymentMethodType;
+import backend_api.Backend.Entity.payment.types.CreditCardPayment;
+import backend_api.Backend.Entity.payment.types.DebitCardPayment;
+import backend_api.Backend.Entity.payment.types.MercadoPagoPayment;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -37,6 +43,9 @@ public class PaymentServiceImpl implements PaymentService{
 
     @Autowired
     private PaymentStatusPublisher paymentStatusPublisher;
+
+    @Autowired
+    private PaymentMethodSelectedPublisher paymentMethodSelectedPublisher;
 
     @Override
     public Payment createPayment(Payment payment) {
@@ -392,7 +401,47 @@ public class PaymentServiceImpl implements PaymentService{
             "user"
         );
         
-        return paymentRepository.save(payment);
+        Payment savedPayment = paymentRepository.save(payment);
+        
+        // Enviar evento de método seleccionado al CORE
+        publishMethodSelectedEvent(savedPayment, paymentMethod);
+        
+        return savedPayment;
+    }
+    
+    private void publishMethodSelectedEvent(Payment payment, PaymentMethod paymentMethod) {
+        try {
+            PaymentMethodSelectedMessage message = new PaymentMethodSelectedMessage();
+            message.setPaymentId(payment.getId());
+            message.setUserId(payment.getUser_id());
+            message.setMethodType(paymentMethod.getType() != null ? paymentMethod.getType().toString() : null);
+            message.setMethodId(paymentMethod.getId());
+            message.setSelectedAt(LocalDateTime.now());
+            
+            // Crear snapshot del método con información relevante
+            java.util.Map<String, Object> methodSnapshot = new java.util.HashMap<>();
+            if (paymentMethod instanceof CreditCardPayment) {
+                CreditCardPayment cc = (CreditCardPayment) paymentMethod;
+                methodSnapshot.put("last4Digits", cc.getLast4Digits());
+                methodSnapshot.put("cardNetwork", cc.getCard_network());
+                methodSnapshot.put("holderName", cc.getHolder_name());
+            } else if (paymentMethod instanceof DebitCardPayment) {
+                DebitCardPayment dc = (DebitCardPayment) paymentMethod;
+                methodSnapshot.put("last4Digits", dc.getLast4Digits());
+                methodSnapshot.put("cardNetwork", dc.getCard_network());
+                methodSnapshot.put("holderName", dc.getHolder_name());
+                methodSnapshot.put("bankName", dc.getBank_name());
+            } else if (paymentMethod instanceof MercadoPagoPayment) {
+                MercadoPagoPayment mp = (MercadoPagoPayment) paymentMethod;
+                methodSnapshot.put("mercadoPagoUserId", mp.getMercadoPagoUserId());
+            }
+            message.setMethodSnapshot(methodSnapshot);
+            
+            paymentMethodSelectedPublisher.publish(message);
+        } catch (Exception e) {
+            // No lanzar excepción para no romper el flujo de negocio, pero loguear el error
+            throw new RuntimeException("Error al publicar evento de método seleccionado al CORE", e);
+        }
     }
 
     
