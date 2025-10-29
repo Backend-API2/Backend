@@ -45,9 +45,13 @@ public class PaymentMethodSelectedPublisher {
     private Map<String, Object> createMethodSelectedPayload(PaymentMethodSelectedMessage msg) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("paymentId", msg.getPaymentId());
+        payload.put("userId", msg.getUserId());
         payload.put("methodType", msg.getMethodType());
         payload.put("methodId", msg.getMethodId());
         payload.put("selectedAt", msg.getSelectedAt());
+        if (msg.getMethodSnapshot() != null && !msg.getMethodSnapshot().isEmpty()) {
+            payload.put("methodSnapshot", msg.getMethodSnapshot());
+        }
         return payload;
     }
 }

@@ -41,11 +41,39 @@ public class PaymentTimelineEventPublisher {
 
     private Map<String, Object> createTimelineEventPayload(PaymentEvent event){
         Map<String, Object> payload = new HashMap<>();
+        payload.put("eventId", event.getId());
         payload.put("paymentId", event.getPaymentId());
-        payload.put("eventType", event.getType());
+        payload.put("eventType", event.getType() != null ? event.getType().toString() : null);
         payload.put("actor", event.getActor());
         payload.put("description", event.getDescription());
+        payload.put("eventSource", event.getEventSource());
+        payload.put("correlationId", event.getCorrelationId());
         payload.put("createdAt", event.getCreatedAt());
+        
+        // Incluir el payload del evento si existe
+        if (event.getPayload() != null && !event.getPayload().isEmpty()) {
+            try {
+                // Intentar parsear como JSON si es válido
+                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                Object parsedPayload = mapper.readValue(event.getPayload(), Object.class);
+                payload.put("payload", parsedPayload);
+            } catch (Exception e) {
+                // Si no es JSON válido, enviarlo como string
+                payload.put("payload", event.getPayload());
+            }
+        }
+        
+        // Incluir metadata si existe
+        if (event.getMetadata() != null && !event.getMetadata().isEmpty()) {
+            try {
+                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                Object parsedMetadata = mapper.readValue(event.getMetadata(), Object.class);
+                payload.put("metadata", parsedMetadata);
+            } catch (Exception e) {
+                payload.put("metadata", event.getMetadata());
+            }
+        }
+        
         return payload;
     }
 }
