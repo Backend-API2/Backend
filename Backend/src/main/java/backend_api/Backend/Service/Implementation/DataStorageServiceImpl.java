@@ -40,15 +40,87 @@ public class DataStorageServiceImpl {
                 log.info("Creando nuevo usuario: userId={}", userId);
             }
             
-            // Actualizar datos
-            userData.setName((String) userDataMap.get("name"));
-            userData.setEmail((String) userDataMap.get("email"));
-            userData.setPhone((String) userDataMap.get("phone"));
-            userData.setSecondaryId(secondaryId);
+            // Actualizar datos básicos
+            if (userDataMap.containsKey("name")) {
+                userData.setName((String) userDataMap.get("name"));
+            }
+            if (userDataMap.containsKey("firstName")) {
+                userData.setFirstName((String) userDataMap.get("firstName"));
+            }
+            if (userDataMap.containsKey("lastName")) {
+                userData.setLastName((String) userDataMap.get("lastName"));
+            }
+            if (userDataMap.containsKey("email")) {
+                userData.setEmail((String) userDataMap.get("email"));
+            }
+            if (userDataMap.containsKey("phone")) {
+                userData.setPhone((String) userDataMap.get("phone"));
+            }
+            if (secondaryId != null) {
+                userData.setSecondaryId(secondaryId);
+            }
+            if (userDataMap.containsKey("dni")) {
+                userData.setDni((String) userDataMap.get("dni"));
+            }
             
             // Actualizar role si está presente
             if (userDataMap.containsKey("role")) {
                 userData.setRole((String) userDataMap.get("role"));
+            }
+            
+            // Actualizar active si está presente
+            if (userDataMap.containsKey("active")) {
+                Object activeObj = userDataMap.get("active");
+                if (activeObj instanceof Boolean) {
+                    userData.setActive((Boolean) activeObj);
+                } else if (activeObj instanceof Number) {
+                    userData.setActive(((Number) activeObj).intValue() == 1);
+                }
+            }
+            
+            // Actualizar dirección (tomar la primera dirección del array si viene)
+            if (userDataMap.containsKey("address")) {
+                @SuppressWarnings("unchecked")
+                java.util.List<Map<String, Object>> addresses = (java.util.List<Map<String, Object>>) userDataMap.get("address");
+                if (addresses != null && !addresses.isEmpty()) {
+                    Map<String, Object> firstAddress = addresses.get(0);
+                    if (firstAddress.containsKey("state")) {
+                        userData.setState((String) firstAddress.get("state"));
+                    }
+                    if (firstAddress.containsKey("city")) {
+                        userData.setCity((String) firstAddress.get("city"));
+                    }
+                    if (firstAddress.containsKey("street")) {
+                        userData.setStreet((String) firstAddress.get("street"));
+                    }
+                    if (firstAddress.containsKey("number")) {
+                        userData.setNumber((String) firstAddress.get("number"));
+                    }
+                    if (firstAddress.containsKey("floor")) {
+                        userData.setFloor((String) firstAddress.get("floor"));
+                    }
+                    if (firstAddress.containsKey("apartment")) {
+                        userData.setApartment((String) firstAddress.get("apartment"));
+                    }
+                }
+            }
+            
+            // Actualizar zones si está presente
+            if (userDataMap.containsKey("zones")) {
+                @SuppressWarnings("unchecked")
+                java.util.List<String> zones = (java.util.List<String>) userDataMap.get("zones");
+                if (zones != null) {
+                    userData.setZones(zones);
+                }
+            }
+            
+            // Actualizar skills si está presente
+            if (userDataMap.containsKey("skills")) {
+                @SuppressWarnings("unchecked")
+                java.util.List<String> skills = (java.util.List<String>) userDataMap.get("skills");
+                if (skills != null) {
+                    userData.setSkills(skills);
+                }
             }
             
             // Actualizar saldoDisponible si está presente
@@ -65,13 +137,17 @@ public class DataStorageServiceImpl {
             if (userDataMap.containsKey("status")) {
                 String status = (String) userDataMap.get("status");
                 if ("DEACTIVATED".equals(status)) {
+                    userData.setActive(false);
                     log.info("Usuario desactivado: userId={}, reason={}", userId, userDataMap.get("deactivationReason"));
+                } else if ("REJECTED".equals(status)) {
+                    userData.setActive(false);
+                    log.info("Usuario rechazado: userId={}, reason={}", userId, userDataMap.get("rejectionReason"));
                 }
             }
 
             userDataRepository.save(userData);
-            log.info("Datos de usuario guardados exitosamente: userId={}, name={}, email={}", 
-                userId, userData.getName(), userData.getEmail());
+            log.info("Datos de usuario guardados exitosamente: userId={}, name={}, email={}, active={}", 
+                userId, userData.getName(), userData.getEmail(), userData.getActive());
         } catch (Exception e) {
             log.error("Error guardando datos de usuario: userId={}, error={}", userId, e.getMessage(), e);
             throw new RuntimeException("Error al guardar datos de usuario", e);
@@ -144,17 +220,46 @@ public class DataStorageServiceImpl {
     @Transactional
     public void deactivateUser(Long userId, String reason) {
         try {
-            Optional<UserData> userDataOpt = userDataRepository.findByUserId(userId);
-            if (userDataOpt.isPresent()) {
-                UserData userData = userDataOpt.get();
-                // Aquí podrías agregar un campo de estado si lo necesitas
-                log.info("Usuario desactivado: userId={}, reason={}", userId, reason);
-            } else {
+            // Verificar que el usuario existe antes de desactivar
+            if (!userDataRepository.existsByUserId(userId)) {
                 log.warn("Usuario no encontrado para desactivar: userId={}", userId);
+                return;
+            }
+            
+            // Usar consulta directa para actualizar solo el campo active sin tocar el resto
+            int updated = userDataRepository.deactivateByUserId(userId);
+            
+            if (updated > 0) {
+                log.info("Usuario desactivado exitosamente: userId={}, reason={}", userId, reason);
+            } else {
+                log.warn("No se pudo desactivar el usuario: userId={}", userId);
             }
         } catch (Exception e) {
             log.error("Error desactivando usuario: userId={}, error={}", userId, e.getMessage(), e);
             throw new RuntimeException("Error al desactivar usuario", e);
+        }
+    }
+    
+    @Transactional
+    public void deactivateUserByEmail(String email, String reason) {
+        try {
+            // Verificar que el usuario existe antes de desactivar
+            if (!userDataRepository.existsByEmail(email)) {
+                log.warn("Usuario no encontrado para desactivar: email={}", email);
+                return;
+            }
+            
+            // Usar consulta directa para actualizar solo el campo active sin tocar el resto
+            int updated = userDataRepository.deactivateByEmail(email);
+            
+            if (updated > 0) {
+                log.info("Usuario desactivado exitosamente por email: email={}, reason={}", email, reason);
+            } else {
+                log.warn("No se pudo desactivar el usuario: email={}", email);
+            }
+        } catch (Exception e) {
+            log.error("Error desactivando usuario por email: email={}, error={}", email, e.getMessage(), e);
+            throw new RuntimeException("Error al desactivar usuario por email", e);
         }
     }
 

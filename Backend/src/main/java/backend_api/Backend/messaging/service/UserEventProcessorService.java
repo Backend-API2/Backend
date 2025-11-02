@@ -3,6 +3,7 @@ package backend_api.Backend.messaging.service;
 import backend_api.Backend.messaging.dto.*;
 import backend_api.Backend.Service.Implementation.DataStorageServiceImpl;
 import backend_api.Backend.Repository.ProviderDataRepository;
+import backend_api.Backend.Repository.UserDataRepository;
 import backend_api.Backend.Entity.ProviderData;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.util.Map;
 import java.util.Random;
+import java.util.List;
 
 @Service
 @Slf4j
@@ -21,6 +23,7 @@ public class UserEventProcessorService {
     private final ObjectMapper objectMapper;
     private final DataStorageServiceImpl dataStorageService;
     private final ProviderDataRepository providerDataRepository;
+    private final UserDataRepository userDataRepository;
 
     public void processUserCreatedFromCore(CoreEventMessage coreMessage) {
         log.info("Procesando evento de usuario creado del CORE - MessageId: {}", coreMessage.getMessageId());
@@ -48,17 +51,41 @@ public class UserEventProcessorService {
             // Separar lógica según el rol
             if ("PRESTADOR".equals(role)) {
                 // Guardar PRESTADOR en provider_data
-                saveProviderData(userId, email, firstName, lastName, phoneNumber, dni);
+                saveProviderData(userId, email, firstName, lastName, phoneNumber, dni, payload);
                 log.info("Prestador guardado en provider_data - ProviderId: {}, Email: {}", userId, email);
             } else {
                 // Guardar CLIENTE y ADMIN en user_data
                 Map<String, Object> userData = new java.util.HashMap<>();
                 userData.put("name", (firstName != null ? firstName : "") + 
                                    " " + (lastName != null ? lastName : ""));
+                userData.put("firstName", firstName);
+                userData.put("lastName", lastName);
                 userData.put("email", email);
                 userData.put("phone", phoneNumber);
                 userData.put("role", role);
                 userData.put("dni", dni);
+                userData.put("active", true);
+                
+                // Procesar address si viene
+                if (payload.containsKey("address")) {
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, Object>> addresses = (List<Map<String, Object>>) payload.get("address");
+                    userData.put("address", addresses);
+                }
+                
+                // Procesar zones si viene
+                if (payload.containsKey("zones")) {
+                    @SuppressWarnings("unchecked")
+                    List<String> zones = (List<String>) payload.get("zones");
+                    userData.put("zones", zones);
+                }
+                
+                // Procesar skills si viene
+                if (payload.containsKey("skills")) {
+                    @SuppressWarnings("unchecked")
+                    List<String> skills = (List<String>) payload.get("skills");
+                    userData.put("skills", skills);
+                }
                 
                 // Generar sueldo aleatorio entre $10,000 y $50,000 (solo para CLIENTE)
                 if ("CLIENTE".equals(role)) {
@@ -82,8 +109,16 @@ public class UserEventProcessorService {
         log.info("Procesando evento de usuario actualizado del CORE - MessageId: {}", coreMessage.getMessageId());
 
         try {
+            Map<String, Object> payload = coreMessage.getPayload();
+            
+            // Extraer userId del payload
+            Long userId = extractLong(payload, "userId");
+            if (userId == null) {
+                throw new IllegalArgumentException("userId no encontrado en el payload");
+            }
+            
             UserUpdatedMessage userUpdated = objectMapper.convertValue(
-                coreMessage.getPayload(),
+                payload,
                 UserUpdatedMessage.class
             );
 
@@ -93,10 +128,48 @@ public class UserEventProcessorService {
             Map<String, Object> userData = new java.util.HashMap<>();
             userData.put("name", (userUpdated.getFirstName() != null ? userUpdated.getFirstName() : "") + 
                                " " + (userUpdated.getLastName() != null ? userUpdated.getLastName() : ""));
-            userData.put("email", userUpdated.getEmail());
-            userData.put("phone", userUpdated.getPhoneNumber());
-            userData.put("role", userUpdated.getRole());
-            userData.put("dni", userUpdated.getDni());
+            userData.put("firstName", userUpdated.getFirstName());
+            userData.put("lastName", userUpdated.getLastName());
+            
+            if (userUpdated.getEmail() != null) {
+                userData.put("email", userUpdated.getEmail());
+            }
+            if (userUpdated.getPhoneNumber() != null) {
+                userData.put("phone", userUpdated.getPhoneNumber());
+            }
+            if (userUpdated.getRole() != null) {
+                userData.put("role", userUpdated.getRole());
+            }
+            if (userUpdated.getDni() != null) {
+                userData.put("dni", userUpdated.getDni());
+            }
+            
+            // Procesar address si viene
+            if (userUpdated.getAddress() != null && !userUpdated.getAddress().isEmpty()) {
+                List<Map<String, Object>> addresses = userUpdated.getAddress().stream()
+                    .map(addr -> {
+                        Map<String, Object> addrMap = new java.util.HashMap<>();
+                        addrMap.put("state", addr.getState());
+                        addrMap.put("city", addr.getCity());
+                        addrMap.put("street", addr.getStreet());
+                        addrMap.put("number", addr.getNumber());
+                        addrMap.put("floor", addr.getFloor());
+                        addrMap.put("apartment", addr.getApartment());
+                        return addrMap;
+                    })
+                    .collect(java.util.stream.Collectors.toList());
+                userData.put("address", addresses);
+            }
+            
+            // Procesar zones si viene
+            if (userUpdated.getZones() != null) {
+                userData.put("zones", userUpdated.getZones());
+            }
+            
+            // Procesar skills si viene
+            if (userUpdated.getSkills() != null) {
+                userData.put("skills", userUpdated.getSkills());
+            }
 
             dataStorageService.saveUserData(userUpdated.getUserId(), userData, coreMessage.getMessageId());
             
@@ -113,39 +186,31 @@ public class UserEventProcessorService {
         log.info("Procesando evento de usuario desactivado del CORE - MessageId: {}", coreMessage.getMessageId());
 
         try {
-            UserDeactivatedMessage userDeactivated = objectMapper.convertValue(
-                coreMessage.getPayload(),
-                UserDeactivatedMessage.class
-            );
-
-            // Obtener el reason del payload original si no está en el DTO
-            String deactivationReason = userDeactivated.getReason();
-            if (deactivationReason == null) {
-                // Intentar obtener del payload original
-                Map<String, Object> originalPayload = coreMessage.getPayload();
-                deactivationReason = (String) originalPayload.get("deactivationReason");
+            Map<String, Object> payload = coreMessage.getPayload();
+            
+            // Extraer userId del payload
+            Long userId = extractLong(payload, "userId");
+            String email = extractString(payload, "email");
+            
+            if (userId == null && email == null) {
+                throw new IllegalArgumentException("userId o email no encontrado en el payload de user_deactivated");
             }
             
+            String message = extractString(payload, "message");
+            String deactivationReason = message != null ? message : "Usuario dado de baja";
+            
             log.info("Usuario desactivado - UserId: {}, Email: {}, Reason: {}",
-                userDeactivated.getUserId(), userDeactivated.getEmail(), deactivationReason);
+                userId, email, deactivationReason);
 
-            // Actualizar datos del usuario con estado de desactivación
-            Map<String, Object> userData = new java.util.HashMap<>();
-            userData.put("name", (userDeactivated.getFirstName() != null ? userDeactivated.getFirstName() : "") + 
-                               " " + (userDeactivated.getLastName() != null ? userDeactivated.getLastName() : ""));
-            userData.put("email", userDeactivated.getEmail());
-            userData.put("phone", userDeactivated.getPhoneNumber());
-            userData.put("role", userDeactivated.getRole());
-            userData.put("dni", userDeactivated.getDni());
-            userData.put("status", "DEACTIVATED");
-            userData.put("deactivationReason", deactivationReason);
-
-            dataStorageService.saveUserData(userDeactivated.getUserId(), userData, coreMessage.getMessageId());
-            
-            // También llamar al método específico de desactivación
-            dataStorageService.deactivateUser(userDeactivated.getUserId(), deactivationReason);
-            
-            log.info("Usuario desactivado exitosamente en BD - UserId: {}", userDeactivated.getUserId());
+            // Si tenemos userId, usar ese método directamente (sin saveUserData para evitar conflictos)
+            if (userId != null) {
+                dataStorageService.deactivateUser(userId, deactivationReason);
+                log.info("Usuario desactivado exitosamente en BD - UserId: {}", userId);
+            } else if (email != null) {
+                // Si solo tenemos email, buscar por email
+                dataStorageService.deactivateUserByEmail(email, deactivationReason);
+                log.info("Usuario desactivado exitosamente en BD por email - Email: {}", email);
+            }
 
         } catch (Exception e) {
             log.error("Error procesando usuario desactivado - MessageId: {}, Error: {}",
@@ -179,7 +244,7 @@ public class UserEventProcessorService {
      * Guarda datos de prestador en provider_data
      */
     private void saveProviderData(Long providerId, String email, String firstName, String lastName, 
-                                 String phoneNumber, String dni) {
+                                 String phoneNumber, String dni, Map<String, Object> payload) {
         try {
             ProviderData providerData = new ProviderData();
             providerData.setProviderId(providerId);
@@ -188,6 +253,41 @@ public class UserEventProcessorService {
                                " " + (lastName != null ? lastName : ""));
             providerData.setPhone(phoneNumber);
             providerData.setSecondaryId(dni);
+            providerData.setActive(true);
+            
+            // Procesar address si viene
+            if (payload.containsKey("address")) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> addresses = (List<Map<String, Object>>) payload.get("address");
+                if (addresses != null && !addresses.isEmpty()) {
+                    Map<String, Object> firstAddress = addresses.get(0);
+                    providerData.setState((String) firstAddress.get("state"));
+                    providerData.setCity((String) firstAddress.get("city"));
+                    providerData.setStreet((String) firstAddress.get("street"));
+                    providerData.setNumber((String) firstAddress.get("number"));
+                    providerData.setFloor((String) firstAddress.get("floor"));
+                    providerData.setApartment((String) firstAddress.get("apartment"));
+                }
+            }
+            
+            // Procesar zones si viene
+            if (payload.containsKey("zones")) {
+                @SuppressWarnings("unchecked")
+                List<String> zones = (List<String>) payload.get("zones");
+                if (zones != null) {
+                    providerData.setZones(zones);
+                }
+            }
+            
+            // Procesar skills si viene
+            if (payload.containsKey("skills")) {
+                @SuppressWarnings("unchecked")
+                List<String> skills = (List<String>) payload.get("skills");
+                if (skills != null) {
+                    providerData.setSkills(skills);
+                }
+            }
+            
             providerData.setCreatedAt(java.time.LocalDateTime.now());
             providerData.setUpdatedAt(java.time.LocalDateTime.now());
             
@@ -214,15 +314,36 @@ public class UserEventProcessorService {
                 // Fallback para compatibilidad con versiones anteriores
                 userId = extractLong(payload, "id");
             }
+            String email = extractString(payload, "email");
             String message = extractString(payload, "message");
             
-            log.info("Usuario rechazado - UserId: {}, Message: {}", userId, message);
+            log.info("Usuario rechazado - UserId: {}, Email: {}, Message: {}", userId, email, message);
+
+            // Si no hay userId pero hay email, buscar por email
+            if (userId == null && email != null) {
+                log.info("No se encontró userId, buscando usuario por email: {}", email);
+                List<backend_api.Backend.Entity.UserData> users = userDataRepository.findAllByEmail(email);
+                if (!users.isEmpty()) {
+                    backend_api.Backend.Entity.UserData userData = users.get(0);
+                    userId = userData.getUserId();
+                    log.info("Usuario encontrado por email, userId: {}", userId);
+                } else {
+                    // Si no encontramos el usuario, solo desactivamos por email (por si acaso)
+                    dataStorageService.deactivateUserByEmail(email, message);
+                    log.info("Usuario no encontrado en BD, rechazado procesado por email - Email: {}", email);
+                    return;
+                }
+            }
+            
+            if (userId == null) {
+                throw new IllegalArgumentException("userId o email no encontrado en el payload de user_rejected");
+            }
 
             // Actualizar datos del usuario con estado de rechazo
             Map<String, Object> userData = new java.util.HashMap<>();
             userData.put("status", "REJECTED");
             userData.put("rejectionReason", message);
-            userData.put("rejectedAt", java.time.LocalDateTime.now().toString());
+            userData.put("active", false);
 
             dataStorageService.saveUserData(userId, userData, coreMessage.getMessageId());
             

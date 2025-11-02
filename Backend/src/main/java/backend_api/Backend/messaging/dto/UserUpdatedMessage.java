@@ -6,6 +6,7 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @AllArgsConstructor
@@ -19,7 +20,8 @@ public class UserUpdatedMessage extends BaseMessage {
     private String firstName;
     private String lastName;
     private String phoneNumber;
-    private UserCreatedMessage.AddressInfo primaryAddressInfo;
-    private UserCreatedMessage.AddressInfo secondaryAddressInfo;
+    private List<UserCreatedMessage.AddressInfo> address;
+    private List<String> zones;
+    private List<String> skills;
     private LocalDateTime updatedAt;
 }
