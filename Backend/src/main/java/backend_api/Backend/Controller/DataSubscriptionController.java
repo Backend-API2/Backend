@@ -437,6 +437,17 @@ public class DataSubscriptionController {
             if (userDataOpt.isPresent()) {
                 UserData userData = userDataOpt.get();
                 
+                // Validar si el usuario está activo
+                if (userData.getActive() == null || !userData.getActive()) {
+                    log.warn("Usuario desactivado intentando hacer login: {}", email);
+                    return ResponseEntity.status(403).body(Map.of(
+                        "status", "error",
+                        "message", "Usuario desactivado. Contacte al administrador para más información.",
+                        "code", "USER_DEACTIVATED",
+                        "active", false
+                    ));
+                }
+                
                 // Validar contraseña contra el módulo de usuarios
                 boolean passwordValid = validatePasswordWithUserModule(email, password);
                 if (!passwordValid) {
@@ -462,7 +473,8 @@ public class DataSubscriptionController {
                         "name", userData.getName(),
                         "email", userData.getEmail(),
                         "phone", userData.getPhone(),
-                        "secondaryId", userData.getSecondaryId()
+                        "secondaryId", userData.getSecondaryId(),
+                        "active", userData.getActive() != null ? userData.getActive() : true
                     ),
                     "source", "USER_MODULE_SYNC",
                     "note", "Usuario autenticado con datos sincronizados del módulo de usuarios"

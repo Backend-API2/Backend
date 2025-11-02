@@ -270,6 +270,12 @@ public class AuthController {
                     log.info("✅ Usuario sincronizado encontrado - userId: {}, email: {}, name: {}, role: {}", 
                         userData.getUserId(), userData.getEmail(), userData.getName(), userData.getRole());
                     
+                    // Validar si el usuario está activo
+                    if (userData.getActive() == null || !userData.getActive()) {
+                        log.warn("❌ Usuario desactivado intentando hacer login: {}", email);
+                        return new ResponseEntity<>(HttpStatus.FORBIDDEN);
+                    }
+                    
                     // Para usuarios sincronizados, usar contraseña por defecto o validar contra módulo externo
                     boolean passwordValid = validatePasswordWithUserModule(email, password) || 
                                           "password123".equals(password) || 
@@ -314,6 +320,12 @@ public class AuthController {
                 ProviderData providerData = syncedProvider.get();
                 log.info("✅ Prestador sincronizado encontrado - providerId: {}, email: {}", 
                     providerData.getProviderId(), providerData.getEmail());
+                
+                // Validar si el prestador está activo
+                if (providerData.getActive() == null || !providerData.getActive()) {
+                    log.warn("❌ Prestador desactivado intentando hacer login: {}", email);
+                    return new ResponseEntity<>(HttpStatus.FORBIDDEN);
+                }
                 
                 // Validar contraseña con el módulo externo
                 boolean passwordValid = validatePasswordWithUserModule(email, password) || 
