@@ -3,180 +3,157 @@ package backend_api.Backend.messaging.service;
 import backend_api.Backend.Entity.ProviderData;
 import backend_api.Backend.Repository.ProviderDataRepository;
 import backend_api.Backend.messaging.dto.CoreEventMessage;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
+@RequiredArgsConstructor
 public class ProviderEventProcessorService {
 
     private final ProviderDataRepository providerDataRepository;
 
+    @Transactional
     public void processProviderFromCore(CoreEventMessage message) {
-        String event = Optional.ofNullable(message.getDestination())
-                .map(CoreEventMessage.Destination::getEventName)
-                .orElse("")
-                .toLowerCase();
-
-        String channel = Optional.ofNullable(message.getDestination())
-                .map(CoreEventMessage.Destination::getChannel)
-                .orElse("")
-                .toLowerCase();
-
-        Map<String, Object> payload = Optional.ofNullable(message.getPayload()).orElse(Map.of());
-
-        // Soportamos ambas convenciones:
-        //  - channel: "catalogue.prestador.alta" | ".modificacion" | ".baja"
-        //  - eventName: "alta_prestador" | "modificacion_prestador" | "baja_prestador"
-        if (channel.contains("prestador.alta") || event.contains("alta")) {
-            upsertProvider(payload, true);
-            log.info("✅ Alta de prestador procesada (messageId={}): {}", message.getMessageId(), safeId(payload));
-        } else if (channel.contains("prestador.modificacion") || event.contains("modificacion")) {
-            upsertProvider(payload, false);
-            log.info("✅ Modificación de prestador procesada (messageId={}): {}", message.getMessageId(), safeId(payload));
-        } else if (channel.contains("prestador.baja") || event.contains("baja")) {
-            deactivateProvider(payload);
-            log.info("✅ Baja de prestador procesada (messageId={}): {}", message.getMessageId(), safeId(payload));
-        } else {
-            log.warn("⚠️ Evento de prestadores no reconocido. channel={}, eventName={}", channel, event);
-        }
-    }
-
-    private String safeId(Map<String, Object> payload) {
-        Object id = payload.get("id");
-        return id == null ? "null" : id.toString();
-    }
-
-    private void upsertProvider(Map<String, Object> payload, boolean isCreate) {
-        Long providerId = readLong(payload.get("id"));
-        if (providerId == null) {
-            log.warn("❗ payload.id ausente o inválido. No puedo upsert");
+        Map<String, Object> p = message.getPayload();
+        if (p == null) {
+            log.warn("Payload vacío en provider-event. messageId={}", message.getMessageId());
             return;
         }
 
-        ProviderData entity = providerDataRepository.findByProviderId(providerId)
-                .orElseGet(ProviderData::new);
+        // --- Identificadores principales
+        Long providerId = asLong(firstNonNull(p, "providerId", "id"));
+        String email    = asString(firstNonNull(p, "email", "mail"));
 
-        entity.setProviderId(providerId);
-
-        // Nombre completo a partir de nombre + apellido
-        String nombre = asStr(payload.get("nombre"));
-        String apellido = asStr(payload.get("apellido"));
-        String name = (nombre + " " + Optional.ofNullable(apellido).orElse("")).trim();
-        entity.setName(!name.isBlank() ? name : asStr(payload.get("name"))); // fallback
-
-        entity.setEmail(asStr(payload.get("email")));
-        entity.setPhone(asStr(payload.get("telefono")));
-        entity.setSecondaryId(firstNonBlank(asStr(payload.get("dni")), asStr(payload.get("cuit"))));
-        entity.setPhoto(asStr(payload.get("foto")));
-
-        // Dirección (flat)
-        entity.setState(asStr(payload.get("estado")));
-        entity.setCity(asStr(payload.get("ciudad")));
-        entity.setStreet(asStr(payload.get("calle")));
-        entity.setNumber(asStr(payload.get("numero")));
-        entity.setFloor(asStr(payload.get("piso")));
-        entity.setApartment(asStr(payload.get("departamento")));
-
-        // activo: puede venir 1/0, boolean o string
-        entity.setActive(readBooleanFlexible(payload.get("activo"), true));
-
-        // Habilidades / Zonas (snapshot)
-        entity.setSkills(readStringList(payload.get("habilidades")));
-        entity.setZones(readStringList(payload.get("zonas")));
-
-        entity.setUpdatedAt(LocalDateTime.now());
-        if (entity.getId() == null) {
+        // Buscar existente por id o email
+        ProviderData entity = null;
+        if (providerId != null) {
+            entity = providerDataRepository.findByProviderId(providerId).orElse(null);
+        }
+        if (entity == null && email != null) {
+            entity = providerDataRepository.findByEmail(email).orElse(null);
+        }
+        if (entity == null) {
+            entity = new ProviderData();
             entity.setCreatedAt(LocalDateTime.now());
         }
 
-        providerDataRepository.save(entity);
-    }
+        // --- Datos personales
+        String firstName = asString(firstNonNull(p, "firstName", "nombre"));
+        String lastName  = asString(firstNonNull(p, "lastName", "apellido"));
+        String phone     = asString(firstNonNull(p, "phone", "telefono"));
+        String dni       = asString(firstNonNull(p, "secondaryId", "dni"));
+        Boolean active   = asBool(firstNonNull(p, "active", "activo"), true);
 
-    private void deactivateProvider(Map<String, Object> payload) {
-        Long providerId = readLong(payload.get("id"));
-        if (providerId == null) {
-            log.warn("❗ payload.id ausente o inválido. No puedo desactivar");
-            return;
+        if (providerId != null) entity.setProviderId(providerId);
+        if (email != null)      entity.setEmail(email);
+        entity.setName(joinName(firstName, lastName));
+        entity.setPhone(phone);
+        entity.setSecondaryId(dni);
+        entity.setActive(active);
+
+        // --- Address: soportar address plano o lista
+        // address como lista de mapas
+        Object addrObj = firstNonNull(p, "address", "addresses", "domicilio");
+        if (addrObj instanceof List) {
+            List<?> list = (List<?>) addrObj;
+            if (!list.isEmpty() && list.get(0) instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String,Object> a = (Map<String,Object>) list.get(0);
+                putAddress(entity, a);
+            }
+        } else if (addrObj instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String,Object> a = (Map<String,Object>) addrObj;
+            putAddress(entity, a);
+        } else {
+            // address plano en ES
+            Map<String,Object> a = new HashMap<>();
+            a.put("state",  firstNonNull(p, "state",  "estado"));
+            a.put("city",   firstNonNull(p, "city",   "ciudad"));
+            a.put("street", firstNonNull(p, "street", "calle"));
+            a.put("number", firstNonNull(p, "number", "numero"));
+            a.put("floor",  firstNonNull(p, "floor",  "piso"));
+            a.put("apartment", firstNonNull(p, "apartment", "depto", "departamento"));
+            putAddress(entity, a);
         }
-        ProviderData entity = providerDataRepository.findByProviderId(providerId)
-                .orElseGet(() -> {
-                    ProviderData p = new ProviderData();
-                    p.setProviderId(providerId);
-                    p.setCreatedAt(LocalDateTime.now());
-                    return p;
-                });
 
-        entity.setActive(false);
+        // --- Skills / Zones (ES/EN)
+        entity.setSkills(asStringList(firstNonNull(p, "skills", "habilidades")));
+        entity.setZones(asStringList(firstNonNull(p, "zones", "zonas")));
+
         entity.setUpdatedAt(LocalDateTime.now());
         providerDataRepository.save(entity);
+
+        log.info("✅ Provider upserted: id={}, email={}, name='{}', active={}, messageId={}",
+                entity.getProviderId(), entity.getEmail(), entity.getName(), entity.getActive(), message.getMessageId());
     }
 
-    /* helpers */
+    // ---------------- helpers ----------------
 
-    private String asStr(Object o) {
-        return o == null ? null : String.valueOf(o).trim();
-    }
-
-    private String firstNonBlank(String a, String b) {
-        if (a != null && !a.isBlank()) return a;
-        if (b != null && !b.isBlank()) return b;
+    private static Object firstNonNull(Map<String,Object> m, String... keys) {
+        for (String k : keys) {
+            if (m.containsKey(k) && m.get(k) != null) return m.get(k);
+        }
         return null;
     }
 
-    private Long readLong(Object o) {
-        try {
-            if (o == null) return null;
-            if (o instanceof Number) return ((Number) o).longValue();
-            return Long.parseLong(String.valueOf(o));
-        } catch (Exception e) {
-            return null;
-        }
+    private static Long asLong(Object o) {
+        if (o == null) return null;
+        if (o instanceof Number) return ((Number) o).longValue();
+        try { return Long.parseLong(String.valueOf(o)); } catch (Exception ignore) { return null; }
     }
 
-    private boolean readBooleanFlexible(Object o, boolean defaultValue) {
-        if (o == null) return defaultValue;
+    private static String asString(Object o) {
+        return o == null ? null : String.valueOf(o);
+    }
+
+    private static Boolean asBool(Object o, boolean def) {
+        if (o == null) return def;
         if (o instanceof Boolean) return (Boolean) o;
         String s = String.valueOf(o).trim().toLowerCase();
-        if (s.equals("true") || s.equals("1") || s.equals("yes") || s.equals("si")) return true;
-        if (s.equals("false") || s.equals("0") || s.equals("no")) return false;
-        try {
-            return Integer.parseInt(s) != 0;
-        } catch (Exception e) {
-            return defaultValue;
-        }
+        if ("true".equals(s) || "1".equals(s) || "yes".equals(s) || "si".equals(s)) return true;
+        if ("false".equals(s) || "0".equals(s) || "no".equals(s)) return false;
+        return def;
     }
 
-    private List<String> readStringList(Object o) {
-        if (o == null) return new ArrayList<>();
-        if (o instanceof List<?> list) {
-            return list.stream()
-                    .map(item -> {
-                        if (item == null) return null;
-                        if (item instanceof Map<?, ?> m) {
-                            // si llega como { "id": 46, "nombre": "Programador Java", ...}
-                            Object nombre = m.get("nombre");
-                            return nombre != null ? nombre.toString() : item.toString();
-                        }
-                        return item.toString();
-                    })
-                    .filter(Objects::nonNull)
-                    .map(String::trim)
-                    .filter(s -> !s.isBlank())
-                    .distinct()
-                    .collect(Collectors.toList());
+    @SuppressWarnings("unchecked")
+    private static List<String> asStringList(Object o) {
+        if (o == null) return List.of();
+        if (o instanceof List) {
+            List<?> raw = (List<?>) o;
+            List<String> out = new ArrayList<>();
+            for (Object x : raw) if (x != null) out.add(String.valueOf(x));
+            return out;
         }
-        // si viene como string con comas
-        return Arrays.stream(String.valueOf(o).split(","))
-                .map(String::trim)
-                .filter(s -> !s.isBlank())
-                .distinct()
-                .collect(Collectors.toList());
+        // permitir string "a,b,c"
+        String s = String.valueOf(o);
+        if (s.contains(",")) {
+            String[] parts = s.split(",");
+            List<String> out = new ArrayList<>();
+            for (String p : parts) out.add(p.trim());
+            return out;
+        }
+        return List.of(String.valueOf(o));
+    }
+
+    private static String joinName(String first, String last) {
+        String f = first != null ? first.trim() : "";
+        String l = last != null ? last.trim() : "";
+        return (f + " " + l).trim();
+    }
+
+    private static void putAddress(ProviderData e, Map<String,Object> a) {
+        e.setState(asString(firstNonNull(a, "state", "estado")));
+        e.setCity(asString(firstNonNull(a, "city", "ciudad")));
+        e.setStreet(asString(firstNonNull(a, "street", "calle")));
+        e.setNumber(asString(firstNonNull(a, "number", "numero")));
+        e.setFloor(asString(firstNonNull(a, "floor", "piso")));
+        e.setApartment(asString(firstNonNull(a, "apartment", "depto", "departamento")));
     }
 }
