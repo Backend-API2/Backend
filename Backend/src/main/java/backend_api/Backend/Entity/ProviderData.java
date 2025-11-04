@@ -65,16 +65,21 @@ public class ProviderData {
     @Column(name = "apartment")
     private String apartment;
 
-    // Habilidades y Zonas como snapshot (sin FK a catálogos; Catalogue es el dueño)
     @ElementCollection
-    @CollectionTable(name = "provider_skills", joinColumns = @JoinColumn(name = "provider_fk"))
-    @Column(name = "skill")
-    private List<String> skills = new ArrayList<>();
-
-    @ElementCollection
-    @CollectionTable(name = "provider_zones", joinColumns = @JoinColumn(name = "provider_fk"))
+    @CollectionTable(
+            name = "provider_data_zones",
+            joinColumns = @JoinColumn(name = "provider_data_id")
+    )
     @Column(name = "zone")
     private List<String> zones = new ArrayList<>();
+
+    @ElementCollection
+    @CollectionTable(
+            name = "provider_data_skills",
+            joinColumns = @JoinColumn(name = "provider_data_id")
+    )
+    @Column(name = "skill")
+    private List<String> skills = new ArrayList<>();
 
     // Timestamps
     @Column(name = "created_at")

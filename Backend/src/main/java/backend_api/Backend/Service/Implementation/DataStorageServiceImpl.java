@@ -154,20 +154,63 @@ public class DataStorageServiceImpl {
         }
     }
 
+    // DataStorageServiceImpl.java
     @Transactional
-    public void saveProviderData(Long providerId, Map<String, Object> providerDataMap, String secondaryId) {
+    public void saveProviderData(Long providerId, Map<String, Object> m, String secondaryId) {
         try {
-            ProviderData providerData = new ProviderData();
-            providerData.setProviderId(providerId);
-            providerData.setName((String) providerDataMap.get("name"));
-            providerData.setEmail((String) providerDataMap.get("email"));
-            providerData.setPhone((String) providerDataMap.get("phone"));
-            providerData.setSecondaryId(secondaryId);
+            // 1) upsert
+            ProviderData provider = providerDataRepository.findByProviderId(providerId)
+                    .orElseGet(() -> providerDataRepository.findByEmail((String) m.get("email"))
+                            .orElseGet(ProviderData::new));
 
-            providerDataRepository.save(providerData);
-            log.info("Datos de prestador guardados: providerId={}, name={}", providerId, providerData.getName());
+            if (provider.getProviderId() == null) provider.setProviderId(providerId);
+
+            // 2) básicos
+            if (m.containsKey("name"))       provider.setName((String) m.get("name"));
+            if (m.containsKey("email"))      provider.setEmail((String) m.get("email"));
+            if (m.containsKey("phone"))      provider.setPhone((String) m.get("phone"));
+            if (secondaryId != null)         provider.setSecondaryId(secondaryId);
+
+            // photo / active (si vienen)
+            if (m.containsKey("photo"))      provider.setPhoto((String) m.get("photo"));
+            Object activeObj = m.get("active");
+            if (activeObj instanceof Boolean) provider.setActive((Boolean) activeObj);
+            else if (activeObj instanceof Number) provider.setActive(((Number)activeObj).intValue() == 1);
+
+            // 3) address (primera)
+            if (m.containsKey("address")) {
+                @SuppressWarnings("unchecked")
+                java.util.List<Map<String,Object>> addrList = (java.util.List<Map<String,Object>>) m.get("address");
+                if (addrList != null && !addrList.isEmpty()) {
+                    Map<String,Object> a = addrList.get(0);
+                    if (a.get("state")      != null) provider.setState((String) a.get("state"));
+                    if (a.get("city")       != null) provider.setCity((String) a.get("city"));
+                    if (a.get("street")     != null) provider.setStreet((String) a.get("street"));
+                    if (a.get("number")     != null) provider.setNumber((String) a.get("number"));
+                    if (a.get("floor")      != null) provider.setFloor((String) a.get("floor"));
+                    if (a.get("apartment")  != null) provider.setApartment((String) a.get("apartment"));
+                }
+            }
+
+            // 4) zones / skills
+            if (m.containsKey("zones")) {
+                @SuppressWarnings("unchecked")
+                java.util.List<String> zones = (java.util.List<String>) m.get("zones");
+                provider.getZones().clear();
+                if (zones != null) provider.getZones().addAll(zones);
+            }
+            if (m.containsKey("skills")) {
+                @SuppressWarnings("unchecked")
+                java.util.List<String> skills = (java.util.List<String>) m.get("skills");
+                provider.getSkills().clear();
+                if (skills != null) provider.getSkills().addAll(skills);
+            }
+
+            providerDataRepository.save(provider);
+            log.info("✅ Provider upsert: providerId={}, email={}", provider.getProviderId(), provider.getEmail());
         } catch (Exception e) {
-            log.error("Error guardando datos de prestador: providerId={}, error={}", providerId, e.getMessage());
+            log.error("Error guardando datos de prestador: providerId={}, error={}", providerId, e.getMessage(), e);
+            throw new RuntimeException("Error al guardar datos de prestador", e);
         }
     }
 
