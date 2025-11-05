@@ -256,30 +256,34 @@ public class AuthController {
             // 1. Primero buscar en usuarios sincronizados (user_data table) - PRIORIDAD
             log.info("🔍 Buscando usuario sincronizado para email: {}", email);
             Optional<UserData> syncedUser;
+            UserData userData = null;
             try {
                 syncedUser = userDataRepository.findFirstByEmail(email); // Usar findFirst para evitar NonUniqueResultException
                 log.info("🔍 Resultado búsqueda user_data: {}", syncedUser.isPresent() ? "ENCONTRADO" : "NO ENCONTRADO");
+                
+                // Cerrar la transacción de lectura antes de la llamada HTTP externa
+                if (syncedUser.isPresent()) {
+                    userData = syncedUser.get();
+                    log.info("✅ Usuario sincronizado encontrado - userId: {}, email: {}, name: {}, role: {}", 
+                        userData.getUserId(), userData.getEmail(), userData.getName(), userData.getRole());
+                }
             } catch (Exception e) {
                 log.error("❌ Error buscando en user_data: {}", e.getMessage(), e);
                 syncedUser = Optional.empty();
             }
             
-            if (syncedUser.isPresent()) {
+            // Validar usuario sincronizado (fuera de la transacción de DB para evitar connection leak)
+            if (userData != null) {
                 try {
-                    UserData userData = syncedUser.get();
-                    log.info("✅ Usuario sincronizado encontrado - userId: {}, email: {}, name: {}, role: {}", 
-                        userData.getUserId(), userData.getEmail(), userData.getName(), userData.getRole());
-                    
                     // Validar si el usuario está activo
                     if (userData.getActive() == null || !userData.getActive()) {
                         log.warn("❌ Usuario desactivado intentando hacer login: {}", email);
                         return new ResponseEntity<>(HttpStatus.FORBIDDEN);
                     }
                     
-                    // Para usuarios sincronizados, usar contraseña por defecto o validar contra módulo externo
-                    boolean passwordValid = validatePasswordWithUserModule(email, password) || 
-                                          "password123".equals(password) || 
-                                          "123456".equals(password);
+                    // Para usuarios sincronizados, DEBE validarse contra el módulo externo
+                    // NO hay fallback inseguro - si el módulo no responde, el login falla
+                    boolean passwordValid = validatePasswordWithUserModule(email, password);
                     
                     log.info("🔐 Validación de contraseña: {}", passwordValid);
                     
@@ -302,7 +306,7 @@ public class AuthController {
                         log.info("🎉 Login exitoso con usuario sincronizado - userId: {}", userData.getUserId());
                         return new ResponseEntity<>(response, HttpStatus.OK);
                     } else {
-                        log.warn("❌ Contraseña inválida para usuario sincronizado: {}", email);
+                        log.warn("❌ Contraseña inválida o módulo de usuarios no disponible para usuario sincronizado: {}", email);
                         return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
                     }
                 } catch (Exception e) {
@@ -314,23 +318,29 @@ public class AuthController {
             }
             
             // 1b. Buscar también en provider_data (prestadores sincronizados)
-            Optional<ProviderData> syncedProvider = providerDataRepository.findByEmail(email);
-            log.info("🔍 Buscando prestador sincronizado para email: {}", email);
-            if (syncedProvider.isPresent()) {
-                ProviderData providerData = syncedProvider.get();
-                log.info("✅ Prestador sincronizado encontrado - providerId: {}, email: {}", 
-                    providerData.getProviderId(), providerData.getEmail());
-                
+            ProviderData providerData = null;
+            try {
+                Optional<ProviderData> syncedProvider = providerDataRepository.findByEmail(email);
+                log.info("🔍 Buscando prestador sincronizado para email: {}", email);
+                if (syncedProvider.isPresent()) {
+                    providerData = syncedProvider.get();
+                    log.info("✅ Prestador sincronizado encontrado - providerId: {}, email: {}", 
+                        providerData.getProviderId(), providerData.getEmail());
+                }
+            } catch (Exception e) {
+                log.error("❌ Error buscando prestador sincronizado: {}", e.getMessage(), e);
+            }
+            
+            // Validar prestador sincronizado (fuera de la transacción de DB)
+            if (providerData != null) {
                 // Validar si el prestador está activo
                 if (providerData.getActive() == null || !providerData.getActive()) {
                     log.warn("❌ Prestador desactivado intentando hacer login: {}", email);
                     return new ResponseEntity<>(HttpStatus.FORBIDDEN);
                 }
                 
-                // Validar contraseña con el módulo externo
-                boolean passwordValid = validatePasswordWithUserModule(email, password) || 
-                                      "password123".equals(password) || 
-                                      "123456".equals(password);
+                // Validar contraseña con el módulo externo - NO hay fallback inseguro
+                boolean passwordValid = validatePasswordWithUserModule(email, password);
                 
                 log.info("🔐 Validación de contraseña para prestador: {}", passwordValid);
                 
@@ -347,7 +357,7 @@ public class AuthController {
                     log.info("🎉 Login exitoso con prestador sincronizado - providerId: {}", providerData.getProviderId());
                     return new ResponseEntity<>(response, HttpStatus.OK);
                 } else {
-                    log.warn("❌ Contraseña inválida para prestador sincronizado: {}", email);
+                    log.warn("❌ Contraseña inválida o módulo de usuarios no disponible para prestador sincronizado: {}", email);
                     return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
                 }
             } else {
@@ -432,8 +442,8 @@ public class AuthController {
                 log.debug("✅ Rol PRESTADOR/MERCHANT convertido a MERCHANT");
                 return "MERCHANT";
             case "ADMIN":
-                log.debug("✅ Rol ADMIN convertido a USER");
-                return "USER";
+                log.debug("✅ Rol ADMIN se mantiene como ADMIN");
+                return "ADMIN";
             default:
                 log.warn("⚠️ Rol desconocido '{}', usando USER por defecto", normalizedRole);
                 return "USER";
@@ -450,7 +460,7 @@ public class AuthController {
                 return false;
             }
             
-            String userModuleUrl = "http://dev.desarrollo2-usuarios.shop:8082/api/users/login";
+            String userModuleUrl = "http://dev.desarrollo2-usuarios.shop:8081/api/users/login";
             Map<String, String> loginRequest = Map.of(
                 "email", email,
                 "password", password
@@ -465,8 +475,17 @@ public class AuthController {
                 new org.springframework.core.ParameterizedTypeReference<Map<String, Object>>() {}
             );
             return response.getStatusCode().is2xxSuccessful();
+        } catch (org.springframework.web.client.ResourceAccessException e) {
+            // Timeout o problemas de conexión
+            if (e.getMessage() != null && e.getMessage().contains("timeout")) {
+                log.warn("⏱️ Timeout validando contraseña con módulo de usuarios para {}: {}", email, e.getMessage());
+            } else {
+                log.warn("🔌 Error de conexión validando contraseña con módulo de usuarios para {}: {}", email, e.getMessage());
+            }
+            return false;
         } catch (Exception e) {
-            // En caso de cualquier error (conexión, timeout, etc.), devolver false
+            // En caso de cualquier otro error, devolver false
+            log.warn("❌ Error validando contraseña con módulo de usuarios para {}: {}", email, e.getMessage());
             return false;
         }
     }
@@ -476,7 +495,7 @@ public class AuthController {
      */
     private Map<String, Object> validateAndGetUserDataFromUserModule(String email, String password) {
         try {
-            String userModuleUrl = "http://dev.desarrollo2-usuarios.shop:8082/api/users/login";
+            String userModuleUrl = "http://dev.desarrollo2-usuarios.shop:8081/api/users/login";
             Map<String, String> loginRequest = Map.of(
                 "email", email,
                 "password", password
@@ -498,6 +517,7 @@ public class AuthController {
                 log.info("Datos obtenidos del módulo de usuarios para {}: {}", email, responseData);
                 
                 // El módulo devuelve un userInfo anidado, extraerlo
+                @SuppressWarnings("unchecked")
                 Map<String, Object> userInfo = (Map<String, Object>) responseData.get("userInfo");
                 if (userInfo == null) {
                     log.warn("No se encontró userInfo en la respuesta del módulo");
@@ -521,8 +541,16 @@ public class AuthController {
                 return mappedData;
             }
             
+        } catch (org.springframework.web.client.ResourceAccessException e) {
+            // Timeout o problemas de conexión
+            if (e.getMessage() != null && e.getMessage().contains("timeout")) {
+                log.warn("⏱️ Timeout obteniendo datos del usuario {} del módulo de usuarios: {}", email, e.getMessage());
+            } else {
+                log.warn("🔌 Error de conexión obteniendo datos del usuario {} del módulo de usuarios: {}", email, e.getMessage());
+            }
+            return null;
         } catch (Exception e) {
-            log.warn("No se pudo validar/obtener datos del usuario {} del módulo de usuarios: {}", email, e.getMessage());
+            log.warn("❌ Error obteniendo datos del usuario {} del módulo de usuarios: {}", email, e.getMessage());
             
             // En caso de error, no crear datos de prueba - devolver null
             // para que el login falle correctamente
