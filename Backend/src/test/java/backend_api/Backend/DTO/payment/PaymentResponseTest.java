@@ -310,14 +310,30 @@ class PaymentResponseTest {
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
         when(userRepository.findById(2L)).thenReturn(Optional.of(testProvider));
 
+        // When - usando un rol realmente desconocido
+        PaymentResponse response = PaymentResponse.fromEntityWithNames(testPayment, userRepository, "UNKNOWN_ROLE");
+
+        // Then
+        assertNotNull(response);
+        assertEquals(testPayment.getId(), response.getId());
+        assertNull(response.getUser_name()); // unknown role defaults to USER behavior, sets user_name to null
+        assertEquals("Test Provider", response.getProvider_name());
+    }
+    
+    @Test
+    void testFromEntityWithNames_AdminRole() {
+        // Given
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(testProvider));
+
         // When
         PaymentResponse response = PaymentResponse.fromEntityWithNames(testPayment, userRepository, "ADMIN");
 
         // Then
         assertNotNull(response);
         assertEquals(testPayment.getId(), response.getId());
-        assertNull(response.getUser_name()); // unknown role defaults to else branch, sets user_name to null
-        assertEquals("Test Provider", response.getProvider_name());
+        assertEquals("Test User", response.getUser_name()); // ADMIN ve ambos nombres
+        assertEquals("Test Provider", response.getProvider_name()); // ADMIN ve ambos nombres
     }
 
     // ========== EDGE CASES ==========

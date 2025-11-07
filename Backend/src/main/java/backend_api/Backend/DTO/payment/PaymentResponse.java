@@ -75,11 +75,18 @@ public class PaymentResponse {
                 response.setProvider_name(providerOpt.get().getName());
             }
 
+            // Lógica de visibilidad según rol:
+            // - MERCHANT: solo ve user_name (oculta provider_name porque es él mismo)
+            // - USER: solo ve provider_name (oculta user_name porque es él mismo)
+            // - ADMIN: ve ambos nombres (necesita ver toda la información)
+            // - null/vacío/desconocido: se comporta como USER (oculta user_name)
             if ("MERCHANT".equals(currentUserRole)) {
                 response.setProvider_name(null);
-            } else {
+            } else if (!"ADMIN".equals(currentUserRole)) {
+                // Si no es MERCHANT ni ADMIN, ocultar user_name (comportamiento por defecto para USER y roles desconocidos)
                 response.setUser_name(null);
             }
+            // ADMIN no oculta ningún nombre - puede ver toda la información
 
         } catch (Exception e) {
             System.err.println("Error obteniendo nombres para payment " + payment.getId() + ": " + e.getMessage());
@@ -102,11 +109,18 @@ public class PaymentResponse {
                 response.setProvider_name(provider.getName());
             }
 
+            // Lógica de visibilidad según rol:
+            // - MERCHANT: solo ve user_name (oculta provider_name porque es él mismo)
+            // - USER: solo ve provider_name (oculta user_name porque es él mismo)
+            // - ADMIN: ve ambos nombres (necesita ver toda la información)
+            // - null/vacío/desconocido: se comporta como USER (oculta user_name)
             if ("MERCHANT".equals(currentUserRole)) {
                 response.setProvider_name(null);
-            } else {
+            } else if (!"ADMIN".equals(currentUserRole)) {
+                // Si no es MERCHANT ni ADMIN, ocultar user_name (comportamiento por defecto para USER y roles desconocidos)
                 response.setUser_name(null);
             }
+            // ADMIN no oculta ningún nombre - puede ver toda la información
 
         } catch (Exception e) {
             System.err.println("Error obteniendo nombres para payment " + payment.getId() + ": " + e.getMessage());
@@ -129,11 +143,18 @@ public class PaymentResponse {
                 response.setProvider_name(providerInfo.getName());
             }
 
+            // Lógica de visibilidad según rol:
+            // - MERCHANT: solo ve user_name (oculta provider_name porque es él mismo)
+            // - USER: solo ve provider_name (oculta user_name porque es él mismo)
+            // - ADMIN: ve ambos nombres (necesita ver toda la información)
+            // - null/vacío/desconocido: se comporta como USER (oculta user_name)
             if ("MERCHANT".equals(currentUserRole)) {
                 response.setProvider_name(null);
-            } else {
+            } else if (!"ADMIN".equals(currentUserRole)) {
+                // Si no es MERCHANT ni ADMIN, ocultar user_name (comportamiento por defecto para USER y roles desconocidos)
                 response.setUser_name(null);
             }
+            // ADMIN no oculta ningún nombre - puede ver toda la información
 
         } catch (Exception e) {
             System.err.println("Error obteniendo datos reales para payment " + payment.getId() + ": " + e.getMessage());

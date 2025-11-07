@@ -59,6 +59,11 @@ public class EntityValidationService {
     }
 
     public void validatePaymentOwnership(Long paymentId, Long userId, String userRole) {
+        // ADMIN tiene acceso a todos los pagos
+        if ("ADMIN".equals(userRole)) {
+            return;
+        }
+        
         Payment payment = getPaymentOrThrow(paymentId);
         boolean hasAccess = false;
         if ("MERCHANT".equals(userRole)) {

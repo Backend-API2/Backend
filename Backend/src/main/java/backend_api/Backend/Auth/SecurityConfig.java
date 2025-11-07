@@ -130,8 +130,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/payments/{id}/cancel").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
                         .requestMatchers(HttpMethod.GET, "/api/payments/{id}/attempts").hasAnyRole(ROLE_MERCHANT)
                         .requestMatchers(HttpMethod.POST, "/api/payments/{id}/retry-balance").hasAnyRole(ROLE_USER)
-                        .requestMatchers(HttpMethod.GET, "/api/payments/{id}/exists").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
-                        .requestMatchers(HttpMethod.GET, "/api/payments/{id}/timeline").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.GET, "/api/payments/{id}/exists").hasAnyRole(ROLE_USER, ROLE_MERCHANT, ROLE_ADMIN)
+                        .requestMatchers(HttpMethod.GET, "/api/payments/{id}/timeline").hasAnyRole(ROLE_USER, ROLE_MERCHANT, ROLE_ADMIN)
                         
                         // Otros endpoints específicos
                         .requestMatchers(HttpMethod.POST, "/api/payments").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
@@ -146,8 +146,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/payments/user/{userId}/status/{status}").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
                         .requestMatchers(HttpMethod.GET, "/api/payments/currency/{currency}").hasAnyRole(ROLE_MERCHANT)
                         
-                        // Patrón genérico {id} debe ir AL FINAL
-                        .requestMatchers(HttpMethod.GET, "/api/payments/{id}").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
+                        // Patrón genérico {id} debe ir AL FINAL - ADMIN puede ver cualquier pago
+                        .requestMatchers(HttpMethod.GET, "/api/payments/{id}").hasAnyRole(ROLE_USER, ROLE_MERCHANT, ROLE_ADMIN)
 
                         // Invoice endpoints - según rol (cuando se implementen)
                         .requestMatchers(HttpMethod.POST, "/api/invoices").hasAnyRole(ROLE_MERCHANT)

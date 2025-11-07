@@ -260,6 +260,8 @@ class PaymentControllerTest {
     void testGetPaymentTimeline_Success() {
         // Given
         Long paymentId = 1L;
+        String authHeader = "Bearer test-token";
+        
         PaymentEvent event1 = new PaymentEvent();
         event1.setId(1L);
         event1.setPaymentId(paymentId);
@@ -277,15 +279,20 @@ class PaymentControllerTest {
         event2.setCreatedAt(LocalDateTime.now());
         
         List<PaymentEvent> timeline = Arrays.asList(event1, event2);
+        
+        when(authenticationService.getUserFromToken(authHeader)).thenReturn(testUser);
+        doNothing().when(entityValidationService).validatePaymentOwnership(paymentId, testUser.getId(), testUser.getRole().name());
         when(paymentEventService.getPaymentTimeline(paymentId)).thenReturn(timeline);
 
         // When
-        ResponseEntity<List<PaymentEvent>> response = paymentController.getPaymentTimeline(paymentId);
+        ResponseEntity<List<PaymentEvent>> response = paymentController.getPaymentTimeline(paymentId, authHeader);
 
         // Then
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(2, response.getBody().size());
+        verify(authenticationService).getUserFromToken(authHeader);
+        verify(entityValidationService).validatePaymentOwnership(paymentId, testUser.getId(), testUser.getRole().name());
         verify(paymentEventService).getPaymentTimeline(paymentId);
     }
 
@@ -293,14 +300,20 @@ class PaymentControllerTest {
     void testGetPaymentTimeline_Exception() {
         // Given
         Long paymentId = 1L;
+        String authHeader = "Bearer test-token";
+        
+        when(authenticationService.getUserFromToken(authHeader)).thenReturn(testUser);
+        doNothing().when(entityValidationService).validatePaymentOwnership(paymentId, testUser.getId(), testUser.getRole().name());
         when(paymentEventService.getPaymentTimeline(paymentId)).thenThrow(new RuntimeException("Service error"));
 
         // When
-        ResponseEntity<List<PaymentEvent>> response = paymentController.getPaymentTimeline(paymentId);
+        ResponseEntity<List<PaymentEvent>> response = paymentController.getPaymentTimeline(paymentId, authHeader);
 
         // Then
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
         assertNull(response.getBody());
+        verify(authenticationService).getUserFromToken(authHeader);
+        verify(entityValidationService).validatePaymentOwnership(paymentId, testUser.getId(), testUser.getRole().name());
     }
 
     // ========== SELECT PAYMENT METHOD TESTS ==========

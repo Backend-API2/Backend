@@ -155,10 +155,22 @@ public class PaymentController {
    
     
     @GetMapping("/{paymentId}/timeline")
-    public ResponseEntity<List<PaymentEvent>> getPaymentTimeline(@PathVariable Long paymentId) {
+    public ResponseEntity<List<PaymentEvent>> getPaymentTimeline(
+            @PathVariable Long paymentId,
+            @RequestHeader("Authorization") String authHeader) {
         try {
+            User currentUser = authenticationService.getUserFromToken(authHeader);
+            if (currentUser == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+            
+            // Validar ownership (ADMIN tiene acceso a todos)
+            entityValidationService.validatePaymentOwnership(paymentId, currentUser.getId(), currentUser.getRole().name());
+            
             List<PaymentEvent> timeline = paymentEventService.getPaymentTimeline(paymentId);
             return ResponseEntity.ok(timeline);
+        } catch (SecurityException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
