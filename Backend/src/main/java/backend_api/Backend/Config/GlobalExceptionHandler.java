@@ -65,6 +65,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleAccessDeniedException(
             AccessDeniedException ex, WebRequest request) {
         
+        org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(GlobalExceptionHandler.class);
+        logger.error("❌ AccessDeniedException capturada: {}", ex.getMessage());
+        logger.error("❌ Path: {}", request.getDescription(false));
+        if (ex.getCause() != null) {
+            logger.error("❌ Causa: {}", ex.getCause().getMessage());
+        }
+        ex.printStackTrace();
+        
         Map<String, Object> errorResponse = new HashMap<>();
         errorResponse.put("timestamp", LocalDateTime.now());
         errorResponse.put("status", HttpStatus.FORBIDDEN.value());

@@ -142,16 +142,18 @@ class AuthControllerTest {
         when(jwtUtil.generateToken("test@example.com", 86400000L, List.of("USER"))).thenReturn("jwt-token");
 
         // When
-        ResponseEntity<AuthResponse> response = authController.login(request);
+        ResponseEntity<?> response = authController.login(request);
 
         // Then
         assertEquals(200, response.getStatusCode().value());
         assertNotNull(response.getBody());
-        assertEquals("jwt-token", response.getBody().getToken());
-        assertEquals(1L, response.getBody().getUserId());
-        assertEquals("test@example.com", response.getBody().getEmail());
-        assertEquals("Test User", response.getBody().getName());
-        assertEquals("USER", response.getBody().getRole());
+        assertTrue(response.getBody() instanceof AuthResponse);
+        AuthResponse authResponse = (AuthResponse) response.getBody();
+        assertEquals("jwt-token", authResponse.getToken());
+        assertEquals(1L, authResponse.getUserId());
+        assertEquals("test@example.com", authResponse.getEmail());
+        assertEquals("Test User", authResponse.getName());
+        assertEquals("USER", authResponse.getRole());
 
         verify(userRepository).findByEmail("test@example.com");
         verify(passwordEncoder).matches("password123", "encodedPassword");
@@ -168,7 +170,7 @@ class AuthControllerTest {
         when(userRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
 
         // When
-        ResponseEntity<AuthResponse> response = authController.login(request);
+        ResponseEntity<?> response = authController.login(request);
 
         // Then
         assertEquals(401, response.getStatusCode().value());
@@ -343,7 +345,7 @@ class AuthControllerTest {
         when(userRepository.findByEmail("invalid-email")).thenReturn(Optional.empty());
 
         // When
-        ResponseEntity<AuthResponse> response = authController.login(request);
+        ResponseEntity<?> response = authController.login(request);
 
         // Then
         assertEquals(401, response.getStatusCode().value());
@@ -360,7 +362,7 @@ class AuthControllerTest {
         when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.empty());
 
         // When
-        ResponseEntity<AuthResponse> response = authController.login(request);
+        ResponseEntity<?> response = authController.login(request);
 
         // Then
         assertEquals(401, response.getStatusCode().value());
@@ -377,7 +379,7 @@ class AuthControllerTest {
         when(userRepository.findByEmail("test@example.com")).thenThrow(new RuntimeException("Database error"));
 
         // When
-        ResponseEntity<AuthResponse> response = authController.login(request);
+        ResponseEntity<?> response = authController.login(request);
 
         // Then
         assertEquals(500, response.getStatusCode().value());
@@ -473,7 +475,7 @@ class AuthControllerTest {
         when(passwordEncoder.matches("wrongpassword", "encodedPassword")).thenReturn(false);
 
         // When
-        ResponseEntity<AuthResponse> response = authController.login(request);
+        ResponseEntity<?> response = authController.login(request);
 
         // Then
         assertEquals(401, response.getStatusCode().value());

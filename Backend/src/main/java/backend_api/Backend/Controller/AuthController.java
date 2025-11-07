@@ -242,7 +242,7 @@ public class AuthController {
         )
     })
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(
+    public ResponseEntity<?> login(
         @Parameter(
             description = "Credenciales de login",
             required = true,
@@ -278,7 +278,12 @@ public class AuthController {
                     // Validar si el usuario está activo
                     if (userData.getActive() == null || !userData.getActive()) {
                         log.warn("❌ Usuario desactivado intentando hacer login: {}", email);
-                        return new ResponseEntity<>(HttpStatus.FORBIDDEN);
+                        Map<String, Object> errorResponse = new java.util.HashMap<>();
+                        errorResponse.put("error", "Usuario desactivado");
+                        errorResponse.put("message", "Su cuenta ha sido desactivada. Por favor, contacte al administrador para más información.");
+                        errorResponse.put("code", "USER_DEACTIVATED");
+                        errorResponse.put("active", false);
+                        return new ResponseEntity<Map<String, Object>>(errorResponse, HttpStatus.FORBIDDEN);
                     }
                     
                     // Para usuarios sincronizados, DEBE validarse contra el módulo externo
@@ -336,7 +341,12 @@ public class AuthController {
                 // Validar si el prestador está activo
                 if (providerData.getActive() == null || !providerData.getActive()) {
                     log.warn("❌ Prestador desactivado intentando hacer login: {}", email);
-                    return new ResponseEntity<>(HttpStatus.FORBIDDEN);
+                    Map<String, Object> errorResponse = new java.util.HashMap<>();
+                    errorResponse.put("error", "Prestador desactivado");
+                    errorResponse.put("message", "Su cuenta ha sido desactivada. Por favor, contacte al administrador para más información.");
+                    errorResponse.put("code", "PROVIDER_DEACTIVATED");
+                    errorResponse.put("active", false);
+                    return new ResponseEntity<Map<String, Object>>(errorResponse, HttpStatus.FORBIDDEN);
                 }
                 
                 // Validar contraseña con el módulo externo - NO hay fallback inseguro

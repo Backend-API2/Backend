@@ -3,6 +3,7 @@ package backend_api.Backend.Auth;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -112,9 +113,29 @@ public class SecurityConfig {
                         .requestMatchers("/api/providers/subscriptions/**").permitAll()
                         
                         // Payment endpoints - requieren autenticación
+                        // IMPORTANTE: Los patrones más específicos deben ir ANTES de los genéricos
+                        // Endpoints "my-*" deben ir antes de los patrones con {id}
+                        .requestMatchers(HttpMethod.GET, "/api/payments/my-payments").hasAnyRole(ROLE_USER, ROLE_MERCHANT, ROLE_ADMIN)
+                        .requestMatchers(HttpMethod.GET, "/api/payments/my-payments/status/*").hasAnyRole(ROLE_USER, ROLE_MERCHANT, ROLE_ADMIN)
+                        .requestMatchers(HttpMethod.GET, "/api/payments/my-total").hasAnyRole(ROLE_USER, ROLE_MERCHANT, ROLE_ADMIN)
+                        .requestMatchers(HttpMethod.POST, "/api/payments/my-search").hasAnyRole(ROLE_USER, ROLE_MERCHANT, ROLE_ADMIN)
+                        
+                        // Payment filtering and pagination endpoints
+                        .requestMatchers(HttpMethod.POST, "/api/payments/search").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.POST, "/api/payments/search/user").hasAnyRole(ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.POST, "/api/payments/search/amount").hasAnyRole(ROLE_MERCHANT)
+                        
+                        // Payment intents and confirmation (patrones específicos con /{id}/)
+                        .requestMatchers(HttpMethod.POST, "/api/payments/{id}/confirm").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.POST, "/api/payments/{id}/cancel").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.GET, "/api/payments/{id}/attempts").hasAnyRole(ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.POST, "/api/payments/{id}/retry-balance").hasAnyRole(ROLE_USER)
+                        .requestMatchers(HttpMethod.GET, "/api/payments/{id}/exists").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
+                        .requestMatchers(HttpMethod.GET, "/api/payments/{id}/timeline").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
+                        
+                        // Otros endpoints específicos
                         .requestMatchers(HttpMethod.POST, "/api/payments").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
                         .requestMatchers(HttpMethod.GET, "/api/payments/all").hasAnyRole(ROLE_USER, ROLE_MERCHANT, ROLE_ADMIN)
-                        .requestMatchers(HttpMethod.GET, "/api/payments/{id}").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
                         .requestMatchers(HttpMethod.GET, "/api/payments/user/{userId}").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
                         .requestMatchers(HttpMethod.GET, "/api/payments/provider/{providerId}").hasAnyRole(ROLE_MERCHANT)
                         .requestMatchers(HttpMethod.GET, "/api/payments/status/{status}").hasAnyRole(ROLE_MERCHANT)
@@ -124,24 +145,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/payments/date-range").hasAnyRole(ROLE_MERCHANT)
                         .requestMatchers(HttpMethod.GET, "/api/payments/user/{userId}/status/{status}").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
                         .requestMatchers(HttpMethod.GET, "/api/payments/currency/{currency}").hasAnyRole(ROLE_MERCHANT)
-                        .requestMatchers(HttpMethod.GET, "/api/payments/{id}/exists").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
-                        .requestMatchers(HttpMethod.GET, "/api/payments/{id}/timeline").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
-
-                        // Payment intents and confirmation
-                        .requestMatchers(HttpMethod.POST, "/api/payments/{id}/confirm").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
-                        .requestMatchers(HttpMethod.POST, "/api/payments/{id}/cancel").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
-                        .requestMatchers(HttpMethod.GET, "/api/payments/{id}/attempts").hasAnyRole(ROLE_MERCHANT)
-                        .requestMatchers(HttpMethod.POST, "/api/payments/{id}/retry-balance").hasAnyRole(ROLE_USER)
-
-                        // Payment filtering and pagination endpoints
-                        .requestMatchers(HttpMethod.POST, "/api/payments/search").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
-                        .requestMatchers(HttpMethod.POST, "/api/payments/search/user").hasAnyRole(ROLE_MERCHANT)
-                        .requestMatchers(HttpMethod.POST, "/api/payments/search/amount").hasAnyRole(ROLE_MERCHANT)
-
-                        .requestMatchers(HttpMethod.GET, "/api/payments/my-payments").hasAnyRole(ROLE_USER, ROLE_MERCHANT, ROLE_ADMIN)
-                        .requestMatchers(HttpMethod.GET, "/api/payments/my-payments/status/*").hasAnyRole(ROLE_USER, ROLE_MERCHANT, ROLE_ADMIN)
-                        .requestMatchers(HttpMethod.GET, "/api/payments/my-total").hasAnyRole(ROLE_USER, ROLE_MERCHANT, ROLE_ADMIN)
-                        .requestMatchers(HttpMethod.POST, "/api/payments/my-search").hasAnyRole(ROLE_USER, ROLE_MERCHANT, ROLE_ADMIN)
+                        
+                        // Patrón genérico {id} debe ir AL FINAL
+                        .requestMatchers(HttpMethod.GET, "/api/payments/{id}").hasAnyRole(ROLE_USER, ROLE_MERCHANT)
 
                         // Invoice endpoints - según rol (cuando se implementen)
                         .requestMatchers(HttpMethod.POST, "/api/invoices").hasAnyRole(ROLE_MERCHANT)
@@ -157,6 +163,28 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                .exceptionHandling((exceptions) -> exceptions
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(SecurityConfig.class);
+                            logger.error("❌ Access Denied para: {}", request.getRequestURI());
+                            logger.error("❌ Usuario autenticado: {}", 
+                                org.springframework.security.core.context.SecurityContextHolder.getContext()
+                                    .getAuthentication() != null ? 
+                                    org.springframework.security.core.context.SecurityContextHolder.getContext()
+                                        .getAuthentication().getName() : "NO AUTENTICADO");
+                            if (org.springframework.security.core.context.SecurityContextHolder.getContext()
+                                    .getAuthentication() != null) {
+                                logger.error("❌ Authorities: {}", 
+                                    org.springframework.security.core.context.SecurityContextHolder.getContext()
+                                        .getAuthentication().getAuthorities());
+                            }
+                            logger.error("❌ Error: {}", accessDeniedException.getMessage());
+                            response.setStatus(HttpStatus.FORBIDDEN.value());
+                            response.setContentType("application/json");
+                            response.getWriter().write("{\"error\":\"Forbidden\",\"message\":\"" + 
+                                accessDeniedException.getMessage() + "\"}");
+                        })
+                )
                 .httpBasic((httpBasic) -> httpBasic.disable());
 
         return http.build();

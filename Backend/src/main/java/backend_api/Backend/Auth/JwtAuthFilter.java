@@ -63,7 +63,9 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                             
                             logger.info("📋 Roles extraídos del token para {}: {}", email, roles);
                             
+                            // Normalizar roles a mayúsculas para asegurar consistencia
                             List<SimpleGrantedAuthority> authorities = roles.stream()
+                                    .map(role -> role != null ? role.toUpperCase() : "USER")
                                     .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
                                     .collect(Collectors.toList());
                             
@@ -76,12 +78,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                             
                             SecurityContextHolder.getContext().setAuthentication(authenticationToken);
                             
-                            logger.info("==================== AUTENTICACIÓN ADMIN ====================");
+                            logger.info("==================== AUTENTICACIÓN ====================");
                             logger.info("✅ Usuario: {}", email);
-                            logger.info("✅ Roles del token: {}", roles);
+                            logger.info("✅ Roles del token (raw): {}", roles);
+                            logger.info("✅ Authorities creadas:");
                             authorities.forEach(auth -> {
-                                logger.info("✅ Authority creada: {}", auth.getAuthority());
+                                logger.info("   - {}", auth.getAuthority());
                             });
+                            logger.info("✅ Request URI: {}", requestURI);
                             logger.info("================================================================");
 
                         } catch (Exception e) {
