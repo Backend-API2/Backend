@@ -40,3 +40,5 @@ C:/Users/NoxiePC/.android/*.conf
 C:/Users/NoxiePC/.android/*.txt
 C:/Users/NoxiePC/.android/*.img
 C:/Users/NoxiePC/.android/*.qcow2
+.terraform/
+terraform.tfstate*
