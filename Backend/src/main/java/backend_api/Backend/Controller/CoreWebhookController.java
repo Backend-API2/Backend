@@ -39,12 +39,63 @@ public class CoreWebhookController {
 
   
     @PostMapping("/payment-events")
-    public ResponseEntity<Map<String, String>> receivePaymentEvent(@RequestBody CoreEventMessage message) {
+    public ResponseEntity<Map<String, String>> receivePaymentEvent(@RequestBody Object rawMessage) {
         try {
-            log.info("Webhook recibido del CORE - MessageId: {}, EventName: {}, Topic: {}",
-                message.getMessageId(),
-                message.getDestination() != null ? message.getDestination().getEventName() : "null",
-                message.getDestination() != null ? message.getDestination().getTopic() : "null");
+            log.info("🌐 ========== WEBHOOK RECIBIDO DEL CORE ==========");
+            log.info("📥 Raw message type: {}", rawMessage != null ? rawMessage.getClass().getName() : "null");
+            log.info("📥 Raw message completo: {}", rawMessage);
+            log.info("🌐 ===============================================");
+            
+            // Convertir a CoreEventMessage
+            CoreEventMessage message;
+            if (rawMessage instanceof CoreEventMessage) {
+                message = (CoreEventMessage) rawMessage;
+            } else if (rawMessage instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> map = (Map<String, Object>) rawMessage;
+                message = new CoreEventMessage();
+                message.setMessageId((String) map.get("messageId"));
+                
+                // Timestamp
+                Object timestamp = map.get("timestamp");
+                if (timestamp != null) {
+                    try {
+                        if (timestamp instanceof String) {
+                            message.setTimestamp(java.time.LocalDateTime.parse(timestamp.toString()));
+                        }
+                    } catch (Exception e) {
+                        log.warn("No se pudo parsear timestamp: {}", timestamp);
+                    }
+                }
+                
+                // Destination
+                Object destObj = map.get("destination");
+                if (destObj instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> dest = (Map<String, Object>) destObj;
+                    CoreEventMessage.Destination destination = new CoreEventMessage.Destination();
+                    destination.setTopic((String) dest.get("topic"));
+                    destination.setEventName((String) dest.get("eventName"));
+                    message.setDestination(destination);
+                }
+                
+                // Payload
+                Object payloadObj = map.get("payload");
+                if (payloadObj instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> payload = (Map<String, Object>) payloadObj;
+                    message.setPayload(payload);
+                }
+            } else {
+                throw new IllegalArgumentException("Formato de mensaje no soportado: " + 
+                    (rawMessage != null ? rawMessage.getClass().getName() : "null"));
+            }
+            
+            log.info("📥 MessageId: {}", message.getMessageId());
+            log.info("📥 EventName: {}", message.getDestination() != null ? message.getDestination().getEventName() : "null");
+            log.info("📥 Topic: {}", message.getDestination() != null ? message.getDestination().getTopic() : "null");
+            log.info("📥 Payload completo: {}", message.getPayload());
+            log.info("📥 Payload keys: {}", message.getPayload() != null ? message.getPayload().keySet() : "null");
 
             String subscriptionId = extractSubscriptionId(message);
 
@@ -58,13 +109,27 @@ public class CoreWebhookController {
                     break;
 
                 case "status_updated":
-                    log.info("✅ Evento status_updated recibido del CORE - MessageId: {}", message.getMessageId());
-                    saveStatusUpdatedEvent(message);
+                    log.info("✅ Evento status_updated recibido del CORE - MessageId: {}, Payload: {}", 
+                        message.getMessageId(), message.getPayload());
+                    try {
+                        saveStatusUpdatedEvent(message);
+                        log.info("✅ Evento status_updated guardado exitosamente en payment_events");
+                    } catch (Exception e) {
+                        log.error("❌ Error guardando evento status_updated: {}", e.getMessage(), e);
+                        throw e;
+                    }
                     break;
 
                 case "method_selected":
-                    log.info("✅ Evento method_selected recibido del CORE - MessageId: {}", message.getMessageId());
-                    saveMethodSelectedEvent(message);
+                    log.info("✅ Evento method_selected recibido del CORE - MessageId: {}, Payload: {}", 
+                        message.getMessageId(), message.getPayload());
+                    try {
+                        saveMethodSelectedEvent(message);
+                        log.info("✅ Evento method_selected guardado exitosamente en payment_events");
+                    } catch (Exception e) {
+                        log.error("❌ Error guardando evento method_selected: {}", e.getMessage(), e);
+                        throw e;
+                    }
                     break;
 
                 case "USER_PROVIDER_DATA":
@@ -86,12 +151,21 @@ public class CoreWebhookController {
             ));
 
         } catch (Exception e) {
+            String messageId = "unknown";
+            try {
+                if (rawMessage instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> map = (Map<String, Object>) rawMessage;
+                    messageId = (String) map.getOrDefault("messageId", "unknown");
+                }
+            } catch (Exception ignore) {}
+            
             log.error("Error procesando webhook del CORE - MessageId: {}, Error: {}",
-                message.getMessageId(), e.getMessage(), e);
+                messageId, e.getMessage(), e);
 
             return ResponseEntity.status(500).body(Map.of(
                 "status", "error",
-                "messageId", message.getMessageId(),
+                "messageId", messageId,
                 "error", e.getMessage(),
                 "retryAfter","30"
             ));

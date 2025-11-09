@@ -91,19 +91,23 @@ public class UserEventProcessorService {
             userData.put("dni", dni);
             userData.put("active", true);
 
-            if (payload.containsKey("address")) {
+            // address / zones / skills si vienen y con tipo correcto
+            Object addr = payload.get("address");
+            if (addr instanceof java.util.List) {
                 @SuppressWarnings("unchecked")
-                java.util.List<Map<String, Object>> addresses = (java.util.List<Map<String, Object>>) payload.get("address");
+                java.util.List<Map<String, Object>> addresses = (java.util.List<Map<String, Object>>) addr;
                 userData.put("address", addresses);
             }
-            if (payload.containsKey("zones")) {
+            Object zones = payload.get("zones");
+            if (zones instanceof java.util.List) {
                 @SuppressWarnings("unchecked")
-                java.util.List<String> z = (java.util.List<String>) payload.get("zones");
+                java.util.List<String> z = (java.util.List<String>) zones;
                 userData.put("zones", z);
             }
-            if (payload.containsKey("skills")) {
+            Object skills = payload.get("skills");
+            if (skills instanceof java.util.List) {
                 @SuppressWarnings("unchecked")
-                java.util.List<String> s = (java.util.List<String>) payload.get("skills");
+                java.util.List<String> s = (java.util.List<String>) skills;
                 userData.put("skills", s);
             }
 
