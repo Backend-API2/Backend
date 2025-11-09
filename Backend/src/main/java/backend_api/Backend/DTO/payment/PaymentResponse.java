@@ -155,7 +155,7 @@ public class PaymentResponse {
                 response.setUser_name(null);
             }
             // ADMIN no oculta ningún nombre - puede ver toda la información
-
+            
         } catch (Exception e) {
             System.err.println("Error obteniendo datos reales para payment " + payment.getId() + ": " + e.getMessage());
         }

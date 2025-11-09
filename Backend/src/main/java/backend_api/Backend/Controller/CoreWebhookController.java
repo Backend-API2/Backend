@@ -7,6 +7,8 @@ import backend_api.Backend.messaging.service.UserEventProcessorService;
 import backend_api.Backend.messaging.service.CoreHubService;
 import backend_api.Backend.messaging.service.PaymentRequestProcessorService;
 import backend_api.Backend.messaging.service.ProviderEventProcessorService;
+import backend_api.Backend.Service.Interface.PaymentEventService;
+import backend_api.Backend.Entity.payment.PaymentEventType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +33,8 @@ public class CoreWebhookController {
     private final CoreHubService coreHubService;
     private final PaymentRequestProcessorService paymentRequestProcessorService;
     private final ProviderEventProcessorService providerEventProcessorService;
+    private final PaymentEventService paymentEventService;
+    private final ObjectMapper objectMapper;
 
 
   
@@ -54,9 +58,13 @@ public class CoreWebhookController {
                     break;
 
                 case "status_updated":
-                    log.info("✅ Evento de pago procesado exitosamente - MessageId: {}", message.getMessageId());
-                    // Los eventos de status_updated son confirmaciones de que el pago fue procesado
-                    // No necesitamos procesamiento adicional, solo confirmar recepción
+                    log.info("✅ Evento status_updated recibido del CORE - MessageId: {}", message.getMessageId());
+                    saveStatusUpdatedEvent(message);
+                    break;
+
+                case "method_selected":
+                    log.info("✅ Evento method_selected recibido del CORE - MessageId: {}", message.getMessageId());
+                    saveMethodSelectedEvent(message);
                     break;
 
                 case "USER_PROVIDER_DATA":
@@ -458,5 +466,138 @@ public class CoreWebhookController {
             log.warn("No se pudo extraer subscriptionId de PaymentRequestMessage: {}", e.getMessage());
         }
         return null;
+    }
+
+    /**
+     * Guarda el evento status_updated en payment_events cuando llega del CORE
+     */
+    private void saveStatusUpdatedEvent(CoreEventMessage message) {
+        try {
+            Map<String, Object> payload = message.getPayload();
+            if (payload == null) {
+                log.warn("Payload vacío en evento status_updated - MessageId: {}", message.getMessageId());
+                return;
+            }
+
+            // Extraer paymentId
+            Object paymentIdObj = payload.get("paymentId");
+            if (paymentIdObj == null) {
+                log.warn("paymentId no encontrado en payload - MessageId: {}", message.getMessageId());
+                return;
+            }
+            Long paymentId = ((Number) paymentIdObj).longValue();
+
+            // Extraer estados
+            String oldStatusStr = (String) payload.getOrDefault("oldStatus", "UNKNOWN");
+            String newStatusStr = (String) payload.getOrDefault("newStatus", "UNKNOWN");
+            String reason = (String) payload.getOrDefault("reason", "Status updated from CORE");
+
+            // Mapear newStatus a PaymentEventType
+            PaymentEventType eventType = mapStatusToEventType(newStatusStr);
+
+            // Crear payload JSON para el evento
+            Map<String, Object> eventPayload = new java.util.HashMap<>();
+            eventPayload.put("oldStatus", oldStatusStr);
+            eventPayload.put("newStatus", newStatusStr);
+            eventPayload.put("reason", reason);
+            eventPayload.put("amountTotal", payload.get("amountTotal"));
+            eventPayload.put("currency", payload.get("currency"));
+            eventPayload.put("gatewayTxnId", payload.get("gatewayTxnId"));
+            eventPayload.put("coreMessageId", message.getMessageId());
+
+            String payloadJson = objectMapper.writeValueAsString(eventPayload);
+
+            // Guardar evento en payment_events
+            paymentEventService.createEvent(
+                paymentId,
+                eventType,
+                payloadJson,
+                "CORE",
+                "CORE_WEBHOOK"
+            );
+
+            log.info("✅ Evento status_updated guardado en payment_events - PaymentId: {}, EventType: {}, MessageId: {}",
+                paymentId, eventType, message.getMessageId());
+
+        } catch (Exception e) {
+            log.error("❌ Error guardando evento status_updated - MessageId: {}, Error: {}",
+                message.getMessageId(), e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Guarda el evento method_selected en payment_events cuando llega del CORE
+     */
+    private void saveMethodSelectedEvent(CoreEventMessage message) {
+        try {
+            Map<String, Object> payload = message.getPayload();
+            if (payload == null) {
+                log.warn("Payload vacío en evento method_selected - MessageId: {}", message.getMessageId());
+                return;
+            }
+
+            // Extraer paymentId
+            Object paymentIdObj = payload.get("paymentId");
+            if (paymentIdObj == null) {
+                log.warn("paymentId no encontrado en payload - MessageId: {}", message.getMessageId());
+                return;
+            }
+            Long paymentId = ((Number) paymentIdObj).longValue();
+
+            // Crear payload JSON para el evento
+            Map<String, Object> eventPayload = new java.util.HashMap<>();
+            eventPayload.put("methodType", payload.get("methodType"));
+            eventPayload.put("methodId", payload.get("methodId"));
+            eventPayload.put("userId", payload.get("userId"));
+            eventPayload.put("selectedAt", payload.get("selectedAt"));
+            eventPayload.put("methodSnapshot", payload.get("methodSnapshot"));
+            eventPayload.put("coreMessageId", message.getMessageId());
+
+            String payloadJson = objectMapper.writeValueAsString(eventPayload);
+
+            // Guardar evento en payment_events
+            paymentEventService.createEvent(
+                paymentId,
+                PaymentEventType.PAYMENT_METHOD_UPDATED,
+                payloadJson,
+                "CORE",
+                "CORE_WEBHOOK"
+            );
+
+            log.info("✅ Evento method_selected guardado en payment_events - PaymentId: {}, MessageId: {}",
+                paymentId, message.getMessageId());
+
+        } catch (Exception e) {
+            log.error("❌ Error guardando evento method_selected - MessageId: {}, Error: {}",
+                message.getMessageId(), e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Mapea el status del CORE a PaymentEventType
+     */
+    private PaymentEventType mapStatusToEventType(String status) {
+        if (status == null) {
+            return PaymentEventType.PAYMENT_PENDING;
+        }
+
+        String statusUpper = status.toUpperCase();
+        switch (statusUpper) {
+            case "APPROVED":
+            case "COMPLETED":
+                return PaymentEventType.PAYMENT_APPROVED;
+            case "REJECTED":
+            case "DECLINED":
+                return PaymentEventType.PAYMENT_REJECTED;
+            case "CANCELLED":
+            case "CANCELED":
+                return PaymentEventType.PAYMENT_CANCELLED;
+            case "EXPIRED":
+                return PaymentEventType.PAYMENT_EXPIRED;
+            case "PENDING_PAYMENT":
+            case "PENDING":
+            default:
+                return PaymentEventType.PAYMENT_PENDING;
+        }
     }
 }
