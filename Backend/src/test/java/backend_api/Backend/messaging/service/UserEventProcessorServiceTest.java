@@ -158,4 +158,183 @@ class UserEventProcessorServiceTest {
         assertTrue(ex.getCause() instanceof IllegalArgumentException);
         assertEquals("userId no encontrado en el payload", ex.getCause().getMessage());
     }
+    @Test
+    void processUserCreated_prestador_roleIgnoreCase_y_providerDataId() {
+        Map<String,Object> payload = new HashMap<>();
+        payload.put("userId", 555L);
+        payload.put("email", "p@demo.com");
+        payload.put("firstName", "Ana");
+        payload.put("lastName", "María");
+        payload.put("phoneNumber", "123");
+        payload.put("role", "prestador"); // lower-case
+        payload.put("dni", "30111222");
+        payload.put("providerDataId", "pd-77");
+        payload.put("address", List.of(Map.of("state","GBA Sur","city","Lomas","street","Alsina","number","2201")));
+        payload.put("zones", List.of("GBA Sur"));
+        payload.put("skills", List.of("electricista","gasista"));
+
+        CoreEventMessage cm = mockCoreMessage("evt-X1", payload);
+
+        service.processUserCreatedFromCore(cm);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String,Object>> cap = ArgumentCaptor.forClass(Map.class);
+        verify(dataStorageService).saveProviderData(eq(555L), cap.capture(), eq("30111222"));
+
+        Map<String,Object> sent = cap.getValue();
+        assertEquals("p@demo.com", sent.get("email"));
+        assertEquals("pd-77", sent.get("providerDataId"));
+        assertEquals(List.of("GBA Sur"), sent.get("zones"));
+        assertEquals(List.of("electricista","gasista"), sent.get("skills"));
+    }
+
+    @Test
+    void processUserCreated_prestador_collectionsVacias_pasadasYNoNulas() {
+        Map<String,Object> payload = new HashMap<>();
+        payload.put("userId", 99001L);
+        payload.put("email", "presta.demo+01@example.com");
+        payload.put("firstName", "Ana María");
+        payload.put("lastName", "López");
+        payload.put("phoneNumber", "+54 11 5555-0009");
+        payload.put("role", "PRESTADOR");
+        payload.put("dni", "30111222");
+        payload.put("address", List.of(Map.of("state","GBA Sur","city","Lomas","street","Alsina","number","2201")));
+        payload.put("zones", List.of("GBA Sur"));
+        payload.put("skills", List.of()); // ← vacío
+
+        CoreEventMessage cm = mockCoreMessage("evt-X2", payload);
+
+        service.processUserCreatedFromCore(cm);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String,Object>> cap = ArgumentCaptor.forClass(Map.class);
+        verify(dataStorageService).saveProviderData(eq(99001L), cap.capture(), eq("30111222"));
+        Map<String,Object> sent = cap.getValue();
+
+        assertTrue(sent.containsKey("skills"));
+        assertNotNull(sent.get("skills"));
+        assertTrue(((List<?>) sent.get("skills")).isEmpty());
+    }
+
+    @Test
+    void processUserCreated_prestador_tiposInvalidosEnZonesSkills_seOmiten() {
+        Map<String,Object> payload = new HashMap<>();
+        payload.put("userId", 1234L);
+        payload.put("email", "p@demo.com");
+        payload.put("role", "PRESTADOR");
+        payload.put("dni", "30");
+        payload.put("zones", "NO_LIST");   // tipo inválido
+        payload.put("skills", "NO_LIST");  // tipo inválido
+
+        CoreEventMessage cm = mockCoreMessage("evt-X3", payload);
+
+        service.processUserCreatedFromCore(cm);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String,Object>> cap = ArgumentCaptor.forClass(Map.class);
+        verify(dataStorageService).saveProviderData(eq(1234L), cap.capture(), eq("30"));
+        Map<String,Object> sent = cap.getValue();
+
+        assertFalse(sent.containsKey("zones"));
+        assertFalse(sent.containsKey("skills"));
+    }
+
+    @Test
+    void processUserCreated_roleNull_vaARamaUserData() {
+        Map<String,Object> payload = new HashMap<>();
+        payload.put("userId", 77L);
+        payload.put("email", "u@x.com");
+        payload.put("firstName", "Ada");
+        payload.put("lastName", "L");
+        payload.put("dni", "11");
+
+        CoreEventMessage cm = mockCoreMessage("evt-X4", payload);
+
+        service.processUserCreatedFromCore(cm);
+
+        verify(dataStorageService).saveUserData(eq(77L), anyMap(), eq("evt-X4"));
+    }
+
+    @Test
+    void processUserUpdated_prestador_collectionsVacias_hacenClear() {
+        Map<String,Object> payload = new HashMap<>();
+        payload.put("userId", 4321L);
+        payload.put("role", "PRESTADOR");
+        payload.put("firstName", "Roberto");
+        payload.put("lastName", "S");
+        payload.put("zones", List.of());   // vacío
+        payload.put("skills", List.of());  // vacío
+
+        CoreEventMessage cm = mockCoreMessage("evt-X5", payload);
+
+        service.processUserUpdatedFromCore(cm);
+
+        verify(dataStorageService).saveProviderData(eq(4321L), argThat(m ->
+                m.containsKey("zones") && ((List<?>) m.get("zones")).isEmpty() &&
+                        m.containsKey("skills") && ((List<?>) m.get("skills")).isEmpty()
+        ), isNull());
+    }
+
+    @Test
+    void processUserDeactivated_conUserId_llamaDeactivateById() {
+        Map<String,Object> payload = Map.of("userId", 11L, "message", "baja pedida");
+        CoreEventMessage cm = mockCoreMessage("evt-X6", payload);
+
+        service.processUserDeactivatedFromCore(cm);
+
+        verify(dataStorageService).deactivateUser(11L, "baja pedida");
+    }
+
+    @Test
+    void processUserDeactivated_conEmail_llamaDeactivateByEmail() {
+        Map<String,Object> payload = Map.of("email", "x@y.com", "message", "baja");
+        CoreEventMessage cm = mockCoreMessage("evt-X7", payload);
+
+        service.processUserDeactivatedFromCore(cm);
+
+        verify(dataStorageService).deactivateUserByEmail("x@y.com", "baja");
+    }
+
+    @Test
+    void processUserRejected_conUserId_guardaEstadoRejected() {
+        Map<String,Object> payload = Map.of("userId", 22L, "email", "u@x.com", "message", "rechazo KYC");
+        CoreEventMessage cm = mockCoreMessage("evt-X8", payload);
+
+        service.processUserRejectedFromCore(cm);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String,Object>> cap = ArgumentCaptor.forClass(Map.class);
+        verify(dataStorageService).saveUserData(eq(22L), cap.capture(), eq("evt-X8"));
+        Map<String,Object> sent = cap.getValue();
+        assertEquals("REJECTED", sent.get("status"));
+        assertEquals("rechazo KYC", sent.get("rejectionReason"));
+        assertEquals(false, sent.get("active"));
+    }
+
+    @Test
+    void processUserRejected_soloEmail_noEncontrado_desactivaPorEmail() {
+        when(userDataRepository.findAllByEmail("nada@x.com")).thenReturn(List.of());
+
+        Map<String,Object> payload = Map.of("email", "nada@x.com", "message", "rechazado");
+        CoreEventMessage cm = mockCoreMessage("evt-X9", payload);
+
+        service.processUserRejectedFromCore(cm);
+
+        verify(dataStorageService).deactivateUserByEmail("nada@x.com", "rechazado");
+    }
+
+    @Test
+    void processUserRejected_soloEmail_encontrado_guardaRejected() {
+        backend_api.Backend.Entity.UserData u = new backend_api.Backend.Entity.UserData();
+        u.setUserId(909L);
+        when(userDataRepository.findAllByEmail("encontrado@x.com")).thenReturn(List.of(u));
+
+        Map<String,Object> payload = Map.of("email", "encontrado@x.com", "message", "rechazo");
+        CoreEventMessage cm = mockCoreMessage("evt-X10", payload);
+
+        service.processUserRejectedFromCore(cm);
+
+        verify(dataStorageService).saveUserData(eq(909L), anyMap(), eq("evt-X10"));
+    }
+
 }

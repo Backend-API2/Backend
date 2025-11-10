@@ -140,6 +140,75 @@ class CoreWebhookControllerUsersProvidersTest {
         verify(userEventProcessorService).processUserCreatedFromCore(any(CoreEventMessage.class));
     }
 
+    @Test
+    void user_update_routed_to_userProcessor() throws Exception {
+        CoreEventMessage msg = new CoreEventMessage();
+        msg.setMessageId("m-user-2");
+        msg.setTimestamp(LocalDateTime.of(2025, 1, 1, 11, 0));
+
+        CoreEventMessage.Destination dest = new CoreEventMessage.Destination();
+        dest.setChannel("user");
+        dest.setEventName("user_updated");
+        msg.setDestination(dest);
+
+        msg.setPayload(Map.of("userId", 100L));
+
+        doNothing().when(userEventProcessorService).processUserUpdatedFromCore(any(CoreEventMessage.class));
+
+        mockMvc.perform(post("/api/core/webhook/user-events")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(om.writeValueAsString(msg)))
+                .andExpect(status().isOk());
+
+        verify(userEventProcessorService).processUserUpdatedFromCore(any(CoreEventMessage.class));
+    }
+
+    @Test
+    void user_deactivated_routed_to_userProcessor() throws Exception {
+        CoreEventMessage msg = new CoreEventMessage();
+        msg.setMessageId("m-user-3");
+        msg.setTimestamp(LocalDateTime.of(2025, 1, 1, 12, 0));
+
+        CoreEventMessage.Destination dest = new CoreEventMessage.Destination();
+        dest.setChannel("user");
+        dest.setEventName("user_deactivated");
+        msg.setDestination(dest);
+
+        msg.setPayload(Map.of("userId", 101L, "message", "baja"));
+
+        doNothing().when(userEventProcessorService).processUserDeactivatedFromCore(any(CoreEventMessage.class));
+
+        mockMvc.perform(post("/api/core/webhook/user-events")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(om.writeValueAsString(msg)))
+                .andExpect(status().isOk());
+
+        verify(userEventProcessorService).processUserDeactivatedFromCore(any(CoreEventMessage.class));
+    }
+
+    @Test
+    void user_rejected_routed_to_userProcessor() throws Exception {
+        CoreEventMessage msg = new CoreEventMessage();
+        msg.setMessageId("m-user-4");
+        msg.setTimestamp(LocalDateTime.of(2025, 1, 1, 13, 0));
+
+        CoreEventMessage.Destination dest = new CoreEventMessage.Destination();
+        dest.setChannel("user");
+        dest.setEventName("user_rejected");
+        msg.setDestination(dest);
+
+        msg.setPayload(Map.of("email", "rej@x.com", "message", "rechazo"));
+
+        doNothing().when(userEventProcessorService).processUserRejectedFromCore(any(CoreEventMessage.class));
+
+        mockMvc.perform(post("/api/core/webhook/user-events")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(om.writeValueAsString(msg)))
+                .andExpect(status().isOk());
+
+        verify(userEventProcessorService).processUserRejectedFromCore(any(CoreEventMessage.class));
+    }
+
     /* ---------- HEALTH ---------- */
     @Test
     void webhook_health_ok() throws Exception {

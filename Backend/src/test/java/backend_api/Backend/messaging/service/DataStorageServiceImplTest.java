@@ -196,4 +196,86 @@ public class DataStorageServiceImplTest {
 
         verify(userDataRepository).deactivateByEmail("a@b.com");
     }
+
+    @Test
+    void saveProviderData_seteaFirstYLastYGeneraDisplaySiNoVieneName() {
+        when(providerDataRepository.findByProviderId(1000L)).thenReturn(Optional.empty());
+        when(providerDataRepository.findByEmail("ana@p.com")).thenReturn(Optional.empty());
+
+        Map<String,Object> m = new HashMap<>();
+        m.put("firstName", "Ana");
+        m.put("lastName", "López");
+        m.put("email", "ana@p.com");
+        // sin "name"
+
+        ArgumentCaptor<ProviderData> cap = ArgumentCaptor.forClass(ProviderData.class);
+
+        service.saveProviderData(1000L, m, null);
+
+        verify(providerDataRepository).save(cap.capture());
+        ProviderData pd = cap.getValue();
+
+        assertEquals("Ana", pd.getFirstName());
+        assertEquals("López", pd.getLastName());
+        assertEquals("Ana López", pd.getName()); // generado por fallback
+    }
+
+    @Test
+    void saveProviderData_reemplazaColeccionesConListasVacias() {
+        ProviderData existing = new ProviderData();
+        existing.setProviderId(2000L);
+        existing.getZones().addAll(List.of("OLD"));
+        existing.getSkills().addAll(List.of("OLD"));
+
+        when(providerDataRepository.findByProviderId(2000L)).thenReturn(Optional.of(existing));
+
+        Map<String,Object> m = new HashMap<>();
+        m.put("zones", List.of());
+        m.put("skills", List.of());
+
+        ArgumentCaptor<ProviderData> cap = ArgumentCaptor.forClass(ProviderData.class);
+
+        service.saveProviderData(2000L, m, null);
+
+        verify(providerDataRepository).save(cap.capture());
+        ProviderData pd = cap.getValue();
+
+        assertTrue(pd.getZones().isEmpty());
+        assertTrue(pd.getSkills().isEmpty());
+    }
+
+    @Test
+    void saveProviderData_activeAceptaNumerico() {
+        when(providerDataRepository.findByProviderId(3000L)).thenReturn(Optional.empty());
+        when(providerDataRepository.findByEmail("act@x.com")).thenReturn(Optional.empty());
+
+        Map<String,Object> m = new HashMap<>();
+        m.put("email","act@x.com");
+        m.put("active", 0); // numérico
+
+        ArgumentCaptor<ProviderData> cap = ArgumentCaptor.forClass(ProviderData.class);
+
+        service.saveProviderData(3000L, m, null);
+
+        verify(providerDataRepository).save(cap.capture());
+        ProviderData pd = cap.getValue();
+
+        assertEquals(Boolean.FALSE, pd.getActive());
+    }
+
+    @Test
+    void saveUserData_activeAceptaNumerico() {
+        when(userDataRepository.findByUserId(4000L)).thenReturn(Optional.empty());
+
+        Map<String,Object> map = new HashMap<>();
+        map.put("active", 1); // numérico
+
+        ArgumentCaptor<backend_api.Backend.Entity.UserData> cap = ArgumentCaptor.forClass(backend_api.Backend.Entity.UserData.class);
+
+        service.saveUserData(4000L, map, null);
+
+        verify(userDataRepository).save(cap.capture());
+        assertEquals(Boolean.TRUE, cap.getValue().getActive());
+    }
+
 }
