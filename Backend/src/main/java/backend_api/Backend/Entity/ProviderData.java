@@ -24,9 +24,11 @@ public class ProviderData {
     @Column(name = "provider_id", unique = true, nullable = false)
     private Long providerId;
 
-    // Snapshot de identidad/contacto
-    @Column(name = "name")
-    private String name;
+    @Column(name = "first_name")
+    private String firstName;
+
+    @Column(name = "last_name")
+    private String lastName;
 
     @Column(name = "email")
     private String email;
