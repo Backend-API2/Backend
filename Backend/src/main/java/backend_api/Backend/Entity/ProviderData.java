@@ -20,15 +20,19 @@ public class ProviderData {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // ID del Prestador en el módulo de Catalogue (dueño del dato)
     @Column(name = "provider_id", unique = true, nullable = false)
     private Long providerId;
 
+    // NUEVO: nombres separados (sin remover name)
     @Column(name = "first_name")
     private String firstName;
 
     @Column(name = "last_name")
     private String lastName;
+
+    // Se conserva el snapshot completo
+    @Column(name = "name")
+    private String name;
 
     @Column(name = "email")
     private String email;
@@ -36,19 +40,15 @@ public class ProviderData {
     @Column(name = "phone")
     private String phone;
 
-    // DNI / CUIT / lo que venga como identificador secundario
     @Column(name = "secondary_id")
     private String secondaryId;
 
-    // Estado del prestador (snapshot). true = activo
     @Column(name = "active")
     private Boolean active = Boolean.TRUE;
 
-    // Foto / avatar
     @Column(name = "photo")
     private String photo;
 
-    // Dirección (snapshot “flat”)
     @Column(name = "state")
     private String state;
 
@@ -83,7 +83,6 @@ public class ProviderData {
     @Column(name = "skill")
     private List<String> skills = new ArrayList<>();
 
-    // Timestamps
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 

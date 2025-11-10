@@ -166,10 +166,21 @@ public class DataStorageServiceImpl {
             if (provider.getProviderId() == null) provider.setProviderId(providerId);
 
             // 2) básicos
-            if (m.containsKey("name"))       provider.setName((String) m.get("name"));
-            if (m.containsKey("email"))      provider.setEmail((String) m.get("email"));
-            if (m.containsKey("phone"))      provider.setPhone((String) m.get("phone"));
-            if (secondaryId != null)         provider.setSecondaryId(secondaryId);
+            // 2) básicos
+            if (m.containsKey("firstName")) provider.setFirstName((String) m.get("firstName"));
+            if (m.containsKey("lastName"))  provider.setLastName((String) m.get("lastName"));
+            if (m.containsKey("name"))      provider.setName((String) m.get("name")); // display
+            if (m.containsKey("email"))     provider.setEmail((String) m.get("email"));
+            if (m.containsKey("phone"))     provider.setPhone((String) m.get("phone"));
+            if (secondaryId != null)        provider.setSecondaryId(secondaryId);
+
+// Si no vino "name" pero sí first/last, generá display name consistente:
+            if ((provider.getName() == null || provider.getName().isBlank())) {
+                String fn = provider.getFirstName() != null ? provider.getFirstName() : "";
+                String ln = provider.getLastName()  != null ? provider.getLastName()  : "";
+                String display = (fn + " " + ln).trim();
+                if (!display.isBlank()) provider.setName(display);
+            }
 
             // photo / active (si vienen)
             if (m.containsKey("photo"))      provider.setPhoto((String) m.get("photo"));

@@ -25,6 +25,8 @@ public class UserEventProcessorService {
     private final ProviderDataRepository providerDataRepository;
     private final UserDataRepository userDataRepository;
 
+    // En UserEventProcessorService
+
     public void processUserCreatedFromCore(CoreEventMessage coreMessage) {
         log.info("Procesando evento de usuario creado del CORE - MessageId: {}", coreMessage.getMessageId());
 
@@ -37,6 +39,7 @@ public class UserEventProcessorService {
                 // Fallback para compatibilidad con versiones anteriores
                 userId = extractLong(payload, "id");
             }
+
             String email       = extractString(payload, "email");
             String firstName   = extractString(payload, "firstName");
             String lastName    = extractString(payload, "lastName");
@@ -47,9 +50,21 @@ public class UserEventProcessorService {
             log.info("Usuario creado - UserId: {}, Email: {}, Role: {}", userId, email, role);
 
             // PRESTADOR => provider_data vía service centralizado
-            if ("PRESTADOR".equals(role)) {
+            if (role != null && role.equalsIgnoreCase("PRESTADOR")) {
                 Map<String, Object> pd = new java.util.HashMap<>();
-                pd.put("name", (firstName != null ? firstName : "") + " " + (lastName != null ? lastName : ""));
+
+                // IDs opcionales para upsert robusto
+                String providerDataIdStr = extractString(payload, "providerDataId");
+                if (providerDataIdStr == null) providerDataIdStr = extractString(payload, "provider_data_id");
+                if (providerDataIdStr != null && !providerDataIdStr.isBlank()) {
+                    pd.put("providerDataId", providerDataIdStr);
+                }
+
+                // identidad/contacto
+                if (firstName != null) pd.put("firstName", firstName);
+                if (lastName  != null) pd.put("lastName",  lastName);
+                // opcional por compatibilidad (display)
+                pd.put("name", ((firstName != null ? firstName : "") + " " + (lastName != null ? lastName : "")).trim());
                 pd.put("email", email);
                 pd.put("phone", phoneNumber);
                 pd.put("active", true);
@@ -80,9 +95,10 @@ public class UserEventProcessorService {
                 return; // IMPORTANTE: no continuar por la rama de usuarios
             }
 
-            // CLIENTE / ADMIN => user_data (se mantiene tu lógica actual)
+            // CLIENTE / ADMIN => user_data
             Map<String, Object> userData = new java.util.HashMap<>();
-            userData.put("name", (firstName != null ? firstName : "") + " " + (lastName != null ? lastName : ""));
+            userData.put("name",
+                    ((firstName != null ? firstName : "") + " " + (lastName != null ? lastName : "")).trim());
             userData.put("firstName", firstName);
             userData.put("lastName", lastName);
             userData.put("email", email);
@@ -91,7 +107,7 @@ public class UserEventProcessorService {
             userData.put("dni", dni);
             userData.put("active", true);
 
-            // address / zones / skills si vienen y con tipo correcto
+            // address / zones / skills si vienen
             Object addr = payload.get("address");
             if (addr instanceof java.util.List) {
                 @SuppressWarnings("unchecked")
@@ -112,7 +128,7 @@ public class UserEventProcessorService {
             }
 
             // saldo aleatorio para CLIENTE
-            if ("CLIENTE".equals(role)) {
+            if (role != null && role.equalsIgnoreCase("CLIENTE")) {
                 java.util.Random random = new java.util.Random();
                 double saldo = 10000 + (random.nextDouble() * 40000);
                 userData.put("saldoDisponible", java.math.BigDecimal.valueOf(saldo)
@@ -128,6 +144,8 @@ public class UserEventProcessorService {
             throw new RuntimeException("Error al procesar usuario creado", e);
         }
     }
+
+    // En UserEventProcessorService
 
     public void processUserUpdatedFromCore(CoreEventMessage coreMessage) {
         log.info("Procesando evento de usuario actualizado del CORE - MessageId: {}", coreMessage.getMessageId());
@@ -146,19 +164,33 @@ public class UserEventProcessorService {
             log.info("Usuario actualizado - UserId: {}, Email: {}, Role: {}",
                     userUpdated.getUserId(), userUpdated.getEmail(), userUpdated.getRole());
 
-            // Si es PRESTADOR (o ya existe como tal) => actualizar provider_data
-            if ("PRESTADOR".equals(userUpdated.getRole())
-                    || (userUpdated.getRole() == null && dataStorageService.providerDataExists(userUpdated.getUserId()))) {
+            boolean isPrestador =
+                    (userUpdated.getRole() != null && "PRESTADOR".equalsIgnoreCase(userUpdated.getRole()))
+                            || (userUpdated.getRole() == null && dataStorageService.providerDataExists(userUpdated.getUserId()));
 
+            if (isPrestador) {
                 Map<String, Object> pd = new java.util.HashMap<>();
-                pd.put("name",
-                        (userUpdated.getFirstName() != null ? userUpdated.getFirstName() : "") + " " +
-                                (userUpdated.getLastName()  != null ? userUpdated.getLastName()  : "")
-                );
 
+                // IDs opcionales para upsert robusto
+                String providerDataIdStr = extractString(payload, "providerDataId");
+                if (providerDataIdStr == null) providerDataIdStr = extractString(payload, "provider_data_id");
+                if (providerDataIdStr != null && !providerDataIdStr.isBlank()) {
+                    pd.put("providerDataId", providerDataIdStr);
+                }
+
+                // nombres
+                if (userUpdated.getFirstName() != null) pd.put("firstName", userUpdated.getFirstName());
+                if (userUpdated.getLastName()  != null) pd.put("lastName",  userUpdated.getLastName());
+                // opcional por compatibilidad (display)
+                pd.put("name",
+                        ((userUpdated.getFirstName() != null ? userUpdated.getFirstName() : "") + " " +
+                                (userUpdated.getLastName()  != null ? userUpdated.getLastName()  : "")).trim());
+
+                // contacto
                 if (userUpdated.getEmail() != null)       pd.put("email", userUpdated.getEmail());
                 if (userUpdated.getPhoneNumber() != null) pd.put("phone", userUpdated.getPhoneNumber());
 
+                // address si viene
                 if (userUpdated.getAddress() != null && !userUpdated.getAddress().isEmpty()) {
                     java.util.List<Map<String,Object>> addrs = userUpdated.getAddress().stream()
                             .map(a -> {
@@ -174,21 +206,21 @@ public class UserEventProcessorService {
                             .collect(java.util.stream.Collectors.toList());
                     pd.put("address", addrs);
                 }
+
+                // colecciones (merge/upsert se maneja en el service)
                 if (userUpdated.getZones()  != null) pd.put("zones",  userUpdated.getZones());
                 if (userUpdated.getSkills() != null) pd.put("skills", userUpdated.getSkills());
 
-                // secondaryId para provider en updates: DNI si viene (sino null)
                 dataStorageService.saveProviderData(userUpdated.getUserId(), pd, userUpdated.getDni());
                 log.info("Prestador actualizado en provider_data - ProviderId: {}", userUpdated.getUserId());
                 return; // IMPORTANTE: no seguir por la rama de user_data
             }
 
-            // Caso usuarios (CLIENTE/ADMIN) => se mantiene tu lógica
+            // Caso usuarios (CLIENTE/ADMIN)
             Map<String, Object> userData = new java.util.HashMap<>();
             userData.put("name",
-                    (userUpdated.getFirstName() != null ? userUpdated.getFirstName() : "") + " " +
-                            (userUpdated.getLastName()  != null ? userUpdated.getLastName()  : "")
-            );
+                    ((userUpdated.getFirstName() != null ? userUpdated.getFirstName() : "") + " " +
+                            (userUpdated.getLastName()  != null ? userUpdated.getLastName()  : "")).trim());
             userData.put("firstName", userUpdated.getFirstName());
             userData.put("lastName",  userUpdated.getLastName());
 
@@ -287,61 +319,66 @@ public class UserEventProcessorService {
     /**
      * Guarda datos de prestador en provider_data
      */
-    private void saveProviderData(Long providerId, String email, String firstName, String lastName, 
-                                 String phoneNumber, String dni, Map<String, Object> payload) {
+    // En UserEventProcessorService
+// Reescribo tu helper privado para que NO cree duplicados ni toque el repositorio directamente.
+// Solo arma el mapa normalizado y delega al DataStorageServiceImpl.saveProviderData(...)
+
+    private void saveProviderData(Long providerId,
+                                  String email,
+                                  String firstName,
+                                  String lastName,
+                                  String phoneNumber,
+                                  String dni,
+                                  Map<String, Object> payload) {
         try {
-            ProviderData providerData = new ProviderData();
-            providerData.setProviderId(providerId);
-            providerData.setEmail(email);
-            providerData.setName((firstName != null ? firstName : "") + 
-                               " " + (lastName != null ? lastName : ""));
-            providerData.setPhone(phoneNumber);
-            providerData.setSecondaryId(dni);
-            providerData.setActive(true);
-            
-            // Procesar address si viene
-            if (payload.containsKey("address")) {
+            Map<String, Object> m = new java.util.HashMap<>();
+
+            // IDs opcionales para upsert robusto (si llegan por payload)
+            Object pdi = payload != null ? (payload.get("providerDataId") != null ? payload.get("providerDataId")
+                    : payload.get("provider_data_id")) : null;
+            if (pdi != null) m.put("providerDataId", pdi.toString());
+
+            // identidad/contacto
+            if (firstName != null) m.put("firstName", firstName);
+            if (lastName  != null) m.put("lastName",  lastName);
+            // opcional por compatibilidad (display)
+            m.put("name", ((firstName != null ? firstName : "") + " " + (lastName != null ? lastName : "")).trim());
+
+            if (email != null)       m.put("email", email);
+            if (phoneNumber != null) m.put("phone", phoneNumber);
+            m.put("active", true);
+
+            // address (tal como viene)
+            if (payload != null && payload.containsKey("address")) {
                 @SuppressWarnings("unchecked")
-                List<Map<String, Object>> addresses = (List<Map<String, Object>>) payload.get("address");
+                java.util.List<Map<String, Object>> addresses = (java.util.List<Map<String, Object>>) payload.get("address");
                 if (addresses != null && !addresses.isEmpty()) {
-                    Map<String, Object> firstAddress = addresses.get(0);
-                    providerData.setState((String) firstAddress.get("state"));
-                    providerData.setCity((String) firstAddress.get("city"));
-                    providerData.setStreet((String) firstAddress.get("street"));
-                    providerData.setNumber((String) firstAddress.get("number"));
-                    providerData.setFloor((String) firstAddress.get("floor"));
-                    providerData.setApartment((String) firstAddress.get("apartment"));
+                    m.put("address", addresses);
                 }
             }
-            
-            // Procesar zones si viene
-            if (payload.containsKey("zones")) {
+
+            // zones
+            if (payload != null && payload.containsKey("zones")) {
                 @SuppressWarnings("unchecked")
-                List<String> zones = (List<String>) payload.get("zones");
-                if (zones != null) {
-                    providerData.setZones(zones);
-                }
+                java.util.List<String> zones = (java.util.List<String>) payload.get("zones");
+                if (zones != null) m.put("zones", zones);
             }
-            
-            // Procesar skills si viene
-            if (payload.containsKey("skills")) {
+
+            // skills
+            if (payload != null && payload.containsKey("skills")) {
                 @SuppressWarnings("unchecked")
-                List<String> skills = (List<String>) payload.get("skills");
-                if (skills != null) {
-                    providerData.setSkills(skills);
-                }
+                java.util.List<String> skills = (java.util.List<String>) payload.get("skills");
+                if (skills != null) m.put("skills", skills);
             }
-            
-            providerData.setCreatedAt(java.time.LocalDateTime.now());
-            providerData.setUpdatedAt(java.time.LocalDateTime.now());
-            
-            providerDataRepository.save(providerData);
-            log.info("ProviderData guardado exitosamente - ProviderId: {}, Name: {}", 
-                providerId, providerData.getName());
-                
+
+            // delega en el service central (upsert + merge de colecciones)
+            dataStorageService.saveProviderData(providerId, m, dni);
+
+            log.info("ProviderData upsert delegado al service - ProviderId: {}, Email: {}", providerId, email);
+
         } catch (Exception e) {
-            log.error("Error guardando ProviderData - ProviderId: {}, Error: {}", 
-                providerId, e.getMessage(), e);
+            log.error("Error guardando/upsert ProviderData - ProviderId: {}, Error: {}",
+                    providerId, e.getMessage(), e);
             throw new RuntimeException("Error guardando datos de prestador", e);
         }
     }
