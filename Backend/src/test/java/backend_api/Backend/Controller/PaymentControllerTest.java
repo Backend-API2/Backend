@@ -9,6 +9,7 @@ import backend_api.Backend.Entity.payment.types.CashPayment;
 import backend_api.Backend.Entity.user.User;
 import backend_api.Backend.Entity.user.UserRole;
 import backend_api.Backend.Repository.UserRepository;
+import backend_api.Backend.Repository.UserDataRepository;
 import backend_api.Backend.Service.Interface.*;
 import backend_api.Backend.Service.Common.AuthenticationService;
 import backend_api.Backend.Service.Common.ResponseMapperService;
@@ -56,6 +57,9 @@ class PaymentControllerTest {
 
     @Mock
     private UserRepository userRepository;
+    
+    @Mock
+    private UserDataRepository userDataRepository;
 
     @Mock
     private PaymentEventService paymentEventService;
@@ -424,7 +428,9 @@ class PaymentControllerTest {
         updatedPayment.setStatus(PaymentStatus.APPROVED);
 
         when(entityValidationService.getPaymentOrThrow(paymentId)).thenReturn(testPayment);
-        when(entityValidationService.getUserOrThrow(1L)).thenReturn(testUser);
+        // Mock userDataRepository para que retorne empty (usará fallback a users)
+        when(userDataRepository.findByUserId(1L)).thenReturn(Optional.empty());
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
         when(balanceService.deductBalance(1L, BigDecimal.valueOf(115.00))).thenReturn(testUser);
         when(paymentService.updatePaymentStatus(paymentId, PaymentStatus.APPROVED)).thenReturn(updatedPayment);
 
@@ -434,6 +440,8 @@ class PaymentControllerTest {
         // Then
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
+        verify(userDataRepository).findByUserId(1L);
+        verify(userRepository).findById(1L);
         verify(balanceService).deductBalance(1L, BigDecimal.valueOf(115.00));
         verify(paymentService).updatePaymentStatus(paymentId, PaymentStatus.APPROVED);
         verify(paymentEventService).createEvent(eq(paymentId), eq(PaymentEventType.PAYMENT_APPROVED), anyString(), eq("system"));
@@ -448,8 +456,10 @@ class PaymentControllerTest {
         testPayment.setMethod(paymentMethod);
 
         when(entityValidationService.getPaymentOrThrow(paymentId)).thenReturn(testPayment);
-        when(entityValidationService.getUserOrThrow(1L)).thenReturn(testUser);
-        when(balanceService.deductBalance(1L, BigDecimal.valueOf(115.00))).thenThrow(new IllegalStateException("Insufficient balance"));
+        // Mock userDataRepository para que retorne empty (usará fallback a users)
+        when(userDataRepository.findByUserId(1L)).thenReturn(Optional.empty());
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(balanceService.deductBalance(1L, BigDecimal.valueOf(115.00))).thenThrow(new IllegalStateException("Saldo insuficiente"));
 
         // When
         ResponseEntity<PaymentResponse> response = paymentController.confirmPayment(paymentId);
@@ -458,6 +468,9 @@ class PaymentControllerTest {
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
         assertNull(response.getBody());
         assertTrue(response.getHeaders().containsKey("Error-Message"));
+        verify(userDataRepository).findByUserId(1L);
+        verify(userRepository).findById(1L);
+        verify(balanceService).deductBalance(1L, BigDecimal.valueOf(115.00));
         verify(paymentService).createPayment(any(Payment.class)); // Should update payment status to rejected
         verify(paymentEventService).createEvent(eq(paymentId), eq(PaymentEventType.PAYMENT_REJECTED), anyString(), eq("system"));
     }
