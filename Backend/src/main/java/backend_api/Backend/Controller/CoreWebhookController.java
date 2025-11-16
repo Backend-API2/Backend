@@ -9,6 +9,8 @@ import backend_api.Backend.messaging.service.PaymentRequestProcessorService;
 import backend_api.Backend.messaging.service.ProviderEventProcessorService;
 import backend_api.Backend.Service.Interface.PaymentEventService;
 import backend_api.Backend.Entity.payment.PaymentEventType;
+import backend_api.Backend.Entity.payment.PaymentEvent;
+import backend_api.Backend.Repository.PaymentEventRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,6 +36,7 @@ public class CoreWebhookController {
     private final PaymentRequestProcessorService paymentRequestProcessorService;
     private final ProviderEventProcessorService providerEventProcessorService;
     private final PaymentEventService paymentEventService;
+    private final PaymentEventRepository paymentEventRepository;
     private final ObjectMapper objectMapper;
 
 
@@ -112,6 +115,16 @@ public class CoreWebhookController {
                     log.info("✅ Evento status_updated recibido del CORE - MessageId: {}, Payload: {}", 
                         message.getMessageId(), message.getPayload());
                     try {
+                        // Verificar idempotencia antes de procesar
+                        if (isEventAlreadyProcessed(message.getMessageId())) {
+                            log.warn("⏭️ Evento status_updated duplicado detectado - MessageId: {}, omitiendo procesamiento", 
+                                message.getMessageId());
+                            return ResponseEntity.ok(Map.of(
+                                "status", "duplicate",
+                                "messageId", message.getMessageId(),
+                                "message", "Evento ya procesado anteriormente"
+                            ));
+                        }
                         saveStatusUpdatedEvent(message);
                         log.info("✅ Evento status_updated guardado exitosamente en payment_events");
                     } catch (Exception e) {
@@ -124,6 +137,16 @@ public class CoreWebhookController {
                     log.info("✅ Evento method_selected recibido del CORE - MessageId: {}, Payload: {}", 
                         message.getMessageId(), message.getPayload());
                     try {
+                        // Verificar idempotencia antes de procesar
+                        if (isEventAlreadyProcessed(message.getMessageId())) {
+                            log.warn("⏭️ Evento method_selected duplicado detectado - MessageId: {}, omitiendo procesamiento", 
+                                message.getMessageId());
+                            return ResponseEntity.ok(Map.of(
+                                "status", "duplicate",
+                                "messageId", message.getMessageId(),
+                                "message", "Evento ya procesado anteriormente"
+                            ));
+                        }
                         saveMethodSelectedEvent(message);
                         log.info("✅ Evento method_selected guardado exitosamente en payment_events");
                     } catch (Exception e) {
@@ -583,14 +606,16 @@ public class CoreWebhookController {
 
             String payloadJson = objectMapper.writeValueAsString(eventPayload);
 
-            // Guardar evento en payment_events
-            paymentEventService.createEvent(
-                paymentId,
-                eventType,
-                payloadJson,
-                "CORE",
-                "CORE_WEBHOOK"
-            );
+            // Guardar evento en payment_events con correlationId para idempotencia
+            PaymentEvent event = new PaymentEvent();
+            event.setPaymentId(paymentId);
+            event.setType(eventType);
+            event.setPayload(payloadJson);
+            event.setActor("CORE");
+            event.setEventSource("CORE_WEBHOOK");
+            event.setCorrelationId(message.getMessageId()); // Guardar messageId para idempotencia
+            event.setCreatedAt(java.time.LocalDateTime.now());
+            paymentEventRepository.save(event);
 
             log.info("✅ Evento status_updated guardado en payment_events - PaymentId: {}, EventType: {}, MessageId: {}",
                 paymentId, eventType, message.getMessageId());
@@ -631,14 +656,16 @@ public class CoreWebhookController {
 
             String payloadJson = objectMapper.writeValueAsString(eventPayload);
 
-            // Guardar evento en payment_events
-            paymentEventService.createEvent(
-                paymentId,
-                PaymentEventType.PAYMENT_METHOD_UPDATED,
-                payloadJson,
-                "CORE",
-                "CORE_WEBHOOK"
-            );
+            // Guardar evento en payment_events con correlationId para idempotencia
+            PaymentEvent event = new PaymentEvent();
+            event.setPaymentId(paymentId);
+            event.setType(PaymentEventType.PAYMENT_METHOD_UPDATED);
+            event.setPayload(payloadJson);
+            event.setActor("CORE");
+            event.setEventSource("CORE_WEBHOOK");
+            event.setCorrelationId(message.getMessageId()); // Guardar messageId para idempotencia
+            event.setCreatedAt(java.time.LocalDateTime.now());
+            paymentEventRepository.save(event);
 
             log.info("✅ Evento method_selected guardado en payment_events - PaymentId: {}, MessageId: {}",
                 paymentId, message.getMessageId());
@@ -649,6 +676,32 @@ public class CoreWebhookController {
         }
     }
 
+    /**
+     * Verifica si un evento ya fue procesado basándose en el messageId
+     */
+    private boolean isEventAlreadyProcessed(String messageId) {
+        if (messageId == null || messageId.isEmpty()) {
+            return false;
+        }
+        
+        try {
+            java.util.Optional<backend_api.Backend.Entity.payment.PaymentEvent> existingEvent = 
+                paymentEventRepository.findByCorrelationId(messageId);
+            
+            if (existingEvent.isPresent()) {
+                log.info("🔍 Evento duplicado encontrado - MessageId: {}, PaymentId: {}, EventType: {}", 
+                    messageId, existingEvent.get().getPaymentId(), existingEvent.get().getType());
+                return true;
+            }
+            
+            return false;
+        } catch (Exception e) {
+            log.error("❌ Error verificando idempotencia - MessageId: {}, Error: {}", messageId, e.getMessage());
+            // En caso de error, asumir que no está procesado para evitar perder eventos
+            return false;
+        }
+    }
+    
     /**
      * Mapea el status del CORE a PaymentEventType
      */

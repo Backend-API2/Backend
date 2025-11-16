@@ -194,19 +194,42 @@ public class PaymentController {
             Payment payment = entityValidationService.getPaymentOrThrow(paymentId);
 
             if (payment.getStatus() != PaymentStatus.PENDING_PAYMENT) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .header("Error-Message", "El pago no está en estado PENDING_PAYMENT")
+                    .build();
             }
 
             PaymentMethod paymentMethod = paymentMethodService.createPaymentMethod(request);
 
-            Payment updatedPayment = paymentService.updatePaymentMethod(paymentId, paymentMethod);
+            // Actualizar el método de pago (esto puede aprobar automáticamente para MercadoPago/Cash)
+            paymentService.updatePaymentMethod(paymentId, paymentMethod);
 
-            return ResponseEntity.ok(PaymentResponse.fromEntity(updatedPayment));
+            // Refrescar el pago desde la base de datos para asegurar que tenemos el estado más reciente
+            Payment refreshedPayment = paymentService.getPaymentById(paymentId)
+                .orElseThrow(() -> new RuntimeException("Pago no encontrado después de actualización"));
+
+            log.info("✅ Método de pago seleccionado - PaymentId: {}, Status: {}, Method: {}", 
+                paymentId, refreshedPayment.getStatus(), 
+                refreshedPayment.getMethod() != null ? refreshedPayment.getMethod().getType() : "null");
+
+            // Usar responseMapperService para obtener nombres de usuario/prestador y estado actualizado
+            PaymentResponse response = responseMapperService.mapPaymentToResponse(refreshedPayment, "ADMIN");
+
+            return ResponseEntity.ok(response);
 
         } catch (EntityNotFoundException e) {
+            log.error("❌ Pago no encontrado - PaymentId: {}", paymentId);
             return ResponseEntity.notFound().build();
+        } catch (RuntimeException e) {
+            log.error("❌ Error al seleccionar método de pago - PaymentId: {}, Error: {}", paymentId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .header("Error-Message", "Error al seleccionar método de pago: " + e.getMessage())
+                .build();
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            log.error("❌ Error inesperado al seleccionar método de pago - PaymentId: {}, Error: {}", paymentId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .header("Error-Message", "Error inesperado al seleccionar método de pago")
+                .build();
         }
     }
     
@@ -216,8 +239,24 @@ public class PaymentController {
         try {
             Payment payment = entityValidationService.getPaymentOrThrow(paymentId);
             
-            if (payment.getStatus() != PaymentStatus.PENDING_PAYMENT) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+            // Permitir confirmar pagos que están en PENDING_PAYMENT o ya están APPROVED
+            // (puede estar aprobado si se seleccionó MercadoPago/Cash que se aprueba automáticamente)
+            if (payment.getStatus() != PaymentStatus.PENDING_PAYMENT && 
+                payment.getStatus() != PaymentStatus.APPROVED) {
+                log.warn("⚠️ Intento de confirmar pago con estado inválido - PaymentId: {}, Status: {}", 
+                    paymentId, payment.getStatus());
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .header("Error-Message", "El pago no puede ser confirmado. Estado actual: " + payment.getStatus())
+                    .build();
+            }
+            
+            // Si ya está aprobado, solo retornar el estado actual sin procesar nuevamente
+            if (payment.getStatus() == PaymentStatus.APPROVED) {
+                log.info("✅ Pago ya está aprobado - PaymentId: {}, retornando estado actual", paymentId);
+                Payment refreshedPayment = paymentService.getPaymentById(paymentId)
+                    .orElseThrow(() -> new RuntimeException("Pago no encontrado"));
+                PaymentResponse response = responseMapperService.mapPaymentToResponse(refreshedPayment, "ADMIN");
+                return ResponseEntity.ok(response);
             }
             
             if (payment.getMethod() == null) {
@@ -296,12 +335,32 @@ public class PaymentController {
                 );
             }
             
-            return ResponseEntity.ok(PaymentResponse.fromEntity(updatedPayment));
+            // Refrescar el pago desde la base de datos para asegurar que tenemos el estado más reciente
+            Payment refreshedPayment = paymentService.getPaymentById(paymentId)
+                .orElseThrow(() -> new RuntimeException("Pago no encontrado después de actualización"));
+            
+            log.info("✅ Pago confirmado exitosamente - PaymentId: {}, Status: {}, Method: {}", 
+                paymentId, refreshedPayment.getStatus(), 
+                refreshedPayment.getMethod() != null ? refreshedPayment.getMethod().getType() : "null");
+            
+            // Usar responseMapperService para obtener nombres de usuario/prestador
+            PaymentResponse response = responseMapperService.mapPaymentToResponse(refreshedPayment, "ADMIN");
+            
+            return ResponseEntity.ok(response);
             
         } catch (EntityNotFoundException e) {
+            log.error("❌ Pago no encontrado - PaymentId: {}", paymentId);
             return ResponseEntity.notFound().build();
+        } catch (RuntimeException e) {
+            log.error("❌ Error al confirmar pago - PaymentId: {}, Error: {}", paymentId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .header("Error-Message", "Error al confirmar el pago: " + e.getMessage())
+                .build();
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            log.error("❌ Error inesperado al confirmar pago - PaymentId: {}, Error: {}", paymentId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .header("Error-Message", "Error inesperado al confirmar el pago")
+                .build();
         }
     }
 

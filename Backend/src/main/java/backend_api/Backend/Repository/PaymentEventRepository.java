@@ -25,4 +25,10 @@ public interface PaymentEventRepository extends JpaRepository<PaymentEvent, Long
     
     @Query("SELECT pe FROM PaymentEvent pe WHERE pe.paymentId = :paymentId AND pe.type = :type")
     List<PaymentEvent> findByPaymentIdAndType(@Param("paymentId") Long paymentId, @Param("type") PaymentEventType type);
+    
+    @Query("SELECT pe FROM PaymentEvent pe WHERE pe.correlationId = :correlationId")
+    java.util.Optional<PaymentEvent> findByCorrelationId(@Param("correlationId") String correlationId);
+    
+    @Query("SELECT pe FROM PaymentEvent pe WHERE pe.correlationId = :correlationId AND pe.paymentId = :paymentId")
+    java.util.Optional<PaymentEvent> findByCorrelationIdAndPaymentId(@Param("correlationId") String correlationId, @Param("paymentId") Long paymentId);
 }

@@ -344,6 +344,11 @@ class PaymentControllerTest {
         when(entityValidationService.getPaymentOrThrow(paymentId)).thenReturn(testPayment);
         when(paymentMethodService.createPaymentMethod(request)).thenReturn(paymentMethod);
         when(paymentService.updatePaymentMethod(paymentId, paymentMethod)).thenReturn(updatedPayment);
+        // Mock para el refresh del pago después de actualizar
+        when(paymentService.getPaymentById(paymentId)).thenReturn(Optional.of(updatedPayment));
+        // Mock para responseMapperService
+        PaymentResponse mockResponse = PaymentResponse.fromEntity(updatedPayment);
+        when(responseMapperService.mapPaymentToResponse(any(Payment.class), anyString())).thenReturn(mockResponse);
 
         // When
         ResponseEntity<PaymentResponse> response = paymentController.selectPaymentMethod(paymentId, request);
@@ -353,6 +358,8 @@ class PaymentControllerTest {
         assertNotNull(response.getBody());
         verify(paymentMethodService).createPaymentMethod(request);
         verify(paymentService).updatePaymentMethod(paymentId, paymentMethod);
+        verify(paymentService).getPaymentById(paymentId);
+        verify(responseMapperService).mapPaymentToResponse(any(Payment.class), eq("ADMIN"));
     }
 
     @Test
@@ -404,6 +411,11 @@ class PaymentControllerTest {
 
         when(entityValidationService.getPaymentOrThrow(paymentId)).thenReturn(testPayment);
         when(paymentService.updatePaymentStatus(paymentId, PaymentStatus.PENDING_APPROVAL)).thenReturn(updatedPayment);
+        // Mock para el refresh del pago después de actualizar
+        when(paymentService.getPaymentById(paymentId)).thenReturn(Optional.of(updatedPayment));
+        // Mock para responseMapperService
+        PaymentResponse mockResponse = PaymentResponse.fromEntity(updatedPayment);
+        when(responseMapperService.mapPaymentToResponse(any(Payment.class), anyString())).thenReturn(mockResponse);
 
         // When
         ResponseEntity<PaymentResponse> response = paymentController.confirmPayment(paymentId);
@@ -412,6 +424,8 @@ class PaymentControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         verify(paymentService).updatePaymentStatus(paymentId, PaymentStatus.PENDING_APPROVAL);
+        verify(paymentService).getPaymentById(paymentId);
+        verify(responseMapperService).mapPaymentToResponse(any(Payment.class), eq("ADMIN"));
         verify(paymentEventService).createEvent(eq(paymentId), eq(PaymentEventType.PAYMENT_PENDING), anyString(), eq("system"));
     }
 
@@ -433,6 +447,11 @@ class PaymentControllerTest {
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
         when(balanceService.deductBalance(1L, BigDecimal.valueOf(115.00))).thenReturn(testUser);
         when(paymentService.updatePaymentStatus(paymentId, PaymentStatus.APPROVED)).thenReturn(updatedPayment);
+        // Mock para el refresh del pago después de actualizar
+        when(paymentService.getPaymentById(paymentId)).thenReturn(Optional.of(updatedPayment));
+        // Mock para responseMapperService
+        PaymentResponse mockResponse = PaymentResponse.fromEntity(updatedPayment);
+        when(responseMapperService.mapPaymentToResponse(any(Payment.class), anyString())).thenReturn(mockResponse);
 
         // When
         ResponseEntity<PaymentResponse> response = paymentController.confirmPayment(paymentId);
@@ -444,6 +463,8 @@ class PaymentControllerTest {
         verify(userRepository).findById(1L);
         verify(balanceService).deductBalance(1L, BigDecimal.valueOf(115.00));
         verify(paymentService).updatePaymentStatus(paymentId, PaymentStatus.APPROVED);
+        verify(paymentService).getPaymentById(paymentId);
+        verify(responseMapperService).mapPaymentToResponse(any(Payment.class), eq("ADMIN"));
         verify(paymentEventService).createEvent(eq(paymentId), eq(PaymentEventType.PAYMENT_APPROVED), anyString(), eq("system"));
     }
 
@@ -496,7 +517,8 @@ class PaymentControllerTest {
     void testConfirmPayment_InvalidStatus() {
         // Given
         Long paymentId = 1L;
-        testPayment.setStatus(PaymentStatus.APPROVED);
+        // Usar un estado realmente inválido (REJECTED) ya que ahora permitimos APPROVED
+        testPayment.setStatus(PaymentStatus.REJECTED);
         when(entityValidationService.getPaymentOrThrow(paymentId)).thenReturn(testPayment);
 
         // When
@@ -505,6 +527,7 @@ class PaymentControllerTest {
         // Then
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
         assertNull(response.getBody());
+        assertTrue(response.getHeaders().containsKey("Error-Message"));
         verify(paymentService, never()).updatePaymentStatus(anyLong(), any());
     }
 
