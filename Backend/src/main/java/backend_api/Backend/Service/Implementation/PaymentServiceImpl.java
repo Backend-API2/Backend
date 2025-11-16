@@ -409,9 +409,10 @@ public class PaymentServiceImpl implements PaymentService{
             throw new RuntimeException("Cannot update payment method. Payment status must be PENDING_PAYMENT or REJECTED");
         }
         
-        // Si está REJECTED, resetear a PENDING_PAYMENT para permitir reintentar
+        // Si está REJECTED, resetear a PENDING_PAYMENT para permitir reintentar con otro método
+        // Esto permite cambiar de MercadoPago (rechazado por saldo) a tarjeta (que no requiere saldo)
         if (payment.getStatus() == PaymentStatus.REJECTED) {
-            log.info("🔄 Reseteando pago rechazado a PENDING_PAYMENT para cambiar método - PaymentId: {}", paymentId);
+            log.info("🔄 Reseteando pago rechazado a PENDING_PAYMENT para cambiar método - PaymentId: {} (permite reintentar con otro método que no requiera saldo)", paymentId);
             payment.setStatus(PaymentStatus.PENDING_PAYMENT);
             payment.setRejected_by_balance(false);
             payment.setUpdated_at(LocalDateTime.now());
@@ -549,9 +550,10 @@ public class PaymentServiceImpl implements PaymentService{
         } else if (paymentMethod.getType() == PaymentMethodType.CREDIT_CARD || 
                    paymentMethod.getType() == PaymentMethodType.DEBIT_CARD ||
                    paymentMethod.getType() == PaymentMethodType.BANK_TRANSFER) {
-            // Para tarjetas de crédito/débito o transferencias bancarias, cambiar a PENDING_APPROVAL
+            // Para tarjetas de crédito/débito o transferencias bancarias, NO verificar saldo
+            // Las tarjetas no usan saldo disponible, solo cambian a PENDING_APPROVAL
             // El scheduler procesará estos pagos automáticamente después de un tiempo
-            log.info("💳 Cambiando pago a PENDING_APPROVAL para método: {} - PaymentId: {}", 
+            log.info("💳 Cambiando pago a PENDING_APPROVAL para método: {} - PaymentId: {} (NO se verifica saldo para tarjetas)", 
                 paymentMethod.getType(), paymentId);
             
             savedPayment.setStatus(PaymentStatus.PENDING_APPROVAL);
@@ -567,7 +569,7 @@ public class PaymentServiceImpl implements PaymentService{
                 "system"
             );
             
-            log.info("✅ Pago cambiado a PENDING_APPROVAL - PaymentId: {}, Method: {}. El scheduler lo procesará automáticamente.", 
+            log.info("✅ Pago cambiado a PENDING_APPROVAL - PaymentId: {}, Method: {}. El scheduler lo procesará automáticamente. (NO se verificó saldo porque es tarjeta)", 
                 paymentId, paymentMethod.getType());
         }
         

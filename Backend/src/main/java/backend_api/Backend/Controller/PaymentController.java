@@ -463,12 +463,31 @@ public class PaymentController {
                         .build();
             }
             
-            // Verificar saldo actual
-            if (!balanceService.hasSufficientBalance(user.getId(), payment.getAmount_total())) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .header("Error-Message", "Saldo insuficiente para reintentar el pago. Saldo disponible: " + 
-                                balanceService.getCurrentBalance(user.getId()))
-                        .build();
+            // Solo verificar saldo si el método de pago requiere saldo (MercadoPago o CASH)
+            // Las tarjetas NO requieren saldo disponible
+            if (payment.getMethod() != null) {
+                PaymentMethodType methodType = payment.getMethod().getType();
+                if (methodType == PaymentMethodType.MERCADO_PAGO || methodType == PaymentMethodType.CASH) {
+                    // Verificar saldo solo para MercadoPago y CASH
+                    if (!balanceService.hasSufficientBalance(user.getId(), payment.getAmount_total())) {
+                        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                .header("Error-Message", "Saldo insuficiente para reintentar el pago. Saldo disponible: " + 
+                                        balanceService.getCurrentBalance(user.getId()))
+                                .build();
+                    }
+                } else {
+                    // Para tarjetas, NO verificar saldo
+                    log.info("💳 Reintentando pago con tarjeta - NO se verifica saldo - PaymentId: {}, Method: {}", 
+                        paymentId, methodType);
+                }
+            } else {
+                // Si no hay método seleccionado, verificar saldo por defecto (comportamiento anterior)
+                if (!balanceService.hasSufficientBalance(user.getId(), payment.getAmount_total())) {
+                    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                            .header("Error-Message", "Saldo insuficiente para reintentar el pago. Saldo disponible: " + 
+                                    balanceService.getCurrentBalance(user.getId()))
+                            .build();
+                }
             }
             
             // Reintentar el pago

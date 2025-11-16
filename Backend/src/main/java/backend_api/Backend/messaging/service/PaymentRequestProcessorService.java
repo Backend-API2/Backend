@@ -91,7 +91,8 @@ public class PaymentRequestProcessorService {
 
             log.info("📋 Datos extraídos - Usuario: {}, Prestador: {}, Solicitud: {}, Monto: {} {}", 
                 idUsuario, idPrestador, idSolicitud, montoSubtotal, moneda);
-            log.info("📝 Descripción: {}, Descripción Solicitud: {}", descripcion, descripcionSolicitud);
+            log.info("📝 Descripción: {}, Descripción Solicitud: {}, Método Preferido: {}", 
+                descripcion, descripcionSolicitud, metodoPreferido);
 
             // Buscar datos del usuario (si existe)
             UserData userData = null;
@@ -127,7 +128,41 @@ public class PaymentRequestProcessorService {
             if (existingPayment != null) {
                 log.warn("⚠️ Pago duplicado detectado - Ya existe un pago con solicitud_id: {} o idCorrelacion: {}. Retornando pago existente (ID: {})", 
                     idSolicitud, idCorrelacion, existingPayment.getId());
-                savedPayment = existingPayment;
+                // Actualizar campos que podrían estar null en el pago existente
+                boolean needsUpdate = false;
+                if (existingPayment.getDescripcion() == null && descripcion != null) {
+                    existingPayment.setDescripcion(descripcion);
+                    needsUpdate = true;
+                }
+                if (existingPayment.getDescripcionSolicitud() == null && descripcionSolicitud != null) {
+                    existingPayment.setDescripcionSolicitud(descripcionSolicitud);
+                    needsUpdate = true;
+                }
+                // Actualizar metadata si metodoPreferido está null
+                if (metodoPreferido != null) {
+                    try {
+                        String metadataStr = existingPayment.getMetadata();
+                        if (metadataStr != null && !metadataStr.isEmpty()) {
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> metadata = objectMapper.readValue(metadataStr, Map.class);
+                            if (metadata.get("metodoPreferido") == null) {
+                                metadata.put("metodoPreferido", metodoPreferido);
+                                existingPayment.setMetadata(objectMapper.writeValueAsString(metadata));
+                                needsUpdate = true;
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.warn("⚠️ Error actualizando metadata del pago duplicado: {}", e.getMessage());
+                    }
+                }
+                if (needsUpdate) {
+                    existingPayment.setUpdated_at(java.time.LocalDateTime.now());
+                    savedPayment = paymentService.createPayment(existingPayment);
+                    log.info("✅ Pago duplicado actualizado con campos faltantes - PaymentId: {}", savedPayment.getId());
+                } else {
+                    savedPayment = existingPayment;
+                }
+                // NO guardar evento duplicado - el evento ya se guardó cuando se creó el pago originalmente
             } else {
                 // Crear pago (aquí integrarías con tu lógica de creación de pagos)
                 savedPayment = createPayment(
@@ -315,16 +350,18 @@ public class PaymentRequestProcessorService {
         log.info("✅ Pago guardado exitosamente - ID: {}, Usuario: {}, Prestador: {}", 
             savedPayment.getId(), savedPayment.getUser_id(), savedPayment.getProvider_id());
         
-        // Registrar evento en el timeline
+        // Registrar evento en el timeline (solo cuando se crea un pago nuevo, no duplicado)
+        // El evento se guarda aquí, no cuando el pago es duplicado
         try {
             paymentEventService.createEvent(
                 savedPayment.getId(),
                 PaymentEventType.PAYMENT_PENDING,
-                String.format("{\"amount_total\": %s, \"currency\": \"%s\", \"solicitud_id\": %s, \"source\": \"matching\"}",
-                    savedPayment.getAmount_total(), savedPayment.getCurrency(), idSolicitud),
+                String.format("{\"amount_total\": %s, \"currency\": \"%s\", \"solicitud_id\": %s, \"source\": \"matching\", \"idCorrelacion\": \"%s\"}",
+                    savedPayment.getAmount_total(), savedPayment.getCurrency(), idSolicitud, idCorrelacion),
                 "system"
             );
-            log.info("📝 Evento PAYMENT_PENDING registrado en timeline - PaymentId: {}", savedPayment.getId());
+            log.info("📝 Evento PAYMENT_PENDING registrado en timeline - PaymentId: {}, IdCorrelacion: {}", 
+                savedPayment.getId(), idCorrelacion);
         } catch (Exception e) {
             log.error("⚠️ Error registrando evento en timeline - PaymentId: {}, Error: {}", 
                 savedPayment.getId(), e.getMessage());
