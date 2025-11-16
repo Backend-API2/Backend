@@ -20,6 +20,7 @@ public class PaymentResponse {
     private Long user_id;
     private Long provider_id; 
     private Long solicitud_id;
+    private Long cotizacion_id;
     
     private BigDecimal amount_subtotal;
     private BigDecimal taxes;
@@ -36,6 +37,11 @@ public class PaymentResponse {
     private LocalDateTime expired_at;
     
     private String metadata;
+    private String descripcion;
+    private String descripcion_solicitud;
+    private String gateway_txn_id;
+    private Boolean rejected_by_balance;
+    private Integer retry_attempts;
     
     private String user_name;      
     private String provider_name;
@@ -46,6 +52,7 @@ public class PaymentResponse {
         response.setUser_id(payment.getUser_id());
         response.setProvider_id(payment.getProvider_id());
         response.setSolicitud_id(payment.getSolicitud_id());
+        response.setCotizacion_id(payment.getCotizacion_id());
         response.setAmount_subtotal(payment.getAmount_subtotal());
         response.setTaxes(payment.getTaxes());
         response.setFees(payment.getFees());
@@ -58,6 +65,11 @@ public class PaymentResponse {
         response.setCaptured_at(payment.getCaptured_at());
         response.setExpired_at(payment.getExpired_at());
         response.setMetadata(payment.getMetadata());
+        response.setDescripcion(payment.getDescripcion());
+        response.setDescripcion_solicitud(payment.getDescripcionSolicitud());
+        response.setGateway_txn_id(payment.getGateway_txn_id());
+        response.setRejected_by_balance(payment.getRejected_by_balance());
+        response.setRetry_attempts(payment.getRetry_attempts());
         return response;
     }
     
