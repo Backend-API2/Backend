@@ -2,7 +2,9 @@ package backend_api.Backend.messaging.service;
 
 import backend_api.Backend.Entity.payment.Payment;
 import backend_api.Backend.Entity.payment.PaymentStatus;
+import backend_api.Backend.Entity.payment.PaymentEventType;
 import backend_api.Backend.Service.Interface.PaymentService;
+import backend_api.Backend.Service.Interface.PaymentEventService;
 import backend_api.Backend.Service.Implementation.DataStorageServiceImpl;
 import backend_api.Backend.messaging.dto.*;
 import backend_api.Backend.messaging.publisher.CoreEventPublisher;
@@ -25,6 +27,7 @@ public class CoreEventProcessorService {
 
     private final CoreEventPublisher coreEventPublisher;
     private final PaymentService paymentService;
+    private final PaymentEventService paymentEventService;
     private final DataStorageServiceImpl dataStorageService;
     private final ObjectMapper objectMapper;
 
@@ -32,6 +35,7 @@ public class CoreEventProcessorService {
         log.info("Procesando solicitud de pago del CORE - MessageId: {}", coreMessage.getMessageId());
 
         Map<String, Object> payload = coreMessage.getPayload();
+        Long paymentId = extractLong(payload, "paymentId");
         Long solicitudId = extractLong(payload, "solicitudId");
         Long userId = extractLong(payload, "userId");
         Long providerId = extractLong(payload, "providerId");
@@ -39,25 +43,67 @@ public class CoreEventProcessorService {
         String currency = extractString(payload, "currency");
         String description = extractString(payload, "description");
 
-        log.info("IDs extraídos - SolicitudId: {}, UserId: {}, ProviderId: {}",
-            solicitudId, userId, providerId);
+        log.info("IDs extraídos - PaymentId: {}, SolicitudId: {}, UserId: {}, ProviderId: {}",
+            paymentId, solicitudId, userId, providerId);
+
+        // Si el payload tiene paymentId, es nuestro propio evento reenviado por el CORE
+        // NO crear pago nuevo, solo registrar el evento en payment_events
+        if (paymentId != null) {
+            log.info("📝 Evento payment.created con paymentId detectado - Es nuestro propio evento reenviado. Solo guardando en payment_events, NO creando pago nuevo - PaymentId: {}", paymentId);
+            
+            // Verificar que el pago existe
+            if (!paymentService.existsById(paymentId)) {
+                log.warn("⚠️ PaymentId {} no existe en BD, omitiendo guardado de evento", paymentId);
+                return;
+            }
+            
+            // Guardar evento en payment_events indicando que fue recibido del CORE
+            try {
+                String eventPayload = String.format("{\"paymentId\": %d, \"solicitudId\": %s, \"status\": \"%s\", \"amount\": %s, \"currency\": \"%s\", \"source\": \"core_webhook\", \"messageId\": \"%s\"}",
+                    paymentId, 
+                    solicitudId != null ? solicitudId : "null",
+                    payload.get("status") != null ? payload.get("status") : "UNKNOWN",
+                    amount != null ? amount : "null",
+                    currency != null ? currency : "null",
+                    coreMessage.getMessageId());
+                
+                paymentEventService.createEvent(
+                    paymentId,
+                    PaymentEventType.PAYMENT_PENDING,
+                    eventPayload,
+                    "CORE",
+                    "CORE_WEBHOOK"
+                );
+                log.info("✅ Evento payment.created guardado en payment_events - PaymentId: {}, MessageId: {}", paymentId, coreMessage.getMessageId());
+            } catch (Exception e) {
+                log.error("❌ Error guardando evento payment.created en payment_events - PaymentId: {}, Error: {}", paymentId, e.getMessage(), e);
+            }
+            return;
+        }
+
+        // Si NO tiene paymentId pero tiene solicitudId, userId, providerId → es una solicitud nueva de matching
+        // Verificar idempotencia antes de crear
+        if (solicitudId != null && !paymentService.getPaymentsBySolicitudId(solicitudId).isEmpty()) {
+            log.info("⏭️ Pago ya existe para esta solicitud (idempotencia) - SolicitudId: {}, omitiendo creación", solicitudId);
+            return;
+        }
 
         // Siempre buscar datos en BD local (que ya recibimos del módulo de usuarios)
         log.info("Buscando datos en BD local para crear pago - SolicitudId: {}, UserId: {}, ProviderId: {}", 
             solicitudId, userId, providerId);
         
         // Verificar que tenemos todos los datos necesarios
-        if (!dataStorageService.userDataExists(userId)) {
+        if (userId != null && !dataStorageService.userDataExists(userId)) {
             log.error("Usuario no encontrado en BD local - UserId: {}", userId);
             return;
         }
         
-        if (!dataStorageService.providerDataExists(providerId)) {
+        if (providerId != null && !dataStorageService.providerDataExists(providerId)) {
             log.error("Proveedor no encontrado en BD local - ProviderId: {}", providerId);
             return;
         }
         
-        // Crear pago con datos de BD local
+        // Crear pago con datos de BD local (solo si es una solicitud nueva, no nuestro propio evento)
         createPaymentFromStoredData(solicitudId, userId, providerId, amount, currency, description, coreMessage.getMessageId());
     }
 
@@ -274,7 +320,7 @@ public class CoreEventProcessorService {
             .timestamp(Instant.now().toString())
             .source("payments")
             .destination(CoreResponseMessage.Destination.builder()
-                .channel("payments.payment.created")
+                .topic("payment")
                 .eventName("created")
                 .build())
             .payload(confirmPayload)
