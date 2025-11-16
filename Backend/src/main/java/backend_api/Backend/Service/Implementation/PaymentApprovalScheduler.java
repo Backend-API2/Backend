@@ -4,8 +4,13 @@ import backend_api.Backend.Entity.payment.Payment;
 import backend_api.Backend.Entity.payment.PaymentStatus;
 import backend_api.Backend.Entity.payment.PaymentEventType;
 import backend_api.Backend.Entity.payment.types.PaymentMethodType;
+import backend_api.Backend.Entity.UserData;
+import backend_api.Backend.Entity.user.User;
 import backend_api.Backend.Service.Interface.PaymentService;
 import backend_api.Backend.Service.Interface.PaymentEventService;
+import backend_api.Backend.Service.Interface.BalanceService;
+import backend_api.Backend.Repository.UserDataRepository;
+import backend_api.Backend.Repository.UserRepository;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -13,6 +18,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class PaymentApprovalScheduler {
@@ -22,6 +28,15 @@ public class PaymentApprovalScheduler {
     
     @Autowired
     private PaymentEventService paymentEventService;
+    
+    @Autowired
+    private BalanceService balanceService;
+    
+    @Autowired
+    private UserDataRepository userDataRepository;
+    
+    @Autowired
+    private UserRepository userRepository;
     
   
     private static final int APPROVAL_DELAY_SECONDS = 60; 
@@ -84,6 +99,42 @@ public class PaymentApprovalScheduler {
     
     private void approvePayment(Payment payment) {
         try {
+            // Descontar balance si el usuario es CLIENTE o USER
+            Optional<UserData> userDataOpt = userDataRepository.findByUserId(payment.getUser_id());
+            String userRole = null;
+            
+            if (userDataOpt.isPresent()) {
+                userRole = userDataOpt.get().getRole();
+            } else {
+                // Fallback a users si no existe en user_data
+                Optional<User> userOpt = userRepository.findById(payment.getUser_id());
+                if (userOpt.isPresent()) {
+                    userRole = userOpt.get().getRole().name();
+                }
+            }
+            
+            // Verificar si es CLIENTE o USER (ambos deben descontar balance)
+            if (userRole != null && (userRole.equalsIgnoreCase("USER") || userRole.equalsIgnoreCase("CLIENTE"))) {
+                try {
+                    balanceService.deductBalance(payment.getUser_id(), payment.getAmount_total());
+                    System.out.println("✅ Balance descontado exitosamente - UserId: " + payment.getUser_id() + ", Amount: " + payment.getAmount_total());
+                } catch (IllegalStateException e) {
+                    // Saldo insuficiente - rechazar pago
+                    paymentService.updatePaymentStatus(payment.getId(), PaymentStatus.REJECTED);
+                    
+                    paymentEventService.createEvent(
+                        payment.getId(),
+                        PaymentEventType.PAYMENT_REJECTED,
+                        String.format("{\"status\": \"rejected_insufficient_balance\", \"method\": \"%s\"}", 
+                            payment.getMethod().getType()),
+                        "bank_simulator"
+                    );
+                    
+                    System.out.println("⚠️ Pago rechazado por saldo insuficiente - PaymentId: " + payment.getId() + ", UserId: " + payment.getUser_id());
+                    return;
+                }
+            }
+            
             paymentService.updatePaymentStatus(payment.getId(), PaymentStatus.APPROVED);
             
             paymentEventService.createEvent(
@@ -98,6 +149,7 @@ public class PaymentApprovalScheduler {
             
         } catch (Exception e) {
             System.err.println("ERROR aprobando payment ID " + payment.getId() + ": " + e.getMessage());
+            e.printStackTrace();
         }
     }
     
