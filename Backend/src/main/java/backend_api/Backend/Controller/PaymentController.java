@@ -241,6 +241,31 @@ public class PaymentController {
             
             // Permitir confirmar pagos que están en PENDING_PAYMENT o ya están APPROVED
             // (puede estar aprobado si se seleccionó MercadoPago/Cash que se aprueba automáticamente)
+            if (payment.getStatus() == PaymentStatus.REJECTED) {
+                // Si fue rechazado por saldo insuficiente, mostrar mensaje específico
+                if (payment.getRejected_by_balance() != null && payment.getRejected_by_balance()) {
+                    log.warn("⚠️ Intento de confirmar pago rechazado por saldo insuficiente - PaymentId: {}", paymentId);
+                    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .header("Error-Message", "Saldo insuficiente para completar el pago")
+                        .build();
+                } else {
+                    log.warn("⚠️ Intento de confirmar pago rechazado - PaymentId: {}, Status: {}", paymentId, payment.getStatus());
+                    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .header("Error-Message", "El pago no puede ser confirmado. Estado actual: " + payment.getStatus())
+                        .build();
+                }
+            }
+            
+            if (payment.getStatus() == PaymentStatus.PENDING_APPROVAL) {
+                log.info("ℹ️ Pago en espera de aprobación bancaria - PaymentId: {}", paymentId);
+                Payment refreshedPayment = paymentService.getPaymentById(paymentId)
+                    .orElseThrow(() -> new RuntimeException("Pago no encontrado"));
+                PaymentResponse response = responseMapperService.mapPaymentToResponse(refreshedPayment, "ADMIN");
+                return ResponseEntity.status(HttpStatus.ACCEPTED)
+                    .header("Info-Message", "Aguarde la aprobación pendiente del banco")
+                    .body(response);
+            }
+            
             if (payment.getStatus() != PaymentStatus.PENDING_PAYMENT && 
                 payment.getStatus() != PaymentStatus.APPROVED) {
                 log.warn("⚠️ Intento de confirmar pago con estado inválido - PaymentId: {}, Status: {}", 
@@ -271,6 +296,8 @@ public class PaymentController {
             if (payment.getMethod().getType() == PaymentMethodType.CREDIT_CARD || 
                 payment.getMethod().getType() == PaymentMethodType.DEBIT_CARD ||
                 payment.getMethod().getType() == PaymentMethodType.BANK_TRANSFER) {
+                // Para tarjetas, NO verificar saldo (las tarjetas no usan saldo disponible)
+                // Solo cambiar a PENDING_APPROVAL y esperar aprobación bancaria
                 updatedPayment = paymentService.updatePaymentStatus(paymentId, PaymentStatus.PENDING_APPROVAL);
                 eventType = PaymentEventType.PAYMENT_PENDING;
                 
@@ -280,7 +307,11 @@ public class PaymentController {
                     "{\"status\": \"pending_bank_approval\", \"method\": \"" + payment.getMethod().getType() + "\"}",
                     "system"
                 );
+                
+                log.info("✅ Pago con tarjeta enviado a aprobación bancaria - PaymentId: {}, Method: {}", 
+                    paymentId, payment.getMethod().getType());
             } else {
+                // Solo MercadoPago y CASH verifican saldo disponible
                 // Consultar primero en user_data para verificar el rol
                 java.util.Optional<UserData> userDataOpt = userDataRepository.findByUserId(payment.getUser_id());
                 String userRole = null;

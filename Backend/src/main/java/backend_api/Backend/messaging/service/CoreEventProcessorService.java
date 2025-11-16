@@ -75,6 +75,7 @@ public class CoreEventProcessorService {
         Payment payment = new Payment();
         payment.setUser_id(userId);
         payment.setProvider_id(providerId);
+        payment.setSolicitud_id(solicitudId); // Agregar solicitud_id
         payment.setAmount_total(amount != null ? BigDecimal.valueOf(amount) : BigDecimal.ZERO);
         payment.setAmount_subtotal(amount != null ? BigDecimal.valueOf(amount) : BigDecimal.ZERO);
         payment.setTaxes(BigDecimal.ZERO);
@@ -83,18 +84,23 @@ public class CoreEventProcessorService {
         payment.setStatus(PaymentStatus.PENDING_PAYMENT);
         payment.setCreated_at(LocalDateTime.now());
         payment.setUpdated_at(LocalDateTime.now());
+        payment.setDescripcion(description); // Agregar descripcion si está disponible
 
-        // Construir metadata
+        // Construir metadata con el mismo formato que PaymentRequestProcessorService
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put("solicitudId", solicitudId);
-        metadata.put("coreMessageId", originalMessageId);
-        metadata.put("description", description);
+        // Generar idCorrelacion a partir de solicitudId si no está disponible
+        String idCorrelacion = "PED-" + (solicitudId != null ? solicitudId : "UNKNOWN");
+        metadata.put("idCorrelacion", idCorrelacion);
+        // MetodoPreferido no está disponible en este flujo, usar null o un valor por defecto
+        metadata.put("metodoPreferido", null);
 
         if (userData.isPresent()) {
             metadata.put("userName", userData.get().getName());
+            metadata.put("userEmail", userData.get().getEmail());
         }
         if (providerData.isPresent()) {
             metadata.put("providerName", providerData.get().getName());
+            metadata.put("providerEmail", providerData.get().getEmail());
         }
 
         try {
@@ -219,23 +225,30 @@ public class CoreEventProcessorService {
         payment.setCreated_at(LocalDateTime.now());
         payment.setUpdated_at(LocalDateTime.now());
 
-        // Construir metadata con información esencial (limitado a 255 caracteres)
+        // Construir metadata con el mismo formato que PaymentRequestProcessorService
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put("solicitudId", solicitudId);
-        metadata.put("coreMessageId", originalMessageId);
+        // Generar idCorrelacion a partir de solicitudId si no está disponible
+        String idCorrelacion = "PED-" + (solicitudId != null ? solicitudId : "UNKNOWN");
+        metadata.put("idCorrelacion", idCorrelacion);
+        // MetodoPreferido no está disponible en este flujo, usar null o un valor por defecto
+        metadata.put("metodoPreferido", null);
 
-        if (cotizacionId != null) {
-            metadata.put("cotizacionId", cotizacionId);
+        // Solo guardar nombres y emails de usuario y prestador
+        if (userData != null) {
+            if (userData.containsKey("name")) {
+                metadata.put("userName", userData.get("name"));
+            }
+            if (userData.containsKey("email")) {
+                metadata.put("userEmail", userData.get("email"));
+            }
         }
-        if (description != null) {
-            metadata.put("description", description);
-        }
-        // Solo guardar nombres de usuario y prestador para ahorrar espacio
-        if (userData != null && userData.containsKey("name")) {
-            metadata.put("userName", userData.get("name"));
-        }
-        if (providerData != null && providerData.containsKey("name")) {
-            metadata.put("providerName", providerData.get("name"));
+        if (providerData != null) {
+            if (providerData.containsKey("name")) {
+                metadata.put("providerName", providerData.get("name"));
+            }
+            if (providerData.containsKey("email")) {
+                metadata.put("providerEmail", providerData.get("email"));
+            }
         }
 
         try {
