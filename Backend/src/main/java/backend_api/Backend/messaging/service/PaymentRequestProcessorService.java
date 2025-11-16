@@ -7,6 +7,8 @@ import backend_api.Backend.Entity.payment.PaymentStatus;
 import backend_api.Backend.Repository.UserDataRepository;
 import backend_api.Backend.Repository.ProviderDataRepository;
 import backend_api.Backend.Service.Interface.PaymentService;
+import backend_api.Backend.Service.Interface.PaymentEventService;
+import backend_api.Backend.Entity.payment.PaymentEventType;
 import backend_api.Backend.messaging.dto.PaymentRequestMessage;
 import backend_api.Backend.messaging.dto.CoreResponseMessage;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,6 +30,7 @@ public class PaymentRequestProcessorService {
     private final UserDataRepository userDataRepository;
     private final ProviderDataRepository providerDataRepository;
     private final PaymentService paymentService;
+    private final PaymentEventService paymentEventService;
     private final ObjectMapper objectMapper;
     private final CoreHubService coreHubService;
 
@@ -311,6 +314,22 @@ public class PaymentRequestProcessorService {
         }
         log.info("✅ Pago guardado exitosamente - ID: {}, Usuario: {}, Prestador: {}", 
             savedPayment.getId(), savedPayment.getUser_id(), savedPayment.getProvider_id());
+        
+        // Registrar evento en el timeline
+        try {
+            paymentEventService.createEvent(
+                savedPayment.getId(),
+                PaymentEventType.PAYMENT_PENDING,
+                String.format("{\"amount_total\": %s, \"currency\": \"%s\", \"solicitud_id\": %s, \"source\": \"matching\"}",
+                    savedPayment.getAmount_total(), savedPayment.getCurrency(), idSolicitud),
+                "system"
+            );
+            log.info("📝 Evento PAYMENT_PENDING registrado en timeline - PaymentId: {}", savedPayment.getId());
+        } catch (Exception e) {
+            log.error("⚠️ Error registrando evento en timeline - PaymentId: {}, Error: {}", 
+                savedPayment.getId(), e.getMessage());
+            // No lanzar excepción para no interrumpir el flujo
+        }
         
         return savedPayment;
     }
