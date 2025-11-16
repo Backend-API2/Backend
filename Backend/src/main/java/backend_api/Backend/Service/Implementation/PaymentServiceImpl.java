@@ -16,11 +16,15 @@ import backend_api.Backend.Entity.payment.types.PaymentMethodType;
 import backend_api.Backend.Entity.payment.types.CreditCardPayment;
 import backend_api.Backend.Entity.payment.types.DebitCardPayment;
 import backend_api.Backend.Entity.payment.types.MercadoPagoPayment;
+import backend_api.Backend.Entity.user.User;
+import backend_api.Backend.Repository.UserRepository;
+import backend_api.Backend.Service.Interface.BalanceService;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -30,6 +34,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Service
+@Slf4j
 public class PaymentServiceImpl implements PaymentService{
 
     @Autowired
@@ -46,6 +51,12 @@ public class PaymentServiceImpl implements PaymentService{
 
     @Autowired
     private PaymentMethodSelectedPublisher paymentMethodSelectedPublisher;
+    
+    @Autowired
+    private BalanceService balanceService;
+    
+    @Autowired
+    private UserRepository userRepository;
 
     @Override
     public Payment createPayment(Payment payment) {
@@ -403,6 +414,109 @@ public class PaymentServiceImpl implements PaymentService{
         
         Payment savedPayment = paymentRepository.save(payment);
         
+        // Si el método es MercadoPago o CASH, procesar automáticamente el pago
+        if (paymentMethod.getType() == PaymentMethodType.MERCADO_PAGO || 
+            paymentMethod.getType() == PaymentMethodType.CASH) {
+            
+            log.info("💳 Procesando pago automáticamente para método: {} - PaymentId: {}", 
+                paymentMethod.getType(), paymentId);
+            
+            try {
+                // Obtener usuario para verificar si es USER y descontar balance
+                User user = userRepository.findById(payment.getUser_id())
+                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+                
+                if (user.getRole().name().equals("USER")) {
+                    try {
+                        balanceService.deductBalance(user.getId(), payment.getAmount_total());
+                        log.info("✅ Balance descontado exitosamente - UserId: {}, Amount: {}", 
+                            user.getId(), payment.getAmount_total());
+                    } catch (IllegalStateException e) {
+                        // Saldo insuficiente - rechazar pago
+                        savedPayment.setStatus(PaymentStatus.REJECTED);
+                        savedPayment.setRejected_by_balance(true);
+                        savedPayment.setUpdated_at(LocalDateTime.now());
+                        savedPayment = paymentRepository.save(savedPayment);
+                        
+                        paymentEventService.createEvent(
+                            paymentId,
+                            PaymentEventType.PAYMENT_REJECTED,
+                            String.format("{\"status\": \"rejected_insufficient_balance\", \"method\": \"%s\"}", 
+                                paymentMethod.getType()),
+                            "system"
+                        );
+                        
+                        log.warn("⚠️ Pago rechazado por saldo insuficiente - PaymentId: {}, UserId: {}", 
+                            paymentId, user.getId());
+                        
+                        // Enviar evento de método seleccionado al CORE (aunque fue rechazado)
+                        publishMethodSelectedEvent(savedPayment, paymentMethod);
+                        
+                        return savedPayment;
+                    }
+                }
+                
+                // Aprobar el pago automáticamente
+                savedPayment.setStatus(PaymentStatus.APPROVED);
+                savedPayment.setCaptured_at(LocalDateTime.now());
+                savedPayment.setUpdated_at(LocalDateTime.now());
+                savedPayment = paymentRepository.save(savedPayment);
+                
+                // Registrar evento de aprobación
+                paymentEventService.createEvent(
+                    paymentId,
+                    PaymentEventType.PAYMENT_APPROVED,
+                    String.format("{\"status\": \"approved_automatically\", \"method\": \"%s\"}", 
+                        paymentMethod.getType()),
+                    "system"
+                );
+                
+                // Publicar actualización de estado al CORE
+                PaymentStatusUpdateMessage statusMessage = new PaymentStatusUpdateMessage();
+                statusMessage.setPaymentId(paymentId);
+                statusMessage.setOldStatus(PaymentStatus.PENDING_PAYMENT);
+                statusMessage.setNewStatus(PaymentStatus.APPROVED);
+                statusMessage.setReason("Pago aprobado automáticamente al seleccionar método " + paymentMethod.getType());
+                statusMessage.setAmountTotal(payment.getAmount_total());
+                statusMessage.setCurrency(payment.getCurrency());
+                statusMessage.setUpdatedAt(LocalDateTime.now());
+                statusMessage.setMessageId(UUID.randomUUID().toString());
+                
+                paymentStatusPublisher.publishPaymentStatusUpdate(statusMessage);
+                
+                log.info("✅ Pago aprobado automáticamente - PaymentId: {}, Method: {}", 
+                    paymentId, paymentMethod.getType());
+                
+            } catch (Exception e) {
+                log.error("❌ Error procesando pago automáticamente - PaymentId: {}, Error: {}", 
+                    paymentId, e.getMessage(), e);
+                // No lanzar excepción, dejar el pago en PENDING_PAYMENT para que se pueda procesar manualmente
+            }
+        } else if (paymentMethod.getType() == PaymentMethodType.CREDIT_CARD || 
+                   paymentMethod.getType() == PaymentMethodType.DEBIT_CARD ||
+                   paymentMethod.getType() == PaymentMethodType.BANK_TRANSFER) {
+            // Para tarjetas de crédito/débito o transferencias bancarias, cambiar a PENDING_APPROVAL
+            // El scheduler procesará estos pagos automáticamente después de un tiempo
+            log.info("💳 Cambiando pago a PENDING_APPROVAL para método: {} - PaymentId: {}", 
+                paymentMethod.getType(), paymentId);
+            
+            savedPayment.setStatus(PaymentStatus.PENDING_APPROVAL);
+            savedPayment.setUpdated_at(LocalDateTime.now());
+            savedPayment = paymentRepository.save(savedPayment);
+            
+            // Registrar evento de cambio a pendiente de aprobación
+            paymentEventService.createEvent(
+                paymentId,
+                PaymentEventType.PAYMENT_PENDING,
+                String.format("{\"status\": \"pending_bank_approval\", \"method\": \"%s\"}", 
+                    paymentMethod.getType()),
+                "system"
+            );
+            
+            log.info("✅ Pago cambiado a PENDING_APPROVAL - PaymentId: {}, Method: {}. El scheduler lo procesará automáticamente.", 
+                paymentId, paymentMethod.getType());
+        }
+        
         // Enviar evento de método seleccionado al CORE
         publishMethodSelectedEvent(savedPayment, paymentMethod);
         
@@ -439,8 +553,10 @@ public class PaymentServiceImpl implements PaymentService{
             
             paymentMethodSelectedPublisher.publish(message);
         } catch (Exception e) {
-            // No lanzar excepción para no romper el flujo de negocio, pero loguear el error
-            throw new RuntimeException("Error al publicar evento de método seleccionado al CORE", e);
+            // No lanzar excepción para no romper el flujo de negocio
+            // El método de pago ya se guardó correctamente en la BD
+            log.error("⚠️ Error al publicar evento de método seleccionado al CORE - PaymentId: {}, Error: {}",
+                payment.getId(), e.getMessage());
         }
     }
 

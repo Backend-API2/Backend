@@ -34,9 +34,10 @@ public class PaymentStatusPublisher {
             log.info("Mensaje enviado exitosamente - PaymentId: {}, MessageId: {}",
                 message.getPaymentId(), message.getMessageId());
         } catch (Exception e) {
-            log.error("Error enviando actualización de estado - PaymentId: {}, Error: {}",
+            log.error("⚠️ Error enviando actualización de estado al CORE - PaymentId: {}, Error: {}",
                 message.getPaymentId(), e.getMessage(), e);
-            throw new RuntimeException("Error al enviar mensaje de actualización", e);
+            // No lanzar excepción para no interrumpir el flujo de negocio
+            // El estado del pago ya se actualizó correctamente en la BD
         }
     }
 

@@ -14,10 +14,17 @@ public class CoreEventPublisher {
     private final CoreHubService coreHubService;
 
     public void publishToCore(CoreResponseMessage message) {
-        log.info("Enviando mensaje al CORE vía HTTP - MessageId: {}, EventName: {}",
-            message.getMessageId(),
-            message.getDestination().getEventName());
+        try {
+            log.info("Enviando mensaje al CORE vía HTTP - MessageId: {}, EventName: {}",
+                message.getMessageId(),
+                message.getDestination() != null ? message.getDestination().getEventName() : "unknown");
 
-        coreHubService.publishMessage(message);
+            coreHubService.publishMessage(message);
+            log.info("✅ Mensaje enviado exitosamente al CORE - MessageId: {}", message.getMessageId());
+        } catch (Exception e) {
+            log.error("⚠️ Error enviando mensaje al CORE - MessageId: {}, Error: {}",
+                message.getMessageId(), e.getMessage(), e);
+            // No lanzar excepción para no interrumpir el flujo de negocio
+        }
     }
 }

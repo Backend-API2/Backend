@@ -36,9 +36,10 @@ public class PaymentMethodSelectedPublisher {
             coreHubService.publishMessage(coreMessage);
             log.info("Evento de método seleccionado enviado exitosamente - paymentId: {}", msg.getPaymentId());
         } catch (Exception e) {
-            log.error("Error al enviar evento de método seleccionado - paymentId: {}, Error: {}",
+            log.error("⚠️ Error al enviar evento de método seleccionado al CORE - paymentId: {}, Error: {}",
                 msg.getPaymentId(), e.getMessage(), e);
-            throw new RuntimeException("Error al enviar evento de método seleccionado", e);
+            // No lanzar excepción para no interrumpir el flujo de negocio
+            // El método de pago ya se guardó correctamente en la BD
         }
     }
 

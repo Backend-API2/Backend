@@ -52,6 +52,12 @@ class PaymentServiceImplTest {
 
     @Mock
     private PaymentTimelineEventPublisher paymentTimelineEventPublisher;
+    
+    @Mock
+    private backend_api.Backend.Service.Interface.BalanceService balanceService;
+    
+    @Mock
+    private backend_api.Backend.Repository.UserRepository userRepository;
 
     @InjectMocks
     private PaymentServiceImpl paymentService;
@@ -689,6 +695,9 @@ class PaymentServiceImplTest {
         Long paymentId = 1L;
         when(paymentRepository.findById(paymentId)).thenReturn(Optional.of(testPayment));
         when(paymentRepository.save(any(Payment.class))).thenReturn(testPayment);
+        // Mock createEvent to return a PaymentEvent (needed for the new logic)
+        when(paymentEventService.createEvent(anyLong(), any(), anyString(), anyString()))
+            .thenReturn(null);
 
         // When
         Payment result = paymentService.updatePaymentMethod(paymentId, testPaymentMethod);
@@ -696,8 +705,9 @@ class PaymentServiceImplTest {
         // Then
         assertNotNull(result);
         verify(paymentRepository).findById(paymentId);
-        verify(paymentEventService).createEvent(anyLong(), any(), anyString(), anyString());
-        verify(paymentRepository).save(any(Payment.class));
+        // Now createEvent is called 2 times: once for PAYMENT_METHOD_UPDATED and once for PAYMENT_PENDING (for credit cards)
+        verify(paymentEventService, times(2)).createEvent(anyLong(), any(), anyString(), anyString());
+        verify(paymentRepository, atLeastOnce()).save(any(Payment.class));
     }
 
     @Test
