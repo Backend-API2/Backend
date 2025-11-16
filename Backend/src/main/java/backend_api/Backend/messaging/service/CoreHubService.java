@@ -18,7 +18,7 @@ public class CoreHubService {
 
     private final RestTemplate restTemplate;
 
-    @Value("${core.hub.api.url:https://nonprodapi.uade-corehub.com}")
+    @Value("${core.hub.api.url:https://api.arreglacore.click}")
     private String coreHubUrl;
 
     @Value("${core.hub.api.key:ch_1a05cee27dfe40b1a17370ff15d52735}")
