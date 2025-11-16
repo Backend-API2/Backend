@@ -11,4 +11,5 @@ public interface ProviderDataRepository extends JpaRepository<ProviderData, Long
     Optional<ProviderData> findByEmail(String email);
     boolean existsByProviderId(Long providerId);
     boolean existsByEmail(String email);
+    java.util.List<ProviderData> findByProviderIdIn(java.util.Collection<Long> providerIds);
 }

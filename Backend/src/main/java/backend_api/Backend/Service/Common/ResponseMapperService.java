@@ -36,6 +36,14 @@ public class ResponseMapperService {
     }
 
     public PaymentResponse mapPaymentToResponse(Payment payment, String userRole) {
-        return PaymentResponse.fromEntityWithNames(payment, userRepository, userRole);
+        // Usar getUserInfoBatch para buscar en user_data, provider_data y User
+        Set<Long> userIds = new java.util.HashSet<>();
+        if (payment.getUser_id() != null) userIds.add(payment.getUser_id());
+        if (payment.getProvider_id() != null) userIds.add(payment.getProvider_id());
+        
+        Map<Long, UserDataIntegrationService.UserInfo> userInfoMap = 
+            userDataIntegrationService.getUserInfoBatch(userIds);
+        
+        return PaymentResponse.fromEntityWithRealUserData(payment, userInfoMap, userRole);
     }
 }
