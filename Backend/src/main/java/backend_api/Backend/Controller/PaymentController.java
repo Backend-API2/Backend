@@ -14,6 +14,9 @@ import backend_api.Backend.Service.Common.AuthenticationService;
 import backend_api.Backend.Service.Common.EntityValidationService;
 import backend_api.Backend.Service.Common.ResponseMapperService;
 import backend_api.Backend.Entity.user.User;
+import backend_api.Backend.Entity.UserData;
+import backend_api.Backend.Repository.UserDataRepository;
+import backend_api.Backend.Repository.UserRepository;
 import backend_api.Backend.DTO.payment.CreatePaymentRequest;
 import backend_api.Backend.DTO.payment.PaymentSearchRequest;
 import backend_api.Backend.DTO.payment.SelectPaymentMethodRequest;
@@ -71,6 +74,12 @@ public class PaymentController {
 
     @Autowired
     private ResponseMapperService responseMapperService;
+    
+    @Autowired
+    private UserDataRepository userDataRepository;
+    
+    @Autowired
+    private UserRepository userRepository;
 
     //  CREAR NUEVO PAGO 
     @Operation(
@@ -233,11 +242,27 @@ public class PaymentController {
                     "system"
                 );
             } else {
-                User user = entityValidationService.getUserOrThrow(payment.getUser_id());
+                // Consultar primero en user_data para verificar el rol
+                java.util.Optional<UserData> userDataOpt = userDataRepository.findByUserId(payment.getUser_id());
+                String userRole = null;
                 
-                if (user.getRole().name().equals("USER")) {
+                if (userDataOpt.isPresent()) {
+                    userRole = userDataOpt.get().getRole();
+                    log.info("🔍 Rol obtenido desde user_data - UserId: {}, Role: {}", payment.getUser_id(), userRole);
+                } else {
+                    // Fallback a users si no existe en user_data
+                    User user = userRepository.findById(payment.getUser_id())
+                        .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+                    userRole = user.getRole().name();
+                    log.info("🔍 Rol obtenido desde users (fallback) - UserId: {}, Role: {}", payment.getUser_id(), userRole);
+                }
+                
+                // Verificar si es CLIENTE o USER (ambos deben descontar balance)
+                if (userRole != null && (userRole.equalsIgnoreCase("USER") || userRole.equalsIgnoreCase("CLIENTE"))) {
                     try {
-                        balanceService.deductBalance(user.getId(), payment.getAmount_total());
+                        balanceService.deductBalance(payment.getUser_id(), payment.getAmount_total());
+                        log.info("✅ Balance descontado exitosamente - UserId: {}, Amount: {}", 
+                            payment.getUser_id(), payment.getAmount_total());
                     } catch (IllegalStateException e) {
                         payment.setStatus(PaymentStatus.REJECTED);
                         payment.setRejected_by_balance(true);
@@ -250,6 +275,9 @@ public class PaymentController {
                             "{\"status\": \"rejected_insufficient_balance\", \"method\": \"" + payment.getMethod().getType() + "\"}",
                             "system"
                         );
+                        
+                        log.warn("⚠️ Pago rechazado por saldo insuficiente - PaymentId: {}, UserId: {}", 
+                            paymentId, payment.getUser_id());
                         
                         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                                 .header("Error-Message", "Saldo insuficiente para completar el pago")
