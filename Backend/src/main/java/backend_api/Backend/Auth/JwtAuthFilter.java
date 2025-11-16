@@ -86,6 +86,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                                 logger.info("   - {}", auth.getAuthority());
                             });
                             logger.info("✅ Request URI: {}", requestURI);
+                            logger.info("✅ SecurityContext establecido correctamente");
+                            logger.info("✅ Verificando SecurityContext después de establecer:");
+                            if (SecurityContextHolder.getContext().getAuthentication() != null) {
+                                logger.info("   - Authentication: {}", SecurityContextHolder.getContext().getAuthentication().getName());
+                                logger.info("   - Authorities: {}", SecurityContextHolder.getContext().getAuthentication().getAuthorities());
+                            } else {
+                                logger.error("   - ❌ SecurityContext está NULL después de establecer!");
+                            }
                             logger.info("================================================================");
 
                         } catch (Exception e) {

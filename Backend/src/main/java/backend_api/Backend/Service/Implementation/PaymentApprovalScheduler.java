@@ -64,10 +64,15 @@ public class PaymentApprovalScheduler {
             
             for (Payment payment : pendingPayments) {
                 if (requiresBankApproval(payment)) {
-                    
                     LocalDateTime approvalDeadline = payment.getUpdated_at().plusSeconds(APPROVAL_DELAY_SECONDS);
+                    long secondsUntilApproval = java.time.Duration.between(now, approvalDeadline).getSeconds();
                     
-                    if (now.isAfter(approvalDeadline)) {
+                    System.out.println("DEBUG - PaymentApprovalScheduler: Payment ID " + payment.getId() + 
+                        " - Updated at: " + payment.getUpdated_at() + 
+                        " - Deadline: " + approvalDeadline + 
+                        " - Seconds until approval: " + secondsUntilApproval);
+                    
+                    if (now.isAfter(approvalDeadline) || now.isEqual(approvalDeadline)) {
                         System.out.println("DEBUG - PaymentApprovalScheduler: Aprobando automáticamente payment ID: " + payment.getId());
                         
                         // Simular aprobación bancaria (90% aprobado, 10% rechazado para realismo)
@@ -78,7 +83,14 @@ public class PaymentApprovalScheduler {
                         } else {
                             rejectPayment(payment);
                         }
+                    } else {
+                        System.out.println("DEBUG - PaymentApprovalScheduler: Payment ID " + payment.getId() + 
+                            " aún no cumple el delay. Esperando " + secondsUntilApproval + " segundos más.");
                     }
+                } else {
+                    System.out.println("DEBUG - PaymentApprovalScheduler: Payment ID " + payment.getId() + 
+                        " no requiere aprobación bancaria (método: " + 
+                        (payment.getMethod() != null ? payment.getMethod().getType() : "null") + ")");
                 }
             }
             

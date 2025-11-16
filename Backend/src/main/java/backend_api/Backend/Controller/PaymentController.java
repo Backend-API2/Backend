@@ -445,8 +445,18 @@ public class PaymentController {
     public ResponseEntity<PaymentResponse> retryPaymentByBalance(
             @PathVariable Long paymentId,
             @RequestHeader("Authorization") String authHeader,
-            @Valid @RequestBody SelectPaymentMethodRequest paymentMethodRequest) {
+            @Valid @RequestBody(required = true) SelectPaymentMethodRequest paymentMethodRequest) {
         try {
+            log.info("🔄 Reintentando pago - PaymentId: {}, PaymentMethodType: {}", 
+                paymentId, paymentMethodRequest != null ? paymentMethodRequest.getPaymentMethodType() : "null");
+            
+            if (paymentMethodRequest == null || paymentMethodRequest.getPaymentMethodType() == null || paymentMethodRequest.getPaymentMethodType().isEmpty()) {
+                log.error("❌ Error: paymentMethodRequest es null o paymentMethodType está vacío - PaymentId: {}", paymentId);
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .header("Error-Message", "El método de pago es obligatorio. Debe enviar 'paymentMethodType' en el body.")
+                    .build();
+            }
+            
             User user = authenticationService.getUserFromToken(authHeader);
             if (user == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();

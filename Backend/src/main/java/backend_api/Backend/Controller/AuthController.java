@@ -573,29 +573,56 @@ public class AuthController {
     
     
     /**
-     * Crea un UserData a partir de los datos del módulo de usuarios
+     * Crea un UserData a partir de los datos del módulo de usuarios SOLO si no existe
+     * NO actualiza datos existentes - la actualización debe venir de eventos del Core
      */
     private UserData createUserFromModuleData(String email, Map<String, Object> userModuleData) {
         try {
-            UserData newUser = new UserData();
-            newUser.setEmail(email);
-            newUser.setName((String) userModuleData.getOrDefault("name", "Usuario Sincronizado"));
-            newUser.setPhone((String) userModuleData.getOrDefault("phone", ""));
-            newUser.setSecondaryId((String) userModuleData.getOrDefault("secondaryId", "sync_" + System.currentTimeMillis()));
-            newUser.setRole((String) userModuleData.getOrDefault("role", "USER"));
-            newUser.setUserId(((Number) userModuleData.getOrDefault("userId", System.currentTimeMillis() % 1000000)).longValue());
+            Long userId = ((Number) userModuleData.getOrDefault("userId", System.currentTimeMillis() % 1000000)).longValue();
             
-            // Generar saldo aleatorio (mayor a 10 millones)
+            // Primero verificar si el usuario ya existe por user_id o email
+            Optional<UserData> existingUserByUserId = userDataRepository.findByUserId(userId);
+            Optional<UserData> existingUserByEmail = userDataRepository.findFirstByEmail(email);
+            
+            // Si el usuario ya existe, devolverlo sin actualizar
+            // La actualización debe venir de eventos del Core (user_updated), no del login
+            if (existingUserByUserId.isPresent()) {
+                log.info("✅ Usuario existente encontrado por user_id: {} - NO se actualiza (la actualización viene de eventos del Core)", userId);
+                return existingUserByUserId.get();
+            }
+            
+            if (existingUserByEmail.isPresent()) {
+                log.info("✅ Usuario existente encontrado por email: {} - NO se actualiza (la actualización viene de eventos del Core)", email);
+                return existingUserByEmail.get();
+            }
+            
+            // Usuario no existe - crear nuevo
+            log.info("➕ Creando nuevo usuario sincronizado - userId: {}, email: {}", userId, email);
+            UserData userData = new UserData();
+            
+            // Establecer todos los campos para el nuevo usuario
+            userData.setEmail(email);
+            userData.setName((String) userModuleData.getOrDefault("name", "Usuario Sincronizado"));
+            userData.setPhone((String) userModuleData.getOrDefault("phone", ""));
+            userData.setSecondaryId((String) userModuleData.getOrDefault("secondaryId", "sync_" + System.currentTimeMillis()));
+            userData.setRole((String) userModuleData.getOrDefault("role", "USER"));
+            userData.setUserId(userId);
+            
+            // Generar saldo aleatorio (mayor a 10 millones) para el nuevo usuario
             Random random = new Random();
             // Saldo entre 10,000,000 y 15,000,000
             double saldo = 10000000 + (random.nextDouble() * 5000000);
-            newUser.setSaldoDisponible(BigDecimal.valueOf(saldo).setScale(2, java.math.RoundingMode.HALF_UP));
+            userData.setSaldoDisponible(BigDecimal.valueOf(saldo).setScale(2, java.math.RoundingMode.HALF_UP));
+            log.info("💰 Saldo asignado al nuevo usuario: {}", userData.getSaldoDisponible());
             
-            // Guardar en la base de datos
-            return userDataRepository.save(newUser);
+            // Establecer como activo
+            userData.setActive(true);
+            
+            // Guardar el nuevo usuario en la base de datos
+            return userDataRepository.save(userData);
             
         } catch (Exception e) {
-            log.error("Error creando usuario desde datos del módulo: {}", e.getMessage());
+            log.error("Error creando usuario desde datos del módulo: {}", e.getMessage(), e);
             return null;
         }
     }

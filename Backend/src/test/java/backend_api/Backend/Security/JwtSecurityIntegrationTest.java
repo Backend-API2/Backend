@@ -210,14 +210,14 @@ class JwtSecurityIntegrationTest {
         // When & Then
         mockMvc.perform(get("/api/auth/profile")
                 .header("Authorization", "Bearer invalid-token"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
     void testProfileEndpoint_NoToken_ShouldReturnUnauthorized() throws Exception {
         // When & Then
         mockMvc.perform(get("/api/auth/profile"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -261,7 +261,7 @@ class JwtSecurityIntegrationTest {
         mockMvc.perform(get("/api/invoices/my-invoices")
                 .param("page", "0")
                 .param("size", "10"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -433,7 +433,7 @@ class JwtSecurityIntegrationTest {
                 // When & Then
                 mockMvc.perform(get("/api/auth/profile")
                         .header("Authorization", "Bearer " + expiredToken))
-                        .andExpect(status().isForbidden());
+                        .andExpect(status().isUnauthorized());
             }
 
             @Test
@@ -444,7 +444,7 @@ class JwtSecurityIntegrationTest {
                 // When & Then
                 mockMvc.perform(get("/api/auth/profile")
                         .header("Authorization", "Bearer " + malformedToken))
-                        .andExpect(status().isForbidden());
+                        .andExpect(status().isUnauthorized());
             }
 
             @Test
@@ -455,7 +455,7 @@ class JwtSecurityIntegrationTest {
                 // When & Then
                 mockMvc.perform(get("/api/auth/profile")
                         .header("Authorization", "Bearer " + emptyToken))
-                        .andExpect(status().isForbidden());
+                        .andExpect(status().isUnauthorized());
             }
 
             @Test
@@ -466,7 +466,7 @@ class JwtSecurityIntegrationTest {
                 // When & Then
                 mockMvc.perform(get("/api/auth/profile")
                         .header("Authorization", tokenWithoutBearer))
-                        .andExpect(status().isForbidden());
+                        .andExpect(status().isUnauthorized());
             }
 
             @Test

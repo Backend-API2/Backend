@@ -164,6 +164,26 @@ public class SecurityConfig {
                 )
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .exceptionHandling((exceptions) -> exceptions
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(SecurityConfig.class);
+                            logger.error("❌ Authentication Entry Point - 401 UNAUTHORIZED para: {}", request.getRequestURI());
+                            logger.error("❌ Usuario autenticado: {}", 
+                                org.springframework.security.core.context.SecurityContextHolder.getContext()
+                                    .getAuthentication() != null ? 
+                                    org.springframework.security.core.context.SecurityContextHolder.getContext()
+                                        .getAuthentication().getName() : "NO AUTENTICADO");
+                            if (org.springframework.security.core.context.SecurityContextHolder.getContext()
+                                    .getAuthentication() != null) {
+                                logger.error("❌ Authorities: {}", 
+                                    org.springframework.security.core.context.SecurityContextHolder.getContext()
+                                        .getAuthentication().getAuthorities());
+                            }
+                            logger.error("❌ Error: {}", authException.getMessage());
+                            response.setStatus(HttpStatus.UNAUTHORIZED.value());
+                            response.setContentType("application/json");
+                            response.getWriter().write("{\"error\":\"Unauthorized\",\"message\":\"" + 
+                                authException.getMessage() + "\"}");
+                        })
                         .accessDeniedHandler((request, response, accessDeniedException) -> {
                             org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(SecurityConfig.class);
                             logger.error("❌ Access Denied para: {}", request.getRequestURI());
