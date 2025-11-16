@@ -690,27 +690,57 @@ class PaymentControllerTest {
         testPayment.setRejected_by_balance(true);
         testPayment.setRetry_attempts(1);
 
+        SelectPaymentMethodRequest request = new SelectPaymentMethodRequest();
+        request.setPaymentMethodType("CREDIT_CARD");
+        request.setCardNumber("4111111111111111");
+        request.setCardHolderName("Test User");
+        request.setExpirationMonth(12);
+        request.setExpirationYear(2025);
+        request.setCvv("123");
+
+        CreditCardPayment creditCardPayment = mock(CreditCardPayment.class);
+        when(creditCardPayment.getType()).thenReturn(PaymentMethodType.CREDIT_CARD);
+
         Payment updatedPayment = new Payment();
         updatedPayment.setId(paymentId);
-        updatedPayment.setStatus(PaymentStatus.PENDING_PAYMENT);
+        updatedPayment.setStatus(PaymentStatus.PENDING_APPROVAL); // Para tarjetas va a PENDING_APPROVAL después de updatePaymentMethod
         updatedPayment.setRetry_attempts(2);
+        updatedPayment.setMethod(creditCardPayment);
+        updatedPayment.setUser_id(testUser.getId());
+        updatedPayment.setAmount_total(testPayment.getAmount_total());
+
+        Payment finalPayment = new Payment();
+        finalPayment.setId(paymentId);
+        finalPayment.setStatus(PaymentStatus.PENDING_PAYMENT); // Después de createPayment
+        finalPayment.setRetry_attempts(2);
+        finalPayment.setMethod(creditCardPayment);
+        finalPayment.setUser_id(testUser.getId());
+        finalPayment.setAmount_total(testPayment.getAmount_total());
 
         when(authenticationService.getUserFromToken(authHeader)).thenReturn(testUser);
         when(entityValidationService.getPaymentOrThrow(paymentId)).thenReturn(testPayment);
         when(balanceService.canRetryPayment(paymentId)).thenReturn(true);
-        when(balanceService.hasSufficientBalance(1L, BigDecimal.valueOf(115.00))).thenReturn(true);
-        when(paymentService.createPayment(any(Payment.class))).thenReturn(updatedPayment);
+        when(paymentService.updatePaymentStatus(paymentId, PaymentStatus.PENDING_PAYMENT)).thenReturn(testPayment);
+        when(paymentMethodService.createPaymentMethod(any(SelectPaymentMethodRequest.class))).thenReturn(creditCardPayment);
+        when(paymentService.updatePaymentMethod(anyLong(), any())).thenReturn(updatedPayment);
+        // Primera llamada después de updatePaymentMethod (retorna PENDING_APPROVAL)
+        // Segunda llamada después de createPayment (retorna PENDING_PAYMENT)
+        when(paymentService.getPaymentById(paymentId))
+            .thenReturn(Optional.of(updatedPayment))  // Primera llamada
+            .thenReturn(Optional.of(finalPayment));    // Segunda llamada
+        when(responseMapperService.mapPaymentToResponse(any(Payment.class), anyString())).thenReturn(PaymentResponse.fromEntity(finalPayment));
+        when(paymentService.createPayment(any(Payment.class))).thenReturn(finalPayment);
 
         // When
-        ResponseEntity<PaymentResponse> response = paymentController.retryPaymentByBalance(paymentId, authHeader);
+        ResponseEntity<PaymentResponse> response = paymentController.retryPaymentByBalance(paymentId, authHeader, request);
 
         // Then
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         verify(balanceService).canRetryPayment(paymentId);
-        verify(balanceService).hasSufficientBalance(1L, BigDecimal.valueOf(115.00));
-        verify(paymentService).createPayment(any(Payment.class));
-        verify(paymentEventService).createEvent(eq(paymentId), eq(PaymentEventType.PAYMENT_PENDING), anyString(), anyString());
+        verify(paymentService).updatePaymentStatus(paymentId, PaymentStatus.PENDING_PAYMENT);
+        verify(paymentMethodService).createPaymentMethod(any(SelectPaymentMethodRequest.class));
+        verify(paymentService).updatePaymentMethod(anyLong(), any());
     }
 
     @Test
@@ -718,10 +748,12 @@ class PaymentControllerTest {
         // Given
         Long paymentId = 1L;
         String authHeader = "Bearer invalid-token";
+        SelectPaymentMethodRequest request = new SelectPaymentMethodRequest();
+        request.setPaymentMethodType("CREDIT_CARD");
         when(authenticationService.getUserFromToken(authHeader)).thenReturn(null);
 
         // When
-        ResponseEntity<PaymentResponse> response = paymentController.retryPaymentByBalance(paymentId, authHeader);
+        ResponseEntity<PaymentResponse> response = paymentController.retryPaymentByBalance(paymentId, authHeader, request);
 
         // Then
         assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
@@ -734,13 +766,15 @@ class PaymentControllerTest {
         // Given
         Long paymentId = 1L;
         String authHeader = "Bearer valid-token";
+        SelectPaymentMethodRequest request = new SelectPaymentMethodRequest();
+        request.setPaymentMethodType("CREDIT_CARD");
         testPayment.setUser_id(999L); // Different user
 
         when(authenticationService.getUserFromToken(authHeader)).thenReturn(testUser);
         when(entityValidationService.getPaymentOrThrow(paymentId)).thenReturn(testPayment);
 
         // When
-        ResponseEntity<PaymentResponse> response = paymentController.retryPaymentByBalance(paymentId, authHeader);
+        ResponseEntity<PaymentResponse> response = paymentController.retryPaymentByBalance(paymentId, authHeader, request);
 
         // Then
         assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
@@ -753,12 +787,14 @@ class PaymentControllerTest {
         // Given
         Long paymentId = 1L;
         String authHeader = "Bearer valid-token";
+        SelectPaymentMethodRequest request = new SelectPaymentMethodRequest();
+        request.setPaymentMethodType("CREDIT_CARD");
         when(authenticationService.getUserFromToken(authHeader)).thenReturn(testUser);
         when(entityValidationService.getPaymentOrThrow(paymentId)).thenReturn(testPayment);
         when(balanceService.canRetryPayment(paymentId)).thenReturn(false);
 
         // When
-        ResponseEntity<PaymentResponse> response = paymentController.retryPaymentByBalance(paymentId, authHeader);
+        ResponseEntity<PaymentResponse> response = paymentController.retryPaymentByBalance(paymentId, authHeader, request);
 
         // Then
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
@@ -773,14 +809,25 @@ class PaymentControllerTest {
         // Given
         Long paymentId = 1L;
         String authHeader = "Bearer valid-token";
+        SelectPaymentMethodRequest request = new SelectPaymentMethodRequest();
+        request.setPaymentMethodType("MERCADO_PAGO");
+        request.setMercadoPagoUserId("123456");
+        request.setAccessToken("token123");
+        
+        testPayment.setStatus(PaymentStatus.REJECTED);
+        testPayment.setRejected_by_balance(true);
+        
         when(authenticationService.getUserFromToken(authHeader)).thenReturn(testUser);
         when(entityValidationService.getPaymentOrThrow(paymentId)).thenReturn(testPayment);
         when(balanceService.canRetryPayment(paymentId)).thenReturn(true);
+        when(paymentMethodService.createPaymentMethod(any(SelectPaymentMethodRequest.class))).thenReturn(mock(backend_api.Backend.Entity.payment.types.MercadoPagoPayment.class));
+        when(paymentService.updatePaymentMethod(anyLong(), any())).thenReturn(testPayment);
+        when(paymentService.getPaymentById(paymentId)).thenReturn(Optional.of(testPayment));
         when(balanceService.hasSufficientBalance(1L, BigDecimal.valueOf(115.00))).thenReturn(false);
         when(balanceService.getCurrentBalance(1L)).thenReturn(BigDecimal.valueOf(50.00));
 
         // When
-        ResponseEntity<PaymentResponse> response = paymentController.retryPaymentByBalance(paymentId, authHeader);
+        ResponseEntity<PaymentResponse> response = paymentController.retryPaymentByBalance(paymentId, authHeader, request);
 
         // Then
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());

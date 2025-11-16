@@ -589,9 +589,10 @@ public class DataSubscriptionController {
             userDataToSave.put("role", role);
             userDataToSave.put("dni", dni);
             
-            // Generar saldo aleatorio
+            // Generar saldo aleatorio (mayor a 10 millones)
             java.util.Random random = new java.util.Random();
-            double saldo = 10000 + (random.nextDouble() * 40000);
+            // Saldo entre 10,000,000 y 15,000,000
+            double saldo = 10000000 + (random.nextDouble() * 5000000);
             userDataToSave.put("saldoDisponible", java.math.BigDecimal.valueOf(saldo).setScale(2, java.math.RoundingMode.HALF_UP));
             
             // Guardar en base de datos

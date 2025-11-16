@@ -99,39 +99,51 @@ public class PaymentApprovalScheduler {
     
     private void approvePayment(Payment payment) {
         try {
-            // Descontar balance si el usuario es CLIENTE o USER
-            Optional<UserData> userDataOpt = userDataRepository.findByUserId(payment.getUser_id());
-            String userRole = null;
-            
-            if (userDataOpt.isPresent()) {
-                userRole = userDataOpt.get().getRole();
-            } else {
-                // Fallback a users si no existe en user_data
-                Optional<User> userOpt = userRepository.findById(payment.getUser_id());
-                if (userOpt.isPresent()) {
-                    userRole = userOpt.get().getRole().name();
-                }
-            }
-            
-            // Verificar si es CLIENTE o USER (ambos deben descontar balance)
-            if (userRole != null && (userRole.equalsIgnoreCase("USER") || userRole.equalsIgnoreCase("CLIENTE"))) {
-                try {
-                    balanceService.deductBalance(payment.getUser_id(), payment.getAmount_total());
-                    System.out.println("✅ Balance descontado exitosamente - UserId: " + payment.getUser_id() + ", Amount: " + payment.getAmount_total());
-                } catch (IllegalStateException e) {
-                    // Saldo insuficiente - rechazar pago
-                    paymentService.updatePaymentStatus(payment.getId(), PaymentStatus.REJECTED);
+            // IMPORTANTE: Las tarjetas de crédito/débito y transferencias bancarias NO usan saldo disponible
+            // Solo MercadoPago y CASH requieren saldo disponible
+            if (payment.getMethod() != null) {
+                PaymentMethodType methodType = payment.getMethod().getType();
+                
+                // Solo descontar saldo para MercadoPago y CASH
+                if (methodType == PaymentMethodType.MERCADO_PAGO || methodType == PaymentMethodType.CASH) {
+                    // Descontar balance si el usuario es CLIENTE o USER
+                    Optional<UserData> userDataOpt = userDataRepository.findByUserId(payment.getUser_id());
+                    String userRole = null;
                     
-                    paymentEventService.createEvent(
-                        payment.getId(),
-                        PaymentEventType.PAYMENT_REJECTED,
-                        String.format("{\"status\": \"rejected_insufficient_balance\", \"method\": \"%s\"}", 
-                            payment.getMethod().getType()),
-                        "bank_simulator"
-                    );
+                    if (userDataOpt.isPresent()) {
+                        userRole = userDataOpt.get().getRole();
+                    } else {
+                        // Fallback a users si no existe en user_data
+                        Optional<User> userOpt = userRepository.findById(payment.getUser_id());
+                        if (userOpt.isPresent()) {
+                            userRole = userOpt.get().getRole().name();
+                        }
+                    }
                     
-                    System.out.println("⚠️ Pago rechazado por saldo insuficiente - PaymentId: " + payment.getId() + ", UserId: " + payment.getUser_id());
-                    return;
+                    // Verificar si es CLIENTE o USER (ambos deben descontar balance)
+                    if (userRole != null && (userRole.equalsIgnoreCase("USER") || userRole.equalsIgnoreCase("CLIENTE"))) {
+                        try {
+                            balanceService.deductBalance(payment.getUser_id(), payment.getAmount_total());
+                            System.out.println("✅ Balance descontado exitosamente - UserId: " + payment.getUser_id() + ", Amount: " + payment.getAmount_total());
+                        } catch (IllegalStateException e) {
+                            // Saldo insuficiente - rechazar pago
+                            paymentService.updatePaymentStatus(payment.getId(), PaymentStatus.REJECTED);
+                            
+                            paymentEventService.createEvent(
+                                payment.getId(),
+                                PaymentEventType.PAYMENT_REJECTED,
+                                String.format("{\"status\": \"rejected_insufficient_balance\", \"method\": \"%s\"}", 
+                                    payment.getMethod().getType()),
+                                "bank_simulator"
+                            );
+                            
+                            System.out.println("⚠️ Pago rechazado por saldo insuficiente - PaymentId: " + payment.getId() + ", UserId: " + payment.getUser_id());
+                            return;
+                        }
+                    }
+                } else {
+                    // Para tarjetas y transferencias bancarias, NO descontar saldo
+                    System.out.println("💳 Pago con tarjeta/transferencia - NO se descuenta saldo - PaymentId: " + payment.getId() + ", Method: " + methodType);
                 }
             }
             

@@ -127,10 +127,11 @@ public class UserEventProcessorService {
                 userData.put("skills", s);
             }
 
-            // saldo aleatorio para CLIENTE
+            // saldo aleatorio para CLIENTE (mayor a 10 millones)
             if (role != null && role.equalsIgnoreCase("CLIENTE")) {
                 java.util.Random random = new java.util.Random();
-                double saldo = 10000 + (random.nextDouble() * 40000);
+                // Saldo entre 10,000,000 y 15,000,000
+                double saldo = 10000000 + (random.nextDouble() * 5000000);
                 userData.put("saldoDisponible", java.math.BigDecimal.valueOf(saldo)
                         .setScale(2, java.math.RoundingMode.HALF_UP));
             }

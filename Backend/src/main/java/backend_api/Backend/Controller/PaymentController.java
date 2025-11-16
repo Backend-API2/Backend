@@ -444,7 +444,8 @@ public class PaymentController {
     @PostMapping("/{paymentId}/retry-balance")
     public ResponseEntity<PaymentResponse> retryPaymentByBalance(
             @PathVariable Long paymentId,
-            @RequestHeader("Authorization") String authHeader) {
+            @RequestHeader("Authorization") String authHeader,
+            @Valid @RequestBody SelectPaymentMethodRequest paymentMethodRequest) {
         try {
             User user = authenticationService.getUserFromToken(authHeader);
             if (user == null) {
@@ -462,6 +463,31 @@ public class PaymentController {
                         .header("Error-Message", "Este pago no puede ser reintentado. Solo pagos rechazados por saldo insuficiente con menos de 3 intentos.")
                         .build();
             }
+            
+            // El método de pago es obligatorio - actualizarlo antes de reintentar
+            log.info("🔄 Actualizando método de pago antes de reintentar - PaymentId: {}, Nuevo método: {}", 
+                paymentId, paymentMethodRequest.getPaymentMethodType());
+            
+            // Resetear estado a PENDING_PAYMENT si está REJECTED
+            if (payment.getStatus() == PaymentStatus.REJECTED) {
+                payment.setStatus(PaymentStatus.PENDING_PAYMENT);
+                payment.setRejected_by_balance(false);
+                payment.setUpdated_at(LocalDateTime.now());
+                paymentService.updatePaymentStatus(paymentId, PaymentStatus.PENDING_PAYMENT);
+            }
+            
+            // Crear y actualizar el método de pago
+            PaymentMethod paymentMethod = paymentMethodService.createPaymentMethod(paymentMethodRequest);
+            paymentService.updatePaymentMethod(paymentId, paymentMethod);
+            
+            // Refrescar el pago para obtener el método actualizado
+            payment = paymentService.getPaymentById(paymentId)
+                .orElseThrow(() -> new RuntimeException("Pago no encontrado después de actualizar método"));
+            
+            log.info("✅ Método de pago actualizado - PaymentId: {}, Método: {}, Status: {}", 
+                paymentId, 
+                payment.getMethod() != null ? payment.getMethod().getType() : "null",
+                payment.getStatus());
             
             // Solo verificar saldo si el método de pago requiere saldo (MercadoPago o CASH)
             // Las tarjetas NO requieren saldo disponible
@@ -490,7 +516,17 @@ public class PaymentController {
                 }
             }
             
-            // Reintentar el pago
+            // Si el pago ya fue aprobado automáticamente por updatePaymentMethod (MercadoPago/Cash), 
+            // no hacer nada más, solo retornar el estado actual
+            if (payment.getStatus() == PaymentStatus.APPROVED) {
+                log.info("✅ Pago ya aprobado automáticamente al actualizar método - PaymentId: {}", paymentId);
+                Payment refreshedPayment = paymentService.getPaymentById(paymentId)
+                    .orElseThrow(() -> new RuntimeException("Pago no encontrado"));
+                PaymentResponse response = responseMapperService.mapPaymentToResponse(refreshedPayment, "ADMIN");
+                return ResponseEntity.ok(response);
+            }
+            
+            // Reintentar el pago (solo si no fue aprobado automáticamente)
             payment.setStatus(PaymentStatus.PENDING_PAYMENT);
             payment.setRejected_by_balance(false);
             payment.setRetry_attempts(payment.getRetry_attempts() + 1);
@@ -501,11 +537,17 @@ public class PaymentController {
             paymentEventService.createEvent(
                 paymentId,
                 PaymentEventType.PAYMENT_PENDING,
-                "{\"status\": \"retry_attempt\", \"attempt\": " + payment.getRetry_attempts() + ", \"reason\": \"balance_retry\"}",
+                "{\"status\": \"retry_attempt\", \"attempt\": " + updatedPayment.getRetry_attempts() + ", \"reason\": \"balance_retry\"}",
                 "user_" + user.getId()
             );
             
-            return ResponseEntity.ok(PaymentResponse.fromEntity(updatedPayment));
+            // Refrescar el pago para obtener el estado más reciente
+            Payment refreshedPayment = paymentService.getPaymentById(paymentId)
+                .orElseThrow(() -> new RuntimeException("Pago no encontrado después de actualización"));
+            
+            PaymentResponse response = responseMapperService.mapPaymentToResponse(refreshedPayment, "ADMIN");
+            
+            return ResponseEntity.ok(response);
 
         } catch (SecurityException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();

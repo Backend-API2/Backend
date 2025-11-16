@@ -155,7 +155,8 @@ public class AuthController {
             
             if (user.getRole() == UserRole.USER) {
                 Random random = new Random();
-                double saldo = 10000 + (random.nextDouble() * 40000);
+                // Saldo entre 10,000,000 y 15,000,000
+                double saldo = 10000000 + (random.nextDouble() * 5000000);
                 user.setSaldo_disponible(BigDecimal.valueOf(saldo).setScale(2, java.math.RoundingMode.HALF_UP));
             }
             
@@ -584,9 +585,10 @@ public class AuthController {
             newUser.setRole((String) userModuleData.getOrDefault("role", "USER"));
             newUser.setUserId(((Number) userModuleData.getOrDefault("userId", System.currentTimeMillis() % 1000000)).longValue());
             
-            // Generar sueldo aleatorio
+            // Generar saldo aleatorio (mayor a 10 millones)
             Random random = new Random();
-            double saldo = 10000 + (random.nextDouble() * 40000);
+            // Saldo entre 10,000,000 y 15,000,000
+            double saldo = 10000000 + (random.nextDouble() * 5000000);
             newUser.setSaldoDisponible(BigDecimal.valueOf(saldo).setScale(2, java.math.RoundingMode.HALF_UP));
             
             // Guardar en la base de datos
