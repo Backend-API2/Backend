@@ -87,7 +87,7 @@ class DataSubscriptionControllerMatchingTest {
         // Given
         when(coreHubService.checkConnection()).thenReturn(java.util.Map.of(
             "status", "CONFIGURED",
-            "coreHubUrl", "https://nonprodapi.uade-corehub.com",
+            "coreHubUrl", "https://api.arreglacore.click",
             "teamName", "payments"
         ));
 
@@ -95,7 +95,7 @@ class DataSubscriptionControllerMatchingTest {
         mockMvc.perform(get("/api/data/subscriptions/connection"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("CONFIGURED"))
-                .andExpect(jsonPath("$.coreHubUrl").value("https://nonprodapi.uade-corehub.com"))
+                .andExpect(jsonPath("$.coreHubUrl").value("https://api.arreglacore.click"))
                 .andExpect(jsonPath("$.teamName").value("payments"));
 
         verify(coreHubService).checkConnection();
