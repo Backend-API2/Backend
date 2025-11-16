@@ -40,6 +40,10 @@ public class Payment {
     private LocalDateTime captured_at;
     private LocalDateTime expired_at;
     private String metadata; //caso de info adicional
+    @Column(name = "descripcion", columnDefinition = "TEXT")
+    private String descripcion; // Descripción del pago
+    @Column(name = "descripcion_solicitud", columnDefinition = "TEXT")
+    private String descripcionSolicitud; // Descripción de la solicitud
     
     private Boolean rejected_by_balance = false; // Si fue rechazado por saldo insuficiente
     private Integer retry_attempts = 0; // Número de intentos de reintento

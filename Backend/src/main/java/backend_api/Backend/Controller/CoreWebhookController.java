@@ -494,6 +494,8 @@ public class CoreWebhookController {
         }
         pago.setMoneda((String) pagoData.get("moneda"));
         pago.setMetodoPreferido((String) pagoData.get("metodoPreferido"));
+        pago.setDescripcion((String) pagoData.get("descripcion"));
+        pago.setDescripcionSolicitud((String) pagoData.get("descripcionSolicitud"));
         
         payload.setPago(pago);
         message.setPayload(payload);

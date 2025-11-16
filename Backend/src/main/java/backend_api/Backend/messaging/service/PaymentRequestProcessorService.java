@@ -281,8 +281,10 @@ public class PaymentRequestProcessorService {
         payment.setStatus(PaymentStatus.PENDING_PAYMENT);
         payment.setCreated_at(java.time.LocalDateTime.now());
         payment.setUpdated_at(java.time.LocalDateTime.now());
+        payment.setDescripcion(descripcion);
+        payment.setDescripcionSolicitud(descripcionSolicitud);
         
-        // Crear metadata
+        // Crear metadata (sin descripcion y descripcionSolicitud, ahora tienen columnas propias)
         Map<String, Object> metadata = new java.util.HashMap<>();
         metadata.put("idCorrelacion", idCorrelacion);
         metadata.put("metodoPreferido", metodoPreferido);
