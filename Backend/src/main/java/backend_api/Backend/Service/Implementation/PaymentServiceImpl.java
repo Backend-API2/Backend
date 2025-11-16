@@ -403,8 +403,18 @@ public class PaymentServiceImpl implements PaymentService{
         
         Payment payment = paymentOpt.get();
         
-        if (payment.getStatus() != PaymentStatus.PENDING_PAYMENT) {
-            throw new RuntimeException("Cannot update payment method. Payment status must be PENDING_PAYMENT");
+        // Permitir actualizar método si está en PENDING_PAYMENT o REJECTED (para reintentar con otro método)
+        if (payment.getStatus() != PaymentStatus.PENDING_PAYMENT && 
+            payment.getStatus() != PaymentStatus.REJECTED) {
+            throw new RuntimeException("Cannot update payment method. Payment status must be PENDING_PAYMENT or REJECTED");
+        }
+        
+        // Si está REJECTED, resetear a PENDING_PAYMENT para permitir reintentar
+        if (payment.getStatus() == PaymentStatus.REJECTED) {
+            log.info("🔄 Reseteando pago rechazado a PENDING_PAYMENT para cambiar método - PaymentId: {}", paymentId);
+            payment.setStatus(PaymentStatus.PENDING_PAYMENT);
+            payment.setRejected_by_balance(false);
+            payment.setUpdated_at(LocalDateTime.now());
         }
         
         // Asegurar que el tipo esté establecido (por si acaso)

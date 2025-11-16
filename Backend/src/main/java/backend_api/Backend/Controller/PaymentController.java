@@ -193,10 +193,22 @@ public class PaymentController {
         try {
             Payment payment = entityValidationService.getPaymentOrThrow(paymentId);
 
-            if (payment.getStatus() != PaymentStatus.PENDING_PAYMENT) {
+            // Permitir cambiar método de pago si está en PENDING_PAYMENT o REJECTED (para reintentar con otro método)
+            if (payment.getStatus() != PaymentStatus.PENDING_PAYMENT && 
+                payment.getStatus() != PaymentStatus.REJECTED) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .header("Error-Message", "El pago no está en estado PENDING_PAYMENT")
+                    .header("Error-Message", "El pago no está en estado PENDING_PAYMENT o REJECTED")
                     .build();
+            }
+            
+            // Si está REJECTED, resetear el estado a PENDING_PAYMENT para permitir reintentar
+            if (payment.getStatus() == PaymentStatus.REJECTED) {
+                log.info("🔄 Reintentando pago rechazado con nuevo método - PaymentId: {}", paymentId);
+                payment.setStatus(PaymentStatus.PENDING_PAYMENT);
+                payment.setRejected_by_balance(false);
+                payment.setUpdated_at(LocalDateTime.now());
+                // Actualizar el estado antes de cambiar el método de pago
+                paymentService.updatePaymentStatus(paymentId, PaymentStatus.PENDING_PAYMENT);
             }
 
             PaymentMethod paymentMethod = paymentMethodService.createPaymentMethod(request);
