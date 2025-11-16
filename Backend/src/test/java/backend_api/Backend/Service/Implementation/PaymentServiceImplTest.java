@@ -734,7 +734,7 @@ class PaymentServiceImplTest {
         RuntimeException exception = assertThrows(RuntimeException.class, () -> {
             paymentService.updatePaymentMethod(paymentId, testPaymentMethod);
         });
-        assertEquals("Cannot update payment method. Payment status must be PENDING_PAYMENT", exception.getMessage());
+        assertEquals("Cannot update payment method. Payment status must be PENDING_PAYMENT or REJECTED", exception.getMessage());
     }
 
     @Test
