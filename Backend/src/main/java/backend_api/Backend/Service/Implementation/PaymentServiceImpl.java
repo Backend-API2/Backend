@@ -17,7 +17,9 @@ import backend_api.Backend.Entity.payment.types.CreditCardPayment;
 import backend_api.Backend.Entity.payment.types.DebitCardPayment;
 import backend_api.Backend.Entity.payment.types.MercadoPagoPayment;
 import backend_api.Backend.Entity.user.User;
+import backend_api.Backend.Entity.UserData;
 import backend_api.Backend.Repository.UserRepository;
+import backend_api.Backend.Repository.UserDataRepository;
 import backend_api.Backend.Service.Interface.BalanceService;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -57,6 +59,9 @@ public class PaymentServiceImpl implements PaymentService{
     
     @Autowired
     private UserRepository userRepository;
+    
+    @Autowired
+    private UserDataRepository userDataRepository;
 
     @Override
     public Payment createPayment(Payment payment) {
@@ -402,6 +407,18 @@ public class PaymentServiceImpl implements PaymentService{
             throw new RuntimeException("Cannot update payment method. Payment status must be PENDING_PAYMENT");
         }
         
+        // Asegurar que el tipo esté establecido (por si acaso)
+        if (paymentMethod.getType() == null) {
+            log.warn("⚠️ Tipo de método es null, intentando establecerlo...");
+            if (paymentMethod instanceof MercadoPagoPayment) {
+                paymentMethod.setType(PaymentMethodType.MERCADO_PAGO);
+            } else if (paymentMethod instanceof CreditCardPayment) {
+                paymentMethod.setType(PaymentMethodType.CREDIT_CARD);
+            } else if (paymentMethod instanceof DebitCardPayment) {
+                paymentMethod.setType(PaymentMethodType.DEBIT_CARD);
+            }
+        }
+        
         payment.setMethod(paymentMethod);
         
         paymentEventService.createEvent(
@@ -414,6 +431,21 @@ public class PaymentServiceImpl implements PaymentService{
         
         Payment savedPayment = paymentRepository.save(payment);
         
+        // Debug: Verificar el tipo de método
+        log.info("🔍 DEBUG - Tipo de método recibido: {} (null? {}) - PaymentId: {}", 
+            paymentMethod.getType(), paymentMethod.getType() == null, paymentId);
+        log.info("🔍 DEBUG - Comparación MERCADO_PAGO: {} - Comparación CASH: {}", 
+            paymentMethod.getType() == PaymentMethodType.MERCADO_PAGO,
+            paymentMethod.getType() == PaymentMethodType.CASH);
+        
+        // Verificar también el tipo del método asociado al pago guardado
+        if (savedPayment.getMethod() != null) {
+            log.info("🔍 DEBUG - Tipo del método en savedPayment: {} (null? {})", 
+                savedPayment.getMethod().getType(), savedPayment.getMethod().getType() == null);
+        } else {
+            log.warn("⚠️ savedPayment.getMethod() es null!");
+        }
+        
         // Si el método es MercadoPago o CASH, procesar automáticamente el pago
         if (paymentMethod.getType() == PaymentMethodType.MERCADO_PAGO || 
             paymentMethod.getType() == PaymentMethodType.CASH) {
@@ -422,15 +454,27 @@ public class PaymentServiceImpl implements PaymentService{
                 paymentMethod.getType(), paymentId);
             
             try {
-                // Obtener usuario para verificar si es USER y descontar balance
-                User user = userRepository.findById(payment.getUser_id())
-                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+                // Consultar primero en user_data para verificar el rol
+                Optional<UserData> userDataOpt = userDataRepository.findByUserId(payment.getUser_id());
+                String userRole = null;
                 
-                if (user.getRole().name().equals("USER")) {
+                if (userDataOpt.isPresent()) {
+                    userRole = userDataOpt.get().getRole();
+                    log.info("🔍 Rol obtenido desde user_data - UserId: {}, Role: {}", payment.getUser_id(), userRole);
+                } else {
+                    // Fallback a users si no existe en user_data
+                    User user = userRepository.findById(payment.getUser_id())
+                        .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+                    userRole = user.getRole().name();
+                    log.info("🔍 Rol obtenido desde users (fallback) - UserId: {}, Role: {}", payment.getUser_id(), userRole);
+                }
+                
+                // Verificar si es CLIENTE o USER (ambos deben descontar balance)
+                if (userRole != null && (userRole.equalsIgnoreCase("USER") || userRole.equalsIgnoreCase("CLIENTE"))) {
                     try {
-                        balanceService.deductBalance(user.getId(), payment.getAmount_total());
+                        balanceService.deductBalance(payment.getUser_id(), payment.getAmount_total());
                         log.info("✅ Balance descontado exitosamente - UserId: {}, Amount: {}", 
-                            user.getId(), payment.getAmount_total());
+                            payment.getUser_id(), payment.getAmount_total());
                     } catch (IllegalStateException e) {
                         // Saldo insuficiente - rechazar pago
                         savedPayment.setStatus(PaymentStatus.REJECTED);
@@ -447,7 +491,7 @@ public class PaymentServiceImpl implements PaymentService{
                         );
                         
                         log.warn("⚠️ Pago rechazado por saldo insuficiente - PaymentId: {}, UserId: {}", 
-                            paymentId, user.getId());
+                            paymentId, payment.getUser_id());
                         
                         // Enviar evento de método seleccionado al CORE (aunque fue rechazado)
                         publishMethodSelectedEvent(savedPayment, paymentMethod);

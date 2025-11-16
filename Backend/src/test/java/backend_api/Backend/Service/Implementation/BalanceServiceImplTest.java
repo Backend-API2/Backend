@@ -6,6 +6,7 @@ import backend_api.Backend.Entity.user.User;
 import backend_api.Backend.Entity.user.UserRole;
 import backend_api.Backend.Repository.PaymentRepository;
 import backend_api.Backend.Repository.UserRepository;
+import backend_api.Backend.Repository.UserDataRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,6 +32,9 @@ class BalanceServiceImplTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private UserDataRepository userDataRepository;
 
     @Mock
     private PaymentRepository paymentRepository;
@@ -75,6 +79,7 @@ class BalanceServiceImplTest {
     @Test
     void testHasSufficientBalance_RegularUser_SufficientBalance() {
         // Given
+        when(userDataRepository.findByUserId(1L)).thenReturn(Optional.empty()); // No existe en user_data, usar fallback
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
 
         // When
@@ -82,12 +87,14 @@ class BalanceServiceImplTest {
 
         // Then
         assertTrue(result);
+        verify(userDataRepository).findByUserId(1L);
         verify(userRepository).findById(1L);
     }
 
     @Test
     void testHasSufficientBalance_RegularUser_InsufficientBalance() {
         // Given
+        when(userDataRepository.findByUserId(1L)).thenReturn(Optional.empty()); // No existe en user_data, usar fallback
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
 
         // When
@@ -95,12 +102,14 @@ class BalanceServiceImplTest {
 
         // Then
         assertFalse(result);
+        verify(userDataRepository).findByUserId(1L);
         verify(userRepository).findById(1L);
     }
 
     @Test
     void testHasSufficientBalance_MerchantUser_AlwaysTrue() {
         // Given
+        when(userDataRepository.findByUserId(2L)).thenReturn(Optional.empty()); // No existe en user_data, usar fallback
         when(userRepository.findById(2L)).thenReturn(Optional.of(merchantUser));
 
         // When
@@ -108,18 +117,22 @@ class BalanceServiceImplTest {
 
         // Then
         assertTrue(result);
+        verify(userDataRepository).findByUserId(2L);
         verify(userRepository).findById(2L);
     }
 
     @Test
     void testHasSufficientBalance_UserNotFound() {
         // Given
+        when(userDataRepository.findByUserId(anyLong())).thenReturn(Optional.empty()); // No existe en user_data, usar fallback
         when(userRepository.findById(anyLong())).thenReturn(Optional.empty());
 
         // When & Then
         RuntimeException exception = assertThrows(RuntimeException.class, () ->
                 balanceService.hasSufficientBalance(1L, BigDecimal.valueOf(50.00)));
         assertEquals("Usuario no encontrado", exception.getMessage());
+        verify(userDataRepository).findByUserId(1L);
+        verify(userRepository).findById(1L);
     }
 
     @Test
@@ -132,6 +145,7 @@ class BalanceServiceImplTest {
         updatedUser.setRole(testUser.getRole());
         updatedUser.setSaldo_disponible(BigDecimal.valueOf(50.00));
 
+        when(userDataRepository.findByUserId(1L)).thenReturn(Optional.empty()); // No existe en user_data, usar fallback
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
         when(userRepository.save(any(User.class))).thenReturn(updatedUser);
 
@@ -141,6 +155,7 @@ class BalanceServiceImplTest {
         // Then
         assertNotNull(result);
         assertEquals(BigDecimal.valueOf(50.00), result.getSaldo_disponible());
+        verify(userDataRepository, times(2)).findByUserId(1L); // Called twice: once in deductBalance, once in hasSufficientBalance
         verify(userRepository, times(2)).findById(1L); // Called twice: once in deductBalance, once in hasSufficientBalance
         verify(userRepository).save(any(User.class));
     }
@@ -148,12 +163,14 @@ class BalanceServiceImplTest {
     @Test
     void testDeductBalance_RegularUser_InsufficientBalance() {
         // Given
+        when(userDataRepository.findByUserId(1L)).thenReturn(Optional.empty()); // No existe en user_data, usar fallback
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
 
         // When & Then
         IllegalStateException exception = assertThrows(IllegalStateException.class, () ->
                 balanceService.deductBalance(1L, BigDecimal.valueOf(150.00)));
         assertEquals("Saldo insuficiente", exception.getMessage());
+        verify(userDataRepository, times(2)).findByUserId(1L); // Called twice: once in deductBalance, once in hasSufficientBalance
         verify(userRepository, times(2)).findById(1L); // Called twice: once in deductBalance, once in hasSufficientBalance
         verify(userRepository, never()).save(any(User.class));
     }
@@ -161,6 +178,7 @@ class BalanceServiceImplTest {
     @Test
     void testDeductBalance_MerchantUser_NoDeduction() {
         // Given
+        when(userDataRepository.findByUserId(2L)).thenReturn(Optional.empty()); // No existe en user_data, usar fallback
         when(userRepository.findById(2L)).thenReturn(Optional.of(merchantUser));
 
         // When
@@ -169,6 +187,7 @@ class BalanceServiceImplTest {
         // Then
         assertNotNull(result);
         assertEquals(merchantUser, result);
+        verify(userDataRepository).findByUserId(2L);
         verify(userRepository).findById(2L);
         verify(userRepository, never()).save(any(User.class));
     }
@@ -176,12 +195,15 @@ class BalanceServiceImplTest {
     @Test
     void testDeductBalance_UserNotFound() {
         // Given
+        when(userDataRepository.findByUserId(anyLong())).thenReturn(Optional.empty()); // No existe en user_data, usar fallback
         when(userRepository.findById(anyLong())).thenReturn(Optional.empty());
 
         // When & Then
         RuntimeException exception = assertThrows(RuntimeException.class, () ->
                 balanceService.deductBalance(1L, BigDecimal.valueOf(50.00)));
         assertEquals("Usuario no encontrado", exception.getMessage());
+        verify(userDataRepository).findByUserId(1L);
+        verify(userRepository).findById(1L);
     }
 
     @Test
@@ -194,6 +216,7 @@ class BalanceServiceImplTest {
         updatedUser.setRole(testUser.getRole());
         updatedUser.setSaldo_disponible(BigDecimal.valueOf(150.00));
 
+        when(userDataRepository.findByUserId(1L)).thenReturn(Optional.empty()); // No existe en user_data, usar fallback
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
         when(userRepository.save(any(User.class))).thenReturn(updatedUser);
 
@@ -203,6 +226,7 @@ class BalanceServiceImplTest {
         // Then
         assertNotNull(result);
         assertEquals(BigDecimal.valueOf(150.00), result.getSaldo_disponible());
+        verify(userDataRepository).findByUserId(1L);
         verify(userRepository).findById(1L);
         verify(userRepository).save(any(User.class));
     }
@@ -210,6 +234,7 @@ class BalanceServiceImplTest {
     @Test
     void testAddBalance_MerchantUser_NoAddition() {
         // Given
+        when(userDataRepository.findByUserId(2L)).thenReturn(Optional.empty()); // No existe en user_data, usar fallback
         when(userRepository.findById(2L)).thenReturn(Optional.of(merchantUser));
 
         // When
@@ -218,6 +243,7 @@ class BalanceServiceImplTest {
         // Then
         assertNotNull(result);
         assertEquals(merchantUser, result);
+        verify(userDataRepository).findByUserId(2L);
         verify(userRepository).findById(2L);
         verify(userRepository, never()).save(any(User.class));
     }
@@ -225,17 +251,21 @@ class BalanceServiceImplTest {
     @Test
     void testAddBalance_UserNotFound() {
         // Given
+        when(userDataRepository.findByUserId(anyLong())).thenReturn(Optional.empty()); // No existe en user_data, usar fallback
         when(userRepository.findById(anyLong())).thenReturn(Optional.empty());
 
         // When & Then
         RuntimeException exception = assertThrows(RuntimeException.class, () ->
                 balanceService.addBalance(1L, BigDecimal.valueOf(50.00)));
         assertEquals("Usuario no encontrado", exception.getMessage());
+        verify(userDataRepository).findByUserId(1L);
+        verify(userRepository).findById(1L);
     }
 
     @Test
     void testGetCurrentBalance_Success() {
         // Given
+        when(userDataRepository.findByUserId(1L)).thenReturn(Optional.empty()); // No existe en user_data, usar fallback
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
 
         // When
@@ -243,18 +273,22 @@ class BalanceServiceImplTest {
 
         // Then
         assertEquals(BigDecimal.valueOf(100.00), result);
+        verify(userDataRepository).findByUserId(1L);
         verify(userRepository).findById(1L);
     }
 
     @Test
     void testGetCurrentBalance_UserNotFound() {
         // Given
+        when(userDataRepository.findByUserId(anyLong())).thenReturn(Optional.empty()); // No existe en user_data, usar fallback
         when(userRepository.findById(anyLong())).thenReturn(Optional.empty());
 
         // When & Then
         RuntimeException exception = assertThrows(RuntimeException.class, () ->
                 balanceService.getCurrentBalance(1L));
         assertEquals("Usuario no encontrado", exception.getMessage());
+        verify(userDataRepository).findByUserId(1L);
+        verify(userRepository).findById(1L);
     }
 
     @Test

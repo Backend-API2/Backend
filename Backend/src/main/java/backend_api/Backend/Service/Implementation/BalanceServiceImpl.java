@@ -1,11 +1,14 @@
 package backend_api.Backend.Service.Implementation;
 
+import backend_api.Backend.Entity.UserData;
 import backend_api.Backend.Entity.payment.Payment;
 import backend_api.Backend.Entity.user.User;
 import backend_api.Backend.Repository.PaymentRepository;
+import backend_api.Backend.Repository.UserDataRepository;
 import backend_api.Backend.Repository.UserRepository;
 import backend_api.Backend.Service.Interface.BalanceService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,13 +17,37 @@ import java.math.BigDecimal;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class BalanceServiceImpl implements BalanceService {
 
     private final UserRepository userRepository;
+    private final UserDataRepository userDataRepository;
     private final PaymentRepository paymentRepository;
 
     @Override
     public boolean hasSufficientBalance(Long userId, BigDecimal amount) {
+        // Consultar primero en user_data (donde está el saldo real)
+        java.util.Optional<UserData> userDataOpt = userDataRepository.findByUserId(userId);
+        
+        if (userDataOpt.isPresent()) {
+            UserData userData = userDataOpt.get();
+            String role = userData.getRole();
+            
+            if (role != null && role.equalsIgnoreCase("MERCHANT")) {
+                return true; // Los merchants no tienen restricción de saldo
+            }
+            
+            BigDecimal saldo = userData.getSaldoDisponible() != null 
+                ? userData.getSaldoDisponible() 
+                : BigDecimal.ZERO;
+            
+            log.info("🔍 Verificando saldo desde user_data - UserId: {}, Saldo: {}, Monto requerido: {}", 
+                userId, saldo, amount);
+            
+            return saldo.compareTo(amount) >= 0;
+        }
+        
+        // Fallback a users si no existe en user_data
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
         
@@ -28,11 +55,54 @@ public class BalanceServiceImpl implements BalanceService {
             return true; // Los merchants no tienen restricción de saldo
         }
         
-        return user.getSaldo_disponible().compareTo(amount) >= 0;
+        BigDecimal saldo = user.getSaldo_disponible() != null 
+            ? user.getSaldo_disponible() 
+            : BigDecimal.ZERO;
+        
+        log.info("🔍 Verificando saldo desde users (fallback) - UserId: {}, Saldo: {}, Monto requerido: {}", 
+            userId, saldo, amount);
+        
+        return saldo.compareTo(amount) >= 0;
     }
 
     @Override
     public User deductBalance(Long userId, BigDecimal amount) {
+        // Consultar primero en user_data (donde está el saldo real)
+        java.util.Optional<UserData> userDataOpt = userDataRepository.findByUserId(userId);
+        
+        if (userDataOpt.isPresent()) {
+            UserData userData = userDataOpt.get();
+            String role = userData.getRole();
+            
+            if (role != null && role.equalsIgnoreCase("MERCHANT")) {
+                // Retornar un User dummy para mantener compatibilidad con la interfaz
+                User dummyUser = new User();
+                dummyUser.setId(userId);
+                return dummyUser;
+            }
+            
+            if (!hasSufficientBalance(userId, amount)) {
+                throw new IllegalStateException("Saldo insuficiente");
+            }
+            
+            BigDecimal saldoActual = userData.getSaldoDisponible() != null 
+                ? userData.getSaldoDisponible() 
+                : BigDecimal.ZERO;
+            
+            BigDecimal nuevoSaldo = saldoActual.subtract(amount);
+            userData.setSaldoDisponible(nuevoSaldo);
+            userDataRepository.save(userData);
+            
+            log.info("✅ Balance descontado desde user_data - UserId: {}, Saldo anterior: {}, Monto: {}, Saldo nuevo: {}", 
+                userId, saldoActual, amount, nuevoSaldo);
+            
+            // Retornar un User dummy para mantener compatibilidad con la interfaz
+            User dummyUser = new User();
+            dummyUser.setId(userId);
+            return dummyUser;
+        }
+        
+        // Fallback a users si no existe en user_data
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
         
@@ -44,12 +114,51 @@ public class BalanceServiceImpl implements BalanceService {
             throw new IllegalStateException("Saldo insuficiente");
         }
         
-        user.setSaldo_disponible(user.getSaldo_disponible().subtract(amount));
+        BigDecimal saldoActual = user.getSaldo_disponible() != null 
+            ? user.getSaldo_disponible() 
+            : BigDecimal.ZERO;
+        
+        user.setSaldo_disponible(saldoActual.subtract(amount));
+        log.info("✅ Balance descontado desde users (fallback) - UserId: {}, Saldo anterior: {}, Monto: {}, Saldo nuevo: {}", 
+            userId, saldoActual, amount, saldoActual.subtract(amount));
+        
         return userRepository.save(user);
     }
 
     @Override
     public User addBalance(Long userId, BigDecimal amount) {
+        // Consultar primero en user_data (donde está el saldo real)
+        java.util.Optional<UserData> userDataOpt = userDataRepository.findByUserId(userId);
+        
+        if (userDataOpt.isPresent()) {
+            UserData userData = userDataOpt.get();
+            String role = userData.getRole();
+            
+            if (role != null && role.equalsIgnoreCase("MERCHANT")) {
+                // Retornar un User dummy para mantener compatibilidad con la interfaz
+                User dummyUser = new User();
+                dummyUser.setId(userId);
+                return dummyUser;
+            }
+            
+            BigDecimal saldoActual = userData.getSaldoDisponible() != null 
+                ? userData.getSaldoDisponible() 
+                : BigDecimal.ZERO;
+            
+            BigDecimal nuevoSaldo = saldoActual.add(amount);
+            userData.setSaldoDisponible(nuevoSaldo);
+            userDataRepository.save(userData);
+            
+            log.info("✅ Balance agregado desde user_data - UserId: {}, Saldo anterior: {}, Monto: {}, Saldo nuevo: {}", 
+                userId, saldoActual, amount, nuevoSaldo);
+            
+            // Retornar un User dummy para mantener compatibilidad con la interfaz
+            User dummyUser = new User();
+            dummyUser.setId(userId);
+            return dummyUser;
+        }
+        
+        // Fallback a users si no existe en user_data
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
         
@@ -57,16 +166,42 @@ public class BalanceServiceImpl implements BalanceService {
             return user; // Los merchants no tienen saldo
         }
         
-        user.setSaldo_disponible(user.getSaldo_disponible().add(amount));
+        BigDecimal saldoActual = user.getSaldo_disponible() != null 
+            ? user.getSaldo_disponible() 
+            : BigDecimal.ZERO;
+        
+        user.setSaldo_disponible(saldoActual.add(amount));
+        log.info("✅ Balance agregado desde users (fallback) - UserId: {}, Saldo anterior: {}, Monto: {}, Saldo nuevo: {}", 
+            userId, saldoActual, amount, saldoActual.add(amount));
+        
         return userRepository.save(user);
     }
 
     @Override
     public BigDecimal getCurrentBalance(Long userId) {
+        // Consultar primero en user_data (donde está el saldo real)
+        java.util.Optional<UserData> userDataOpt = userDataRepository.findByUserId(userId);
+        
+        if (userDataOpt.isPresent()) {
+            UserData userData = userDataOpt.get();
+            BigDecimal saldo = userData.getSaldoDisponible() != null 
+                ? userData.getSaldoDisponible() 
+                : BigDecimal.ZERO;
+            
+            log.info("💰 Saldo obtenido desde user_data - UserId: {}, Saldo: {}", userId, saldo);
+            return saldo;
+        }
+        
+        // Fallback a users si no existe en user_data
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
         
-        return user.getSaldo_disponible();
+        BigDecimal saldo = user.getSaldo_disponible() != null 
+            ? user.getSaldo_disponible() 
+            : BigDecimal.ZERO;
+        
+        log.info("💰 Saldo obtenido desde users (fallback) - UserId: {}, Saldo: {}", userId, saldo);
+        return saldo;
     }
 
     @Override
