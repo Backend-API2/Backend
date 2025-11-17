@@ -457,22 +457,54 @@ public class PaymentController {
                     .build();
             }
             
+            log.info("✅ paymentMethodRequest recibido correctamente - PaymentId: {}, Type: {}", 
+                paymentId, paymentMethodRequest.getPaymentMethodType());
+            
             User user = authenticationService.getUserFromToken(authHeader);
             if (user == null) {
+                log.error("❌ Usuario no encontrado para el token - PaymentId: {}", paymentId);
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
             }
+            log.info("✅ Usuario autenticado - PaymentId: {}, UserId: {}", paymentId, user.getId());
+            
             Payment payment = entityValidationService.getPaymentOrThrow(paymentId);
+            log.info("✅ Pago encontrado - PaymentId: {}, Status: {}, UserId: {}", 
+                paymentId, payment.getStatus(), payment.getUser_id());
 
             if (!payment.getUser_id().equals(user.getId())) {
+                log.error("❌ Usuario no es dueño del pago - PaymentId: {}, PaymentUserId: {}, RequestUserId: {}", 
+                    paymentId, payment.getUser_id(), user.getId());
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
             }
+            log.info("✅ Usuario es dueño del pago - PaymentId: {}", paymentId);
             
-            // Verificar que puede ser reintentado (solo por saldo insuficiente)
-            if (!balanceService.canRetryPayment(paymentId)) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .header("Error-Message", "Este pago no puede ser reintentado. Solo pagos rechazados por saldo insuficiente con menos de 3 intentos.")
-                        .build();
+            // Verificar que puede ser reintentado
+            // Permitir reintentar si:
+            // 1. Fue rechazado por saldo insuficiente (canRetryPayment retorna true)
+            // 2. O está REJECTED y tiene menos de 3 intentos (permite reintentar pagos rechazados por el scheduler u otros motivos)
+            boolean canRetryByBalance = balanceService.canRetryPayment(paymentId);
+            boolean canRetryByStatus = payment.getStatus() == PaymentStatus.REJECTED && payment.getRetry_attempts() < 3;
+            boolean canRetry = canRetryByBalance || canRetryByStatus;
+            
+            log.info("🔍 Verificación canRetry - PaymentId: {}, CanRetryByBalance: {}, CanRetryByStatus: {}, CanRetry: {}", 
+                paymentId, canRetryByBalance, canRetryByStatus, canRetry);
+            
+            if (!canRetry) {
+                if (payment.getRetry_attempts() >= 3) {
+                    log.error("❌ Pago no puede ser reintentado - PaymentId: {} - Razón: Máximo de intentos alcanzado (retry_attempts: {})", 
+                        paymentId, payment.getRetry_attempts());
+                    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                            .header("Error-Message", "Este pago no puede ser reintentado. Se alcanzó el máximo de 3 intentos.")
+                            .build();
+                } else {
+                    log.error("❌ Pago no puede ser reintentado - PaymentId: {} - Razón: Estado no permite reintento (status: {})", 
+                        paymentId, payment.getStatus());
+                    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                            .header("Error-Message", "Este pago no puede ser reintentado. Solo pagos rechazados pueden ser reintentados.")
+                            .build();
+                }
             }
+            log.info("✅ Pago puede ser reintentado - PaymentId: {}", paymentId);
             
             // El método de pago es obligatorio - actualizarlo antes de reintentar
             log.info("🔄 Actualizando método de pago antes de reintentar - PaymentId: {}, Nuevo método: {}", 
@@ -536,7 +568,17 @@ public class PaymentController {
                 return ResponseEntity.ok(response);
             }
             
-            // Reintentar el pago (solo si no fue aprobado automáticamente)
+            // Si el pago está en PENDING_APPROVAL (tarjetas), NO cambiarlo - el scheduler lo procesará
+            if (payment.getStatus() == PaymentStatus.PENDING_APPROVAL) {
+                log.info("✅ Pago en PENDING_APPROVAL - El scheduler lo procesará automáticamente - PaymentId: {}", paymentId);
+                Payment refreshedPayment = paymentService.getPaymentById(paymentId)
+                    .orElseThrow(() -> new RuntimeException("Pago no encontrado"));
+                PaymentResponse response = responseMapperService.mapPaymentToResponse(refreshedPayment, "ADMIN");
+                return ResponseEntity.ok(response);
+            }
+            
+            // Reintentar el pago (solo si no fue aprobado automáticamente y no es tarjeta)
+            // Esto aplica principalmente para MercadoPago/Cash que fallaron y se están reintentando
             payment.setStatus(PaymentStatus.PENDING_PAYMENT);
             payment.setRejected_by_balance(false);
             payment.setRetry_attempts(payment.getRetry_attempts() + 1);

@@ -709,27 +709,16 @@ class PaymentControllerTest {
         updatedPayment.setUser_id(testUser.getId());
         updatedPayment.setAmount_total(testPayment.getAmount_total());
 
-        Payment finalPayment = new Payment();
-        finalPayment.setId(paymentId);
-        finalPayment.setStatus(PaymentStatus.PENDING_PAYMENT); // Después de createPayment
-        finalPayment.setRetry_attempts(2);
-        finalPayment.setMethod(creditCardPayment);
-        finalPayment.setUser_id(testUser.getId());
-        finalPayment.setAmount_total(testPayment.getAmount_total());
-
         when(authenticationService.getUserFromToken(authHeader)).thenReturn(testUser);
         when(entityValidationService.getPaymentOrThrow(paymentId)).thenReturn(testPayment);
         when(balanceService.canRetryPayment(paymentId)).thenReturn(true);
         when(paymentService.updatePaymentStatus(paymentId, PaymentStatus.PENDING_PAYMENT)).thenReturn(testPayment);
         when(paymentMethodService.createPaymentMethod(any(SelectPaymentMethodRequest.class))).thenReturn(creditCardPayment);
         when(paymentService.updatePaymentMethod(anyLong(), any())).thenReturn(updatedPayment);
-        // Primera llamada después de updatePaymentMethod (retorna PENDING_APPROVAL)
-        // Segunda llamada después de createPayment (retorna PENDING_PAYMENT)
-        when(paymentService.getPaymentById(paymentId))
-            .thenReturn(Optional.of(updatedPayment))  // Primera llamada
-            .thenReturn(Optional.of(finalPayment));    // Segunda llamada
-        when(responseMapperService.mapPaymentToResponse(any(Payment.class), anyString())).thenReturn(PaymentResponse.fromEntity(finalPayment));
-        when(paymentService.createPayment(any(Payment.class))).thenReturn(finalPayment);
+        // Después de updatePaymentMethod, el pago está en PENDING_APPROVAL (para tarjetas)
+        // El código detecta esto y retorna sin llamar a createPayment
+        when(paymentService.getPaymentById(paymentId)).thenReturn(Optional.of(updatedPayment));
+        when(responseMapperService.mapPaymentToResponse(any(Payment.class), anyString())).thenReturn(PaymentResponse.fromEntity(updatedPayment));
 
         // When
         ResponseEntity<PaymentResponse> response = paymentController.retryPaymentByBalance(paymentId, authHeader, request);
@@ -741,6 +730,10 @@ class PaymentControllerTest {
         verify(paymentService).updatePaymentStatus(paymentId, PaymentStatus.PENDING_PAYMENT);
         verify(paymentMethodService).createPaymentMethod(any(SelectPaymentMethodRequest.class));
         verify(paymentService).updatePaymentMethod(anyLong(), any());
+        verify(paymentService).getPaymentById(paymentId);
+        verify(responseMapperService).mapPaymentToResponse(any(Payment.class), anyString());
+        // createPayment NO se llama porque el pago queda en PENDING_APPROVAL
+        verify(paymentService, never()).createPayment(any(Payment.class));
     }
 
     @Test
@@ -789,6 +782,8 @@ class PaymentControllerTest {
         String authHeader = "Bearer valid-token";
         SelectPaymentMethodRequest request = new SelectPaymentMethodRequest();
         request.setPaymentMethodType("CREDIT_CARD");
+        testPayment.setStatus(PaymentStatus.APPROVED); // Estado que no permite reintento
+        testPayment.setRetry_attempts(0);
         when(authenticationService.getUserFromToken(authHeader)).thenReturn(testUser);
         when(entityValidationService.getPaymentOrThrow(paymentId)).thenReturn(testPayment);
         when(balanceService.canRetryPayment(paymentId)).thenReturn(false);

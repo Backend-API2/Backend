@@ -133,6 +133,10 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             org.springframework.http.HttpStatusCode status, 
             WebRequest request) {
         
+        org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(GlobalExceptionHandler.class);
+        logger.error("❌ Error de validación - Path: {}, Errores: {}", 
+            request.getDescription(false), ex.getBindingResult().getFieldErrors());
+        
         Map<String, Object> errorResponse = new HashMap<>();
         errorResponse.put("timestamp", LocalDateTime.now());
         errorResponse.put("status", HttpStatus.BAD_REQUEST.value());

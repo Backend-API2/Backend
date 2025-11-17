@@ -213,8 +213,28 @@ public class BalanceServiceImpl implements BalanceService {
         // 1. Fue rechazado por saldo insuficiente
         // 2. No ha excedido el máximo de intentos (3)
         // 3. El usuario actual tiene saldo suficiente (se verifica en el controller)
-        return payment.getRejected_by_balance() != null && 
-               payment.getRejected_by_balance() && 
-               payment.getRetry_attempts() < 3;
+        boolean rejectedByBalance = payment.getRejected_by_balance() != null && payment.getRejected_by_balance();
+        boolean hasAttemptsLeft = payment.getRetry_attempts() < 3;
+        boolean canRetry = rejectedByBalance && hasAttemptsLeft;
+        
+        log.info("🔍 canRetryPayment - PaymentId: {}, RejectedByBalance: {}, RetryAttempts: {}, HasAttemptsLeft: {}, CanRetry: {}", 
+            paymentId, 
+            payment.getRejected_by_balance(),
+            payment.getRetry_attempts(),
+            hasAttemptsLeft,
+            canRetry);
+        
+        if (!canRetry) {
+            if (!rejectedByBalance) {
+                log.warn("⚠️ Pago no puede ser reintentado - PaymentId: {} - Razón: No fue rechazado por saldo insuficiente (rejected_by_balance: {})", 
+                    paymentId, payment.getRejected_by_balance());
+            }
+            if (!hasAttemptsLeft) {
+                log.warn("⚠️ Pago no puede ser reintentado - PaymentId: {} - Razón: Máximo de intentos alcanzado (retry_attempts: {})", 
+                    paymentId, payment.getRetry_attempts());
+            }
+        }
+        
+        return canRetry;
     }
 }
