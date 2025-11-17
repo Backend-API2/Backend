@@ -716,8 +716,12 @@ class PaymentControllerTest {
         when(paymentMethodService.createPaymentMethod(any(SelectPaymentMethodRequest.class))).thenReturn(creditCardPayment);
         when(paymentService.updatePaymentMethod(anyLong(), any())).thenReturn(updatedPayment);
         // Después de updatePaymentMethod, el pago está en PENDING_APPROVAL (para tarjetas)
-        // El código detecta esto y retorna sin llamar a createPayment
-        when(paymentService.getPaymentById(paymentId)).thenReturn(Optional.of(updatedPayment));
+        // El código llama a getPaymentById dos veces:
+        // 1. Después de actualizar el método (línea 526)
+        // 2. Cuando detecta que está en PENDING_APPROVAL (línea 574)
+        when(paymentService.getPaymentById(paymentId))
+            .thenReturn(Optional.of(updatedPayment))  // Primera llamada (después de updatePaymentMethod)
+            .thenReturn(Optional.of(updatedPayment)); // Segunda llamada (cuando detecta PENDING_APPROVAL)
         when(responseMapperService.mapPaymentToResponse(any(Payment.class), anyString())).thenReturn(PaymentResponse.fromEntity(updatedPayment));
 
         // When
@@ -730,7 +734,8 @@ class PaymentControllerTest {
         verify(paymentService).updatePaymentStatus(paymentId, PaymentStatus.PENDING_PAYMENT);
         verify(paymentMethodService).createPaymentMethod(any(SelectPaymentMethodRequest.class));
         verify(paymentService).updatePaymentMethod(anyLong(), any());
-        verify(paymentService).getPaymentById(paymentId);
+        // getPaymentById se llama 2 veces: después de updatePaymentMethod y cuando detecta PENDING_APPROVAL
+        verify(paymentService, times(2)).getPaymentById(paymentId);
         verify(responseMapperService).mapPaymentToResponse(any(Payment.class), anyString());
         // createPayment NO se llama porque el pago queda en PENDING_APPROVAL
         verify(paymentService, never()).createPayment(any(Payment.class));
