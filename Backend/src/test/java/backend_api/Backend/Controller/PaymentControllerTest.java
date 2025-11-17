@@ -884,6 +884,7 @@ class PaymentControllerTest {
         assertTrue(response.getHeaders().containsKey("Error-Message"));
         verify(paymentMethodService, never()).createPaymentMethod(any());
         verify(paymentService, never()).updatePaymentMethod(anyLong(), any());
+        verify(paymentService, never()).updatePaymentStatus(eq(paymentId), eq(PaymentStatus.PENDING_PAYMENT));
     }
 
     // ========== GET PAYMENT BY ID TESTS ==========

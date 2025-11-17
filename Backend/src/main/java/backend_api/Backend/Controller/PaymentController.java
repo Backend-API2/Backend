@@ -519,7 +519,12 @@ public class PaymentController {
             log.info("🔄 Actualizando método de pago antes de reintentar - PaymentId: {}, Nuevo método: {}", 
                 paymentId, paymentMethodRequest.getPaymentMethodType());
             
-            // Resetear estado a PENDING_PAYMENT si está REJECTED
+            ResponseEntity<PaymentResponse> cardValidationError = validateCardBinIfNeeded(paymentMethodRequest);
+            if (cardValidationError != null) {
+                return cardValidationError;
+            }
+
+            // Resetear estado a PENDING_PAYMENT si está REJECTED (solo después de validar)
             if (payment.getStatus() == PaymentStatus.REJECTED) {
                 payment.setStatus(PaymentStatus.PENDING_PAYMENT);
                 payment.setRejected_by_balance(false);
@@ -527,11 +532,6 @@ public class PaymentController {
                 paymentService.updatePaymentStatus(paymentId, PaymentStatus.PENDING_PAYMENT);
             }
             
-            ResponseEntity<PaymentResponse> cardValidationError = validateCardBinIfNeeded(paymentMethodRequest);
-            if (cardValidationError != null) {
-                return cardValidationError;
-            }
-
             // Crear y actualizar el método de pago
             PaymentMethod paymentMethod = paymentMethodService.createPaymentMethod(paymentMethodRequest);
             paymentService.updatePaymentMethod(paymentId, paymentMethod);
