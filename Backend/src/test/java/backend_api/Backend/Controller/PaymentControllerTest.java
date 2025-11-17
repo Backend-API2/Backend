@@ -82,6 +82,9 @@ class PaymentControllerTest {
     @Mock
     private EntityValidationService entityValidationService;
 
+    @Mock
+    private CardValidationService cardValidationService;
+
     @InjectMocks
     private PaymentController paymentController;
 
@@ -148,6 +151,8 @@ class PaymentControllerTest {
         // Setup ResponseMapperService mock
         lenient().when(responseMapperService.mapPaymentsToResponses(anyList(), anyString())).thenReturn(new ArrayList<>());
         lenient().when(responseMapperService.mapPaymentToResponse(any(Payment.class), anyString())).thenReturn(new PaymentResponse());
+
+        lenient().when(cardValidationService.isValidCardBin(anyString())).thenReturn(true);
     }
 
     // ========== CREATE PAYMENT TESTS ==========
@@ -393,6 +398,25 @@ class PaymentControllerTest {
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
         assertNull(response.getBody());
         verify(paymentMethodService, never()).createPaymentMethod(any());
+    }
+
+    @Test
+    void testSelectPaymentMethod_InvalidCardBin() {
+        Long paymentId = 1L;
+        SelectPaymentMethodRequest request = new SelectPaymentMethodRequest();
+        request.setPaymentMethodType("CREDIT_CARD");
+        request.setCardNumber("999123123123");
+
+        when(entityValidationService.getPaymentOrThrow(paymentId)).thenReturn(testPayment);
+        when(cardValidationService.isValidCardBin(request.getCardNumber())).thenReturn(false);
+
+        ResponseEntity<PaymentResponse> response = paymentController.selectPaymentMethod(paymentId, request);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertNull(response.getBody());
+        assertTrue(response.getHeaders().containsKey("Error-Message"));
+        verify(paymentMethodService, never()).createPaymentMethod(any());
+        verify(paymentService, never()).updatePaymentMethod(anyLong(), any());
     }
 
     // ========== CONFIRM PAYMENT TESTS ==========
@@ -835,6 +859,31 @@ class PaymentControllerTest {
         assertTrue(response.getHeaders().containsKey("Error-Message"));
         verify(balanceService).hasSufficientBalance(1L, BigDecimal.valueOf(115.00));
         verify(paymentService, never()).createPayment(any(Payment.class));
+    }
+
+    @Test
+    void testRetryPaymentByBalance_InvalidCardBin() {
+        Long paymentId = 1L;
+        String authHeader = "Bearer valid-token";
+        SelectPaymentMethodRequest request = new SelectPaymentMethodRequest();
+        request.setPaymentMethodType("DEBIT_CARD");
+        request.setCardNumber("999000111222");
+
+        testPayment.setStatus(PaymentStatus.REJECTED);
+        testPayment.setRetry_attempts(0);
+
+        when(authenticationService.getUserFromToken(authHeader)).thenReturn(testUser);
+        when(entityValidationService.getPaymentOrThrow(paymentId)).thenReturn(testPayment);
+        when(balanceService.canRetryPayment(paymentId)).thenReturn(true);
+        when(cardValidationService.isValidCardBin(request.getCardNumber())).thenReturn(false);
+
+        ResponseEntity<PaymentResponse> response = paymentController.retryPaymentByBalance(paymentId, authHeader, request);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertNull(response.getBody());
+        assertTrue(response.getHeaders().containsKey("Error-Message"));
+        verify(paymentMethodService, never()).createPaymentMethod(any());
+        verify(paymentService, never()).updatePaymentMethod(anyLong(), any());
     }
 
     // ========== GET PAYMENT BY ID TESTS ==========

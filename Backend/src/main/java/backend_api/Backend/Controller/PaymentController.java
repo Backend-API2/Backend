@@ -25,6 +25,7 @@ import backend_api.Backend.Entity.payment.PaymentEventType;
 import backend_api.Backend.Entity.payment.PaymentAttempt;
 import backend_api.Backend.Service.Interface.PaymentEventService;
 import backend_api.Backend.Service.Interface.PaymentAttemptService;
+import backend_api.Backend.Service.Interface.CardValidationService;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -80,6 +81,9 @@ public class PaymentController {
     
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private CardValidationService cardValidationService;
 
     //  CREAR NUEVO PAGO 
     @Operation(
@@ -199,6 +203,11 @@ public class PaymentController {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .header("Error-Message", "El pago no está en estado PENDING_PAYMENT o REJECTED")
                     .build();
+            }
+
+            ResponseEntity<PaymentResponse> cardValidationError = validateCardBinIfNeeded(request);
+            if (cardValidationError != null) {
+                return cardValidationError;
             }
             
             // Si está REJECTED, resetear el estado a PENDING_PAYMENT para permitir reintentar
@@ -518,6 +527,11 @@ public class PaymentController {
                 paymentService.updatePaymentStatus(paymentId, PaymentStatus.PENDING_PAYMENT);
             }
             
+            ResponseEntity<PaymentResponse> cardValidationError = validateCardBinIfNeeded(paymentMethodRequest);
+            if (cardValidationError != null) {
+                return cardValidationError;
+            }
+
             // Crear y actualizar el método de pago
             PaymentMethod paymentMethod = paymentMethodService.createPaymentMethod(paymentMethodRequest);
             paymentService.updatePaymentMethod(paymentId, paymentMethod);
@@ -608,6 +622,34 @@ public class PaymentController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
+    }
+
+    private ResponseEntity<PaymentResponse> validateCardBinIfNeeded(SelectPaymentMethodRequest request) {
+        if (request == null || request.getPaymentMethodType() == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .header("Error-Message", "El método de pago es obligatorio.")
+                .build();
+        }
+
+        PaymentMethodType type = PaymentMethodType.valueOf(request.getPaymentMethodType());
+        if (type != PaymentMethodType.CREDIT_CARD && type != PaymentMethodType.DEBIT_CARD) {
+            return null;
+        }
+
+        String cardNumber = request.getCardNumber();
+        if (cardNumber == null || cardNumber.trim().length() < 3) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .header("Error-Message", "Número de tarjeta inválido. Debe contener al menos 3 dígitos.")
+                .build();
+        }
+
+        if (!cardValidationService.isValidCardBin(cardNumber)) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .header("Error-Message", "Los primeros 3 dígitos de la tarjeta no coinciden con un banco habilitado.")
+                .build();
+        }
+
+        return null;
     }
 
     @GetMapping("/{paymentId}")
