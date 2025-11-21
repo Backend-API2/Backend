@@ -37,7 +37,7 @@ public class PaymentRequestProcessorService {
     public Map<String, Object> processPaymentRequest(PaymentRequestMessage message) {
         try {
             log.info("🔄 Procesando solicitud de pago de matching - MessageId: {}", message.getMessageId());
-            
+
             // Extraer datos del mensaje
             // Manejar tanto el formato viejo (payload.cuerpo) como el nuevo (payload.pago)
             String idCorrelacion;
@@ -51,7 +51,7 @@ public class PaymentRequestProcessorService {
             String metodoPreferido;
             String descripcion;
             String descripcionSolicitud;
-            
+
             if (message.getPayload().getPago() != null) {
                 // Nuevo formato: usar payload.pago
                 PaymentRequestMessage.Pago pago = message.getPayload().getPago();
@@ -83,16 +83,19 @@ public class PaymentRequestProcessorService {
             } else {
                 log.error("❌ No se pudo extraer datos del payload");
                 return Map.of(
-                    "success", false,
-                    "error", "Formato de payload no válido",
-                    "messageId", message.getMessageId()
-                );
+                        "success", false,
+                        "error", "Formato de payload no válido",
+                        "messageId", message.getMessageId());
             }
 
-            log.info("📋 Datos extraídos - Usuario: {}, Prestador: {}, Solicitud: {}, Monto: {} {}", 
-                idUsuario, idPrestador, idSolicitud, montoSubtotal, moneda);
-            log.info("📝 Descripción: {}, Descripción Solicitud: {}, Método Preferido: {}", 
-                descripcion, descripcionSolicitud, metodoPreferido);
+            // Extraer generatedAt del payload para usarlo como created_at
+            java.time.LocalDateTime createdAt = extractGeneratedAt(message);
+
+            log.info("📋 Datos extraídos - Usuario: {}, Prestador: {}, Solicitud: {}, Monto: {} {}",
+                    idUsuario, idPrestador, idSolicitud, montoSubtotal, moneda);
+            log.info("📝 Descripción: {}, Descripción Solicitud: {}, Método Preferido: {}",
+                    descripcion, descripcionSolicitud, metodoPreferido);
+            log.info("📅 Fecha generación (CORE): {}", createdAt);
 
             // Buscar datos del usuario (si existe)
             UserData userData = null;
@@ -112,7 +115,8 @@ public class PaymentRequestProcessorService {
                 Optional<ProviderData> providerDataOpt = providerDataRepository.findByProviderId(idPrestador);
                 if (providerDataOpt.isPresent()) {
                     providerData = providerDataOpt.get();
-                    log.info("✅ Prestador encontrado - Name: {}, Email: {}", providerData.getName(), providerData.getEmail());
+                    log.info("✅ Prestador encontrado - Name: {}, Email: {}", providerData.getName(),
+                            providerData.getEmail());
                 } else {
                     log.warn("⚠️ Prestador no encontrado en BD - ID: {}", idPrestador);
                 }
@@ -124,10 +128,11 @@ public class PaymentRequestProcessorService {
             // Verificar si ya existe un pago para esta solicitud (idempotencia)
             Payment existingPayment = findExistingPayment(idSolicitud, idCorrelacion);
             Payment savedPayment;
-            
+
             if (existingPayment != null) {
-                log.warn("⚠️ Pago duplicado detectado - Ya existe un pago con solicitud_id: {} o idCorrelacion: {}. Retornando pago existente (ID: {})", 
-                    idSolicitud, idCorrelacion, existingPayment.getId());
+                log.warn(
+                        "⚠️ Pago duplicado detectado - Ya existe un pago con solicitud_id: {} o idCorrelacion: {}. Retornando pago existente (ID: {})",
+                        idSolicitud, idCorrelacion, existingPayment.getId());
                 // Actualizar campos que podrían estar null en el pago existente
                 boolean needsUpdate = false;
                 if (existingPayment.getDescripcion() == null && descripcion != null) {
@@ -136,6 +141,14 @@ public class PaymentRequestProcessorService {
                 }
                 if (existingPayment.getDescripcionSolicitud() == null && descripcionSolicitud != null) {
                     existingPayment.setDescripcionSolicitud(descripcionSolicitud);
+                    needsUpdate = true;
+                }
+                // Corregir created_at si es diferente al generatedAt (pagos creados con código
+                // viejo)
+                if (existingPayment.getCreated_at() != null && !existingPayment.getCreated_at().equals(createdAt)) {
+                    log.info("🔄 Corrigiendo created_at del pago duplicado - Viejo: {}, Nuevo (CORE): {}",
+                            existingPayment.getCreated_at(), createdAt);
+                    existingPayment.setCreated_at(createdAt);
                     needsUpdate = true;
                 }
                 // Actualizar metadata si metodoPreferido está null
@@ -162,24 +175,26 @@ public class PaymentRequestProcessorService {
                 } else {
                     savedPayment = existingPayment;
                 }
-                // NO guardar evento duplicado - el evento ya se guardó cuando se creó el pago originalmente
+                // NO guardar evento duplicado - el evento ya se guardó cuando se creó el pago
+                // originalmente
             } else {
-                // DOUBLE-CHECK: Verificar nuevamente justo antes de crear (para evitar condición de carrera)
+                // DOUBLE-CHECK: Verificar nuevamente justo antes de crear (para evitar
+                // condición de carrera)
                 // Esto previene que dos requests simultáneos creen pagos duplicados
                 Payment doubleCheckPayment = findExistingPayment(idSolicitud, idCorrelacion);
                 if (doubleCheckPayment != null) {
-                    log.warn("⚠️ Pago duplicado detectado en double-check - Ya existe un pago con solicitud_id: {} o idCorrelacion: {}. Retornando pago existente (ID: {})", 
-                        idSolicitud, idCorrelacion, doubleCheckPayment.getId());
+                    log.warn(
+                            "⚠️ Pago duplicado detectado en double-check - Ya existe un pago con solicitud_id: {} o idCorrelacion: {}. Retornando pago existente (ID: {})",
+                            idSolicitud, idCorrelacion, doubleCheckPayment.getId());
                     savedPayment = doubleCheckPayment;
                     existingPayment = doubleCheckPayment; // Marcar como duplicado para no enviar evento
                 } else {
                     // Crear pago (aquí integrarías con tu lógica de creación de pagos)
                     savedPayment = createPayment(
-                        idCorrelacion, idUsuario, idPrestador, idSolicitud,
-                        montoSubtotal, impuestos, comisiones, montoTotal, moneda, metodoPreferido,
-                        descripcion, descripcionSolicitud,
-                        userData, providerData
-                    );
+                            idCorrelacion, idUsuario, idPrestador, idSolicitud,
+                            montoSubtotal, impuestos, comisiones, montoTotal, moneda, metodoPreferido,
+                            descripcion, descripcionSolicitud,
+                            userData, providerData, createdAt);
                 }
             }
 
@@ -204,7 +219,7 @@ public class PaymentRequestProcessorService {
                 responseMap.put("duplicate", false);
             }
             responseMap.put("messageId", message.getMessageId());
-            
+
             // Preparar paymentData
             Map<String, Object> paymentData = new java.util.HashMap<>();
             paymentData.put("idCorrelacion", idCorrelacion);
@@ -221,27 +236,25 @@ public class PaymentRequestProcessorService {
             paymentData.put("descripcionSolicitud", descripcionSolicitud);
             paymentData.put("paymentId", savedPayment.getId());
             paymentData.put("status", savedPayment.getStatus());
-            
+
             responseMap.put("paymentData", paymentData);
-            
+
             // Agregar datos de usuario si existen
             if (userData != null) {
                 responseMap.put("userData", Map.of(
-                    "userId", userData.getUserId(),
-                    "name", userData.getName(),
-                    "email", userData.getEmail()
-                ));
+                        "userId", userData.getUserId(),
+                        "name", userData.getName(),
+                        "email", userData.getEmail()));
             } else {
                 responseMap.put("userData", null);
             }
-            
+
             // Agregar datos de prestador si existen
             if (providerData != null) {
                 responseMap.put("providerData", Map.of(
-                    "providerId", providerData.getProviderId(),
-                    "name", providerData.getName(),
-                    "email", providerData.getEmail()
-                ));
+                        "providerId", providerData.getProviderId(),
+                        "name", providerData.getName(),
+                        "email", providerData.getEmail()));
             } else {
                 responseMap.put("providerData", null);
             }
@@ -249,57 +262,60 @@ public class PaymentRequestProcessorService {
             return responseMap;
 
         } catch (Exception e) {
-            log.error("❌ Error procesando solicitud de pago - MessageId: {}, Error: {}", 
-                message.getMessageId(), e.getMessage(), e);
+            log.error("❌ Error procesando solicitud de pago - MessageId: {}, Error: {}",
+                    message.getMessageId(), e.getMessage(), e);
             return Map.of(
-                "success", false,
-                "error", "Error procesando solicitud: " + e.getMessage(),
-                "messageId", message.getMessageId()
-            );
+                    "success", false,
+                    "error", "Error procesando solicitud: " + e.getMessage(),
+                    "messageId", message.getMessageId());
         }
     }
 
     /**
-     * Busca un pago existente basado en solicitud_id o idCorrelacion para prevenir duplicados
-     * IMPORTANTE: Este método debe ser llamado ANTES de crear un pago para verificar idempotencia
+     * Busca un pago existente basado en solicitud_id o idCorrelacion para prevenir
+     * duplicados
+     * IMPORTANTE: Este método debe ser llamado ANTES de crear un pago para
+     * verificar idempotencia
      */
     private Payment findExistingPayment(Long solicitudId, String idCorrelacion) {
         log.debug("🔍 Buscando pago existente - SolicitudId: {}, IdCorrelacion: {}", solicitudId, idCorrelacion);
-        
+
         // Primero buscar por solicitud_id (más rápido y directo)
         if (solicitudId != null) {
             java.util.List<Payment> paymentsBySolicitud = paymentService.getPaymentsBySolicitudId(solicitudId);
             if (!paymentsBySolicitud.isEmpty()) {
                 Payment found = paymentsBySolicitud.get(0);
-                log.info("🔍 ✅ Pago existente encontrado por solicitud_id: {} - PaymentId: {}, Status: {}", 
-                    solicitudId, found.getId(), found.getStatus());
+                log.info("🔍 ✅ Pago existente encontrado por solicitud_id: {} - PaymentId: {}, Status: {}",
+                        solicitudId, found.getId(), found.getStatus());
                 return found;
             } else {
                 log.debug("🔍 ❌ No se encontró pago por solicitud_id: {}", solicitudId);
             }
         }
-        
+
         // Si no se encontró por solicitud_id, buscar por idCorrelacion en metadata
         if (idCorrelacion != null && !idCorrelacion.isEmpty()) {
             try {
                 // Buscar en todos los pagos recientes (últimos 1000) que tengan metadata
-                // Nota: Esta es una búsqueda menos eficiente, pero necesaria para idempotencia completa
+                // Nota: Esta es una búsqueda menos eficiente, pero necesaria para idempotencia
+                // completa
                 log.debug("🔍 Buscando pago por idCorrelacion en metadata: {}", idCorrelacion);
                 java.util.List<Payment> recentPayments = paymentService.getAllPayments(0, 1000);
-                log.debug("🔍 Revisando {} pagos recientes para buscar idCorrelacion: {}", recentPayments.size(), idCorrelacion);
-                
+                log.debug("🔍 Revisando {} pagos recientes para buscar idCorrelacion: {}", recentPayments.size(),
+                        idCorrelacion);
+
                 for (Payment payment : recentPayments) {
                     if (payment.getMetadata() != null && !payment.getMetadata().isEmpty()) {
                         try {
                             @SuppressWarnings("unchecked")
                             Map<String, Object> metadata = objectMapper.readValue(
-                                payment.getMetadata(), 
-                                Map.class
-                            );
+                                    payment.getMetadata(),
+                                    Map.class);
                             String existingIdCorrelacion = (String) metadata.get("idCorrelacion");
                             if (idCorrelacion.equals(existingIdCorrelacion)) {
-                                log.info("🔍 ✅ Pago existente encontrado por idCorrelacion: {} - PaymentId: {}, SolicitudId: {}, Status: {}", 
-                                    idCorrelacion, payment.getId(), payment.getSolicitud_id(), payment.getStatus());
+                                log.info(
+                                        "🔍 ✅ Pago existente encontrado por idCorrelacion: {} - PaymentId: {}, SolicitudId: {}, Status: {}",
+                                        idCorrelacion, payment.getId(), payment.getSolicitud_id(), payment.getStatus());
                                 return payment;
                             }
                         } catch (Exception e) {
@@ -314,8 +330,9 @@ public class PaymentRequestProcessorService {
                 log.warn("⚠️ Error buscando pago por idCorrelacion: {}", e.getMessage(), e);
             }
         }
-        
-        log.debug("🔍 ❌ No se encontró pago existente - SolicitudId: {}, IdCorrelacion: {}", solicitudId, idCorrelacion);
+
+        log.debug("🔍 ❌ No se encontró pago existente - SolicitudId: {}, IdCorrelacion: {}", solicitudId,
+                idCorrelacion);
         return null;
     }
 
@@ -323,11 +340,11 @@ public class PaymentRequestProcessorService {
             String idCorrelacion, Long idUsuario, Long idPrestador, Long idSolicitud,
             BigDecimal montoSubtotal, BigDecimal impuestos, BigDecimal comisiones, BigDecimal montoTotal,
             String moneda, String metodoPreferido, String descripcion, String descripcionSolicitud,
-            UserData userData, ProviderData providerData) {
-        
-        log.info("💾 Creando pago en base de datos - Usuario: {}, Prestador: {}, Monto: {}", 
-            idUsuario, idPrestador, montoTotal);
-        
+            UserData userData, ProviderData providerData, java.time.LocalDateTime createdAt) {
+
+        log.info("💾 Creando pago en base de datos - Usuario: {}, Prestador: {}, Monto: {}",
+                idUsuario, idPrestador, montoTotal);
+
         // Crear entidad Payment
         Payment payment = new Payment();
         payment.setUser_id(idUsuario);
@@ -339,12 +356,13 @@ public class PaymentRequestProcessorService {
         payment.setFees(comisiones);
         payment.setCurrency(moneda);
         payment.setStatus(PaymentStatus.PENDING_PAYMENT);
-        payment.setCreated_at(java.time.LocalDateTime.now());
+        payment.setCreated_at(createdAt); // Usar fecha del CORE en lugar de now()
         payment.setUpdated_at(java.time.LocalDateTime.now());
         payment.setDescripcion(descripcion);
         payment.setDescripcionSolicitud(descripcionSolicitud);
-        
-        // Crear metadata (sin descripcion y descripcionSolicitud, ahora tienen columnas propias)
+
+        // Crear metadata (sin descripcion y descripcionSolicitud, ahora tienen columnas
+        // propias)
         Map<String, Object> metadata = new java.util.HashMap<>();
         metadata.put("idCorrelacion", idCorrelacion);
         metadata.put("metodoPreferido", metodoPreferido);
@@ -356,40 +374,41 @@ public class PaymentRequestProcessorService {
             metadata.put("providerName", providerData.getName());
             metadata.put("providerEmail", providerData.getEmail());
         }
-        
+
         try {
             payment.setMetadata(objectMapper.writeValueAsString(metadata));
         } catch (Exception e) {
             log.error("Error serializando metadata: {}", e.getMessage());
             payment.setMetadata("{}");
         }
-        
+
         // Guardar en base de datos
         Payment savedPayment = paymentService.createPayment(payment);
         if (savedPayment == null) {
             throw new RuntimeException("No se pudo guardar el pago en la base de datos");
         }
-        log.info("✅ Pago guardado exitosamente - ID: {}, Usuario: {}, Prestador: {}", 
-            savedPayment.getId(), savedPayment.getUser_id(), savedPayment.getProvider_id());
-        
-        // Registrar evento en el timeline (solo cuando se crea un pago nuevo, no duplicado)
+        log.info("✅ Pago guardado exitosamente - ID: {}, Usuario: {}, Prestador: {}",
+                savedPayment.getId(), savedPayment.getUser_id(), savedPayment.getProvider_id());
+
+        // Registrar evento en el timeline (solo cuando se crea un pago nuevo, no
+        // duplicado)
         // El evento se guarda aquí, no cuando el pago es duplicado
         try {
             paymentEventService.createEvent(
-                savedPayment.getId(),
-                PaymentEventType.PAYMENT_PENDING,
-                String.format("{\"amount_total\": %s, \"currency\": \"%s\", \"solicitud_id\": %s, \"source\": \"matching\", \"idCorrelacion\": \"%s\"}",
-                    savedPayment.getAmount_total(), savedPayment.getCurrency(), idSolicitud, idCorrelacion),
-                "system"
-            );
-            log.info("📝 Evento PAYMENT_PENDING registrado en timeline - PaymentId: {}, IdCorrelacion: {}", 
-                savedPayment.getId(), idCorrelacion);
+                    savedPayment.getId(),
+                    PaymentEventType.PAYMENT_PENDING,
+                    String.format(
+                            "{\"amount_total\": %s, \"currency\": \"%s\", \"solicitud_id\": %s, \"source\": \"matching\", \"idCorrelacion\": \"%s\"}",
+                            savedPayment.getAmount_total(), savedPayment.getCurrency(), idSolicitud, idCorrelacion),
+                    "system");
+            log.info("📝 Evento PAYMENT_PENDING registrado en timeline - PaymentId: {}, IdCorrelacion: {}",
+                    savedPayment.getId(), idCorrelacion);
         } catch (Exception e) {
-            log.error("⚠️ Error registrando evento en timeline - PaymentId: {}, Error: {}", 
-                savedPayment.getId(), e.getMessage());
+            log.error("⚠️ Error registrando evento en timeline - PaymentId: {}, Error: {}",
+                    savedPayment.getId(), e.getMessage());
             // No lanzar excepción para no interrumpir el flujo
         }
-        
+
         return savedPayment;
     }
 
@@ -398,7 +417,7 @@ public class PaymentRequestProcessorService {
             BigDecimal montoSubtotal, BigDecimal impuestos, BigDecimal comisiones, BigDecimal montoTotal,
             String moneda, String metodoPreferido, String descripcion, String descripcionSolicitud,
             Payment savedPayment, UserData userData, ProviderData providerData) {
-        
+
         Map<String, Object> paymentData = new java.util.HashMap<>();
         paymentData.put("paymentId", savedPayment.getId());
         paymentData.put("idCorrelacion", idCorrelacion);
@@ -415,7 +434,7 @@ public class PaymentRequestProcessorService {
         paymentData.put("descripcionSolicitud", descripcionSolicitud);
         paymentData.put("status", "PENDING");
         paymentData.put("createdAt", savedPayment.getCreated_at().toString());
-        
+
         // Agregar información del usuario si existe
         if (userData != null) {
             Map<String, Object> userInfo = new java.util.HashMap<>();
@@ -426,7 +445,7 @@ public class PaymentRequestProcessorService {
         } else {
             paymentData.put("userInfo", null);
         }
-        
+
         // Agregar información del prestador si existe
         if (providerData != null) {
             Map<String, Object> providerInfo = new java.util.HashMap<>();
@@ -437,14 +456,14 @@ public class PaymentRequestProcessorService {
         } else {
             paymentData.put("providerInfo", null);
         }
-        
+
         return paymentData;
     }
 
     private void sendPaymentCreatedEvent(Payment payment, Long solicitudId, String originalMessageId) {
         try {
-            log.info("📤 Enviando evento de pago creado al CORE - PaymentId: {}, SolicitudId: {}", 
-                payment.getId(), solicitudId);
+            log.info("📤 Enviando evento de pago creado al CORE - PaymentId: {}, SolicitudId: {}",
+                    payment.getId(), solicitudId);
 
             Map<String, Object> payload = new java.util.HashMap<>();
             payload.put("paymentId", payment.getId());
@@ -457,30 +476,56 @@ public class PaymentRequestProcessorService {
             payload.put("originalMessageId", originalMessageId);
 
             CoreResponseMessage confirmation = CoreResponseMessage.builder()
-                .messageId(UUID.randomUUID().toString())
-                .timestamp(Instant.now().toString())
-                .destination(CoreResponseMessage.Destination.builder()
-                    .topic("payment")
-                    .eventName("created")
-                    .build())
-                .payload(payload)
-                .build();
+                    .messageId(UUID.randomUUID().toString())
+                    .timestamp(Instant.now().toString())
+                    .destination(CoreResponseMessage.Destination.builder()
+                            .topic("payment")
+                            .eventName("created")
+                            .build())
+                    .payload(payload)
+                    .build();
 
             // Enviar al CORE y obtener la respuesta
             Map<String, Object> coreResponse = coreHubService.publishMessage(confirmation);
-            
+
             Boolean success = (Boolean) coreResponse.get("success");
             if (Boolean.TRUE.equals(success)) {
                 log.info("✅ Evento de pago creado enviado exitosamente al CORE - PaymentId: {}", payment.getId());
                 log.info("📋 Respuesta del CORE: {}", coreResponse.get("response"));
                 log.info("📊 Status Code: {}", coreResponse.get("statusCode"));
             } else {
-                log.error("❌ Error enviando evento al CORE - PaymentId: {}, Error: {}", 
-                    payment.getId(), coreResponse.get("error"));
+                log.error("❌ Error enviando evento al CORE - PaymentId: {}, Error: {}",
+                        payment.getId(), coreResponse.get("error"));
             }
         } catch (Exception e) {
-            log.error("❌ Error enviando evento de pago creado al CORE - PaymentId: {}, Error: {}", 
-                payment.getId(), e.getMessage(), e);
+            log.error("❌ Error enviando evento de pago creado al CORE - PaymentId: {}, Error: {}",
+                    payment.getId(), e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Extrae el campo generatedAt del payload del mensaje y lo convierte a
+     * LocalDateTime
+     * Si no está presente o falla el parseo, retorna la fecha actual como fallback
+     */
+    private java.time.LocalDateTime extractGeneratedAt(PaymentRequestMessage message) {
+        try {
+            String generatedAtStr = message.getPayload().getGeneratedAt();
+            if (generatedAtStr != null && !generatedAtStr.isEmpty()) {
+                // El formato es ISO 8601: "2025-10-24T23:55:44.896903Z"
+                java.time.Instant instant = java.time.Instant.parse(generatedAtStr);
+                java.time.LocalDateTime localDateTime = java.time.LocalDateTime.ofInstant(
+                        instant,
+                        java.time.ZoneId.systemDefault());
+                log.debug("✅ GeneratedAt extraído exitosamente: {} → {}", generatedAtStr, localDateTime);
+                return localDateTime;
+            } else {
+                log.warn("⚠️ GeneratedAt no está presente en el payload, usando fecha actual");
+                return java.time.LocalDateTime.now();
+            }
+        } catch (Exception e) {
+            log.warn("⚠️ Error parseando generatedAt: {}, usando fecha actual", e.getMessage());
+            return java.time.LocalDateTime.now();
         }
     }
 }
