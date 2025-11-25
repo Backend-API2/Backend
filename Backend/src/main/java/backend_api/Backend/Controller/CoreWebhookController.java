@@ -296,7 +296,7 @@ public class CoreWebhookController {
                         subscriptionId = "5fa84ed1-fa06-4683-9d21-9d9a4310a7f2";
                         break;
                     case "user_updated":
-                        subscriptionId = "861cebaf-4b7f-46f7-b00b-795576a94954";
+                        subscriptionId = "6edbf836-f0be-4887-8d4b-8bdd0c246f79";
                         break;
                     case "user_deactivated":
                         subscriptionId = "c1c5fe01-4734-4387-b35a-7838919ec798";
