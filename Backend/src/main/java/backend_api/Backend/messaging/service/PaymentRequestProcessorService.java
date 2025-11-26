@@ -126,13 +126,13 @@ public class PaymentRequestProcessorService {
             BigDecimal montoTotal = montoSubtotal.add(impuestos).add(comisiones);
 
             // Verificar si ya existe un pago para esta solicitud (idempotencia)
-            Payment existingPayment = findExistingPayment(idSolicitud, idCorrelacion);
+            Payment existingPayment = findExistingPayment(idSolicitud);
             Payment savedPayment;
 
             if (existingPayment != null) {
                 log.warn(
-                        "⚠️ Pago duplicado detectado - Ya existe un pago con solicitud_id: {} o idCorrelacion: {}. Retornando pago existente (ID: {})",
-                        idSolicitud, idCorrelacion, existingPayment.getId());
+                        "⚠️ Pago duplicado detectado - Ya existe un pago con solicitud_id: {}. Retornando pago existente (ID: {})",
+                        idSolicitud, existingPayment.getId());
                 // Actualizar campos que podrían estar null en el pago existente
                 boolean needsUpdate = false;
                 if (existingPayment.getDescripcion() == null && descripcion != null) {
@@ -181,11 +181,11 @@ public class PaymentRequestProcessorService {
                 // DOUBLE-CHECK: Verificar nuevamente justo antes de crear (para evitar
                 // condición de carrera)
                 // Esto previene que dos requests simultáneos creen pagos duplicados
-                Payment doubleCheckPayment = findExistingPayment(idSolicitud, idCorrelacion);
+                Payment doubleCheckPayment = findExistingPayment(idSolicitud);
                 if (doubleCheckPayment != null) {
                     log.warn(
-                            "⚠️ Pago duplicado detectado en double-check - Ya existe un pago con solicitud_id: {} o idCorrelacion: {}. Retornando pago existente (ID: {})",
-                            idSolicitud, idCorrelacion, doubleCheckPayment.getId());
+                            "⚠️ Pago duplicado detectado en double-check - Ya existe un pago con solicitud_id: {}. Retornando pago existente (ID: {})",
+                            idSolicitud, doubleCheckPayment.getId());
                     savedPayment = doubleCheckPayment;
                     existingPayment = doubleCheckPayment; // Marcar como duplicado para no enviar evento
                 } else {
@@ -272,15 +272,14 @@ public class PaymentRequestProcessorService {
     }
 
     /**
-     * Busca un pago existente basado en solicitud_id o idCorrelacion para prevenir
-     * duplicados
+     * Busca un pago existente basado en solicitud_id para prevenir duplicados
      * IMPORTANTE: Este método debe ser llamado ANTES de crear un pago para
      * verificar idempotencia
      */
-    private Payment findExistingPayment(Long solicitudId, String idCorrelacion) {
-        log.debug("🔍 Buscando pago existente - SolicitudId: {}, IdCorrelacion: {}", solicitudId, idCorrelacion);
+    private Payment findExistingPayment(Long solicitudId) {
+        log.debug("🔍 Buscando pago existente - SolicitudId: {}", solicitudId);
 
-        // Primero buscar por solicitud_id (más rápido y directo)
+        // Buscar por solicitud_id
         if (solicitudId != null) {
             java.util.List<Payment> paymentsBySolicitud = paymentService.getPaymentsBySolicitudId(solicitudId);
             if (!paymentsBySolicitud.isEmpty()) {
@@ -293,46 +292,7 @@ public class PaymentRequestProcessorService {
             }
         }
 
-        // Si no se encontró por solicitud_id, buscar por idCorrelacion en metadata
-        if (idCorrelacion != null && !idCorrelacion.isEmpty()) {
-            try {
-                // Buscar en todos los pagos recientes (últimos 1000) que tengan metadata
-                // Nota: Esta es una búsqueda menos eficiente, pero necesaria para idempotencia
-                // completa
-                log.debug("🔍 Buscando pago por idCorrelacion en metadata: {}", idCorrelacion);
-                java.util.List<Payment> recentPayments = paymentService.getAllPayments(0, 1000);
-                log.debug("🔍 Revisando {} pagos recientes para buscar idCorrelacion: {}", recentPayments.size(),
-                        idCorrelacion);
-
-                for (Payment payment : recentPayments) {
-                    if (payment.getMetadata() != null && !payment.getMetadata().isEmpty()) {
-                        try {
-                            @SuppressWarnings("unchecked")
-                            Map<String, Object> metadata = objectMapper.readValue(
-                                    payment.getMetadata(),
-                                    Map.class);
-                            String existingIdCorrelacion = (String) metadata.get("idCorrelacion");
-                            if (idCorrelacion.equals(existingIdCorrelacion)) {
-                                log.info(
-                                        "🔍 ✅ Pago existente encontrado por idCorrelacion: {} - PaymentId: {}, SolicitudId: {}, Status: {}",
-                                        idCorrelacion, payment.getId(), payment.getSolicitud_id(), payment.getStatus());
-                                return payment;
-                            }
-                        } catch (Exception e) {
-                            // Ignorar errores al parsear metadata de otros pagos
-                            log.debug("⚠️ Error parseando metadata del pago {}: {}", payment.getId(), e.getMessage());
-                            continue;
-                        }
-                    }
-                }
-                log.debug("🔍 ❌ No se encontró pago por idCorrelacion: {}", idCorrelacion);
-            } catch (Exception e) {
-                log.warn("⚠️ Error buscando pago por idCorrelacion: {}", e.getMessage(), e);
-            }
-        }
-
-        log.debug("🔍 ❌ No se encontró pago existente - SolicitudId: {}, IdCorrelacion: {}", solicitudId,
-                idCorrelacion);
+        log.debug("🔍 ❌ No se encontró pago existente - SolicitudId: {}", solicitudId);
         return null;
     }
 
