@@ -98,15 +98,10 @@ public class CoreWebhookController {
             log.info("📥 Payload completo: {}", message.getPayload());
             log.info("📥 Payload keys: {}", message.getPayload() != null ? message.getPayload().keySet() : "null");
 
-            // Intentar extraer subscriptionId
-            String subscriptionId = null;
-            if (rawMessage instanceof Map) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> map = (Map<String, Object>) rawMessage;
-                subscriptionId = extractSubscriptionIdFromRawMessage(map);
-            } else {
-                subscriptionId = extractSubscriptionId(message);
-            }
+            // SubscriptionId hardcodeado según el tipo de evento
+            // (No intentamos extraerlo del mensaje porque el CORE no lo envía
+            // consistentemente)
+            String subscriptionId = "ee8a59ff-f2f2-46b4-915b-e02a5fed03a8"; // Default: matching subscription
 
             String eventName = message.getDestination().getEventName();
 
@@ -171,14 +166,10 @@ public class CoreWebhookController {
             }
 
             // Enviar ACK al CORE si tenemos subscriptionId
-            if (subscriptionId != null) {
-                log.info("📤 Enviando ACK al CORE - MessageId: {}, SubscriptionId: {}",
-                        message.getMessageId(), subscriptionId);
-                coreHubService.sendAck(message.getMessageId(), subscriptionId);
-            } else {
-                log.warn("⚠️ No se envió ACK porque no se encontró subscriptionId - MessageId: {}",
-                        message.getMessageId());
-            }
+            // Enviar ACK al CORE con subscriptionId hardcodeado
+            log.info("📤 Enviando ACK al CORE - MessageId: {}, SubscriptionId: {}",
+                    message.getMessageId(), subscriptionId);
+            coreHubService.sendAck(message.getMessageId(), subscriptionId);
 
             return ResponseEntity.ok(Map.of(
                     "status", "processed",
@@ -262,9 +253,6 @@ public class CoreWebhookController {
                     message.getDestination() != null ? message.getDestination().getEventName() : "null",
                     message.getDestination() != null ? message.getDestination().getTopic() : "null");
 
-            // Intentar extraer subscriptionId del mensaje raw
-            String subscriptionId = extractSubscriptionIdFromRawMessage(rawMessage);
-
             String eventName = message.getDestination().getEventName();
 
             switch (eventName) {
@@ -288,29 +276,29 @@ public class CoreWebhookController {
                     log.warn("Evento de usuario no reconocido: {}", eventName);
             }
 
-            // WORKAROUND: Si no se encuentra subscriptionId en metadata (bug del CORE),
-            // usar el subscriptionId hardcodeado según el tipo de evento (PROD)
-            if (subscriptionId == null) {
-                switch (eventName) {
-                    case "user_created":
-                        subscriptionId = "5fa84ed1-fa06-4683-9d21-9d9a4310a7f2";
-                        break;
-                    case "user_updated":
-                        subscriptionId = "f69a41e2-2529-4f31-adf3-be6d3881a3fc";
-                        break;
-                    case "user_deactivated":
-                        subscriptionId = "c1c5fe01-4734-4387-b35a-7838919ec798";
-                        break;
-                    default:
-                        log.warn("⚠️ No hay subscriptionId hardcodeado para el evento: {}", eventName);
-                        break;
-                }
+            // SubscriptionId hardcodeado según el tipo de evento
+            // (No intentamos extraerlo del mensaje porque el CORE no lo envía
+            // consistentemente)
+            String subscriptionId;
+            switch (eventName) {
+                case "user_created":
+                    subscriptionId = "5fa84ed1-fa06-4683-9d21-9d9a4310a7f2";
+                    break;
+                case "user_updated":
+                    subscriptionId = "f69a41e2-2529-4f31-adf3-be6d3881a3fc";
+                    break;
+                case "user_deactivated":
+                    subscriptionId = "c1c5fe01-4734-4387-b35a-7838919ec798";
+                    break;
+                default:
+                    log.warn("⚠️ No hay subscriptionId hardcodeado para el evento: {}", eventName);
+                    subscriptionId = null;
+                    break;
+            }
 
-                if (subscriptionId != null) {
-                    log.info(
-                            "📌 SubscriptionId no encontrado en metadata. Usando subscriptionId hardcodeado para {} (PROD): {}",
-                            eventName, subscriptionId);
-                }
+            if (subscriptionId != null) {
+                log.info("📌 Usando subscriptionId hardcodeado para {} (PROD): {}",
+                        eventName, subscriptionId);
             }
 
             // Enviar ACK al CORE si tenemos subscriptionId
@@ -348,13 +336,17 @@ public class CoreWebhookController {
                     message.getDestination() != null ? message.getDestination().getEventName() : "null",
                     message.getDestination() != null ? message.getDestination().getChannel() : "null");
 
-            String subscriptionId = extractSubscriptionId(message);
-
             providerEventProcessorService.processProviderFromCore(message);
 
-            if (subscriptionId != null) {
-                coreHubService.sendAck(message.getMessageId(), subscriptionId);
-            }
+            // SubscriptionId hardcodeado para eventos de provider
+            // (No intentamos extraerlo del mensaje porque el CORE no lo envía
+            // consistentemente)
+            String eventName = message.getDestination() != null ? message.getDestination().getEventName() : "unknown";
+            String subscriptionId = "c1c5fe01-4734-4387-b35a-7838919ec798"; // Provider events subscription
+            log.info("📌 Usando subscriptionId hardcodeado para provider event {} (PROD): {}",
+                    eventName, subscriptionId);
+
+            coreHubService.sendAck(message.getMessageId(), subscriptionId);
 
             return ResponseEntity.ok(Map.of(
                     "status", "processed",
@@ -402,17 +394,11 @@ public class CoreWebhookController {
             // Procesar la solicitud de pago primero
             Map<String, Object> result = paymentRequestProcessorService.processPaymentRequest(message);
 
-            // Extraer subscriptionId del mensaje raw
-            String subscriptionId = extractSubscriptionIdFromRawMessage(rawMessage);
-
-            // WORKAROUND: Si no se encuentra subscriptionId en metadata (bug del CORE),
-            // usar el subscriptionId hardcodeado de la suscripción de matching (PROD)
-            if (subscriptionId == null) {
-                subscriptionId = "ee8a59ff-f2f2-46b4-915b-e02a5fed03a8";
-                log.info(
-                        "📌 SubscriptionId no encontrado en metadata. Usando subscriptionId hardcodeado para matching (PROD): {}",
-                        subscriptionId);
-            }
+            // SubscriptionId hardcodeado para matching payment requests
+            // (No intentamos extraerlo del mensaje porque el CORE no lo envía
+            // consistentemente)
+            String subscriptionId = "ee8a59ff-f2f2-46b4-915b-e02a5fed03a8";
+            log.info("📌 Usando subscriptionId hardcodeado para matching (PROD): {}", subscriptionId);
 
             // Enviar ACK solo si el procesamiento fue exitoso
             Boolean success = (Boolean) result.get("success");
@@ -606,64 +592,6 @@ public class CoreWebhookController {
         return ResponseEntity.ok(Map.of(
                 "status", "UP",
                 "service", "CORE Webhook Receiver"));
-    }
-
-    private String extractSubscriptionId(CoreEventMessage message) {
-        try {
-            // Primero intentar extraer del payload
-            Map<String, Object> payload = message.getPayload();
-            if (payload != null && payload.containsKey("subscriptionId")) {
-                String subId = payload.get("subscriptionId").toString();
-                log.info("✅ SubscriptionId encontrado en payload: {}", subId);
-                return subId;
-            }
-            log.warn("⚠️ SubscriptionId NO encontrado en payload. Payload keys: {}",
-                    payload != null ? payload.keySet() : "null");
-        } catch (Exception e) {
-            log.warn("❌ Error extrayendo subscriptionId del payload: {}", e.getMessage());
-        }
-        return null;
-    }
-
-    private String extractSubscriptionIdFromRawMessage(Map<String, Object> rawMessage) {
-        try {
-            // Buscar en el nivel raíz del mensaje
-            if (rawMessage != null && rawMessage.containsKey("subscriptionId")) {
-                String subId = rawMessage.get("subscriptionId").toString();
-                log.info("✅ SubscriptionId encontrado en mensaje raíz: {}", subId);
-                return subId;
-            }
-
-            // Buscar en metadata
-            Object metadataObj = rawMessage.get("metadata");
-            if (metadataObj instanceof Map) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> metadata = (Map<String, Object>) metadataObj;
-                if (metadata.containsKey("subscriptionId")) {
-                    String subId = metadata.get("subscriptionId").toString();
-                    log.info("✅ SubscriptionId encontrado en metadata: {}", subId);
-                    return subId;
-                }
-            }
-
-            // Buscar en el payload
-            Object payloadObj = rawMessage.get("payload");
-            if (payloadObj instanceof Map) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> payload = (Map<String, Object>) payloadObj;
-                if (payload.containsKey("subscriptionId")) {
-                    String subId = payload.get("subscriptionId").toString();
-                    log.info("✅ SubscriptionId encontrado en payload: {}", subId);
-                    return subId;
-                }
-            }
-
-            log.warn("⚠️ SubscriptionId NO encontrado. Mensaje keys: {}",
-                    rawMessage != null ? rawMessage.keySet() : "null");
-        } catch (Exception e) {
-            log.warn("❌ Error extrayendo subscriptionId: {}", e.getMessage());
-        }
-        return null;
     }
 
     /**
