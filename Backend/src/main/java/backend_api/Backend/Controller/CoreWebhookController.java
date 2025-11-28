@@ -282,10 +282,10 @@ public class CoreWebhookController {
             String subscriptionId;
             switch (eventName) {
                 case "user_created":
-                    subscriptionId = "5fa84ed1-fa06-4683-9d21-9d9a4310a7f2";
+                    subscriptionId = "c3591379-73da-4fe3-9882-ff091166479c";
                     break;
                 case "user_updated":
-                    subscriptionId = "f69a41e2-2529-4f31-adf3-be6d3881a3fc";
+                    subscriptionId = "b2115d48-c9f0-4f58-978e-abf1dcdf4779";
                     break;
                 case "user_deactivated":
                     subscriptionId = "c1c5fe01-4734-4387-b35a-7838919ec798";
