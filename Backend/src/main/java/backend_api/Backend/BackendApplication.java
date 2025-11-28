@@ -10,6 +10,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 public class BackendApplication {
 
 	public static void main(String[] args) {
+		// Establecer la zona horaria por defecto de la aplicación
+		java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("America/Argentina/Buenos_Aires"));
 		SpringApplication.run(BackendApplication.class, args);
 	}
 
