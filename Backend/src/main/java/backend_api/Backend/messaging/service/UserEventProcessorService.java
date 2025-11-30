@@ -76,17 +76,47 @@ public class UserEventProcessorService {
                     java.util.List<Map<String,Object>> addresses = (java.util.List<Map<String,Object>>) addr;
                     pd.put("address", addresses);
                 }
+                
+                // 🔧 FIX: Transformar zones de objetos a strings si es necesario
                 Object zones = payload.get("zones");
                 if (zones instanceof java.util.List) {
                     @SuppressWarnings("unchecked")
-                    java.util.List<String> z = (java.util.List<String>) zones;
-                    pd.put("zones", z);
+                    java.util.List<?> zonesList = (java.util.List<?>) zones;
+                    if (!zonesList.isEmpty() && zonesList.get(0) instanceof Map) {
+                        // Son objetos {id, nombre}, transformar a List<String>
+                        @SuppressWarnings("unchecked")
+                        java.util.List<String> zonesStrings = ((java.util.List<Map<String, Object>>) zonesList).stream()
+                                .map(z -> z.get("nombre") != null ? z.get("nombre").toString() : null)
+                                .filter(z -> z != null)
+                                .collect(java.util.stream.Collectors.toList());
+                        pd.put("zones", zonesStrings);
+                        log.info("✅ Zones transformadas de objetos a strings en user_created: {} -> {}", 
+                                zonesList.size(), zonesStrings);
+                    } else {
+                        // Ya son strings, usar directamente
+                        pd.put("zones", zonesList);
+                    }
                 }
+                
+                // 🔧 FIX: Transformar skills de objetos a strings si es necesario
                 Object skills = payload.get("skills");
                 if (skills instanceof java.util.List) {
                     @SuppressWarnings("unchecked")
-                    java.util.List<String> s = (java.util.List<String>) skills;
-                    pd.put("skills", s);
+                    java.util.List<?> skillsList = (java.util.List<?>) skills;
+                    if (!skillsList.isEmpty() && skillsList.get(0) instanceof Map) {
+                        // Son objetos {id, nombre, ...}, transformar a List<String>
+                        @SuppressWarnings("unchecked")
+                        java.util.List<String> skillsStrings = ((java.util.List<Map<String, Object>>) skillsList).stream()
+                                .map(s -> s.get("nombre") != null ? s.get("nombre").toString() : null)
+                                .filter(s -> s != null)
+                                .collect(java.util.stream.Collectors.toList());
+                        pd.put("skills", skillsStrings);
+                        log.info("✅ Skills transformadas de objetos a strings en user_created: {} -> {}", 
+                                skillsList.size(), skillsStrings);
+                    } else {
+                        // Ya son strings, usar directamente
+                        pd.put("skills", skillsList);
+                    }
                 }
 
                 // secondaryId para provider: uso el DNI
@@ -158,6 +188,46 @@ public class UserEventProcessorService {
             Long userId = extractLong(payload, "userId");
             if (userId == null) {
                 throw new IllegalArgumentException("userId no encontrado en el payload");
+            }
+
+            // 🔧 FIX: Transformar zones de objetos a strings ANTES de mapear
+            if (payload.containsKey("zones")) {
+                Object zonesObj = payload.get("zones");
+                if (zonesObj instanceof List) {
+                    @SuppressWarnings("unchecked")
+                    List<?> zonesList = (List<?>) zonesObj;
+                    if (!zonesList.isEmpty() && zonesList.get(0) instanceof Map) {
+                        // Son objetos {id, nombre}, transformar a List<String>
+                        @SuppressWarnings("unchecked")
+                        List<String> zonesStrings = ((List<Map<String, Object>>) zonesList).stream()
+                                .map(z -> z.get("nombre") != null ? z.get("nombre").toString() : null)
+                                .filter(z -> z != null)
+                                .collect(java.util.stream.Collectors.toList());
+                        payload.put("zones", zonesStrings);
+                        log.info("✅ Zones transformadas de objetos a strings: {} -> {}", 
+                                zonesList.size(), zonesStrings);
+                    }
+                }
+            }
+
+            // 🔧 FIX: Transformar skills de objetos a strings ANTES de mapear
+            if (payload.containsKey("skills")) {
+                Object skillsObj = payload.get("skills");
+                if (skillsObj instanceof List) {
+                    @SuppressWarnings("unchecked")
+                    List<?> skillsList = (List<?>) skillsObj;
+                    if (!skillsList.isEmpty() && skillsList.get(0) instanceof Map) {
+                        // Son objetos {id, nombre, ...}, transformar a List<String>
+                        @SuppressWarnings("unchecked")
+                        List<String> skillsStrings = ((List<Map<String, Object>>) skillsList).stream()
+                                .map(s -> s.get("nombre") != null ? s.get("nombre").toString() : null)
+                                .filter(s -> s != null)
+                                .collect(java.util.stream.Collectors.toList());
+                        payload.put("skills", skillsStrings);
+                        log.info("✅ Skills transformadas de objetos a strings: {} -> {}", 
+                                skillsList.size(), skillsStrings);
+                    }
+                }
             }
 
             UserUpdatedMessage userUpdated = objectMapper.convertValue(payload, UserUpdatedMessage.class);
